@@ -224,7 +224,7 @@ http://localhost:5000
 
 ---
 # 🗄️ Cài đặt MySQL
-bạn Quốc Thắng sẽ lo tiếp phần này
+Dùng MySQL workbench ( dễ nhất ). Vào project file init.sql copy lệnh tạo database (server/src/init.sql)
 ---
 
 # 🛠 Quy trình làm việc nhóm (Git Workflow)
