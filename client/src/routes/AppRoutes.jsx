@@ -1,7 +1,9 @@
+import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
 // layouts
-import UserLayout from "../layouts/UserLayout";
-import AdminLayout from "../layouts/AdminLayout";
+import UserLayout from "../layouts/user/UserLayout";
+import { Layout as AdminLayout } from "../layouts/admin/Layout"; 
 
 // auth pages
 import LoginPage from "../pages/auth/LoginPage";
@@ -15,10 +17,11 @@ import BooksPage from "../pages/book/BooksPage";
 import BookDetail from "../components/BookDetail";
 
 // admin pages
-import AdminPage from "../pages/admin/AdminPage";
-import BookManagement from "../pages/admin/BookManagement";
+import Dashboard from "../pages/admin/Dashboard";
+import BookInventory from "../pages/admin/BookInventory";
 import UserManagement from "../pages/admin/UserManagement";
-import CirculationManagement from "../pages/admin/CirculationManagement";
+import BorrowingReturns from "../pages/admin/BorrowingReturns";
+import Reports from "../pages/admin/Reports";
 
 function AppRoutes() {
   return (
@@ -35,12 +38,13 @@ function AppRoutes() {
           <Route path="/book/:id" element={<BookDetail />} />
         </Route>
 
-        {/* --- PRIVATE ROUTES (With AdminLayout) --- */}
+        {/* --- PRIVATE ROUTES (With AdminLayout mới) --- */}
         <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/admin/books" element={<BookManagement />} />
+          <Route path="/admin" element={<Dashboard />} />
+          <Route path="/admin/books" element={<BookInventory />} />
           <Route path="/admin/users" element={<UserManagement />} />
-          <Route path="/admin/circulation" element={<CirculationManagement />} />
+          <Route path="/admin/borrowing" element={<BorrowingReturns />} />
+          <Route path="/admin/reports" element={<Reports />} />
         </Route>
       </Routes>
     </BrowserRouter>
