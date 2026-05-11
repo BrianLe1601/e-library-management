@@ -94,17 +94,33 @@ src/
 # 📂 Cấu trúc Backend (`server/src`)
 
 ```bash
-src/
-│
-├── config/                 # Cấu hình database, môi trường, JWT...
-│
-├── controllers/            # Xử lý logic backend
-│
-├── models/                 # Làm việc với database
-│
-├── routes/                 # Định nghĩa API routes
-│
-└── index.js                # File khởi chạy Express server
+server/src/
+├── config/
+│   └── db.js                 ← Pool MySQL dùng chung
+├── middlewares/
+│   ├── authMiddleware.js      ← authenticate + authorize('admin','employee'...)
+│   ├── validateMiddleware.js  ← Bắt lỗi express-validator
+│   └── errorMiddleware.js     ← 404 + global error handler
+├── utils/
+│   ├── response.js            ← success() / error() / paginated()
+│   ├── jwt.js                 ← signToken()
+│   └── mailer.js              ← sendMail() (TV3 dùng)
+├── models/     ← CHỈ có SQL, không có logic
+│   ├── userModel.js           ← TV1
+│   ├── bookModel.js           ← TV2
+│   ├── borrowModel.js         ← TV3
+│   └── reportModel.js         ← TV4
+├── controllers/← Nhận req → gọi model → gọi response helper
+│   ├── authController.js      ← TV1
+│   ├── bookController.js      ← TV2
+│   ├── borrowController.js    ← TV3
+│   └── adminController.js     ← TV4
+├── routes/     ← Khai báo endpoint + gắn middleware
+│   ├── authRoutes.js          ← TV1
+│   ├── bookRoutes.js          ← TV2
+│   ├── borrowRoutes.js        ← TV3
+│   └── adminRoutes.js         ← TV4
+└── index.js                   ← Mount tất cả routes
 ```
 
 ---
