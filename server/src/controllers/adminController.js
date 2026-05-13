@@ -1,244 +1,127 @@
+'use strict';
 /**
- * adminController.js — Xử lý logic cho các API admin
- * File: server/src/controllers/adminController.js
+ * ╔══════════════════════════════════════════════════════╗
+ * ║  THÀNH VIÊN 4 — Admin Dashboard & Reports           ║
+ * ║  Controller: adminController.js                     ║
+ * ╚══════════════════════════════════════════════════════╝
  *
- * NGUYÊN TẮC:
- *  - Controller KHÔNG tự viết SQL, chỉ gọi model
- *  - Validate input, xử lý lỗi, trả về JSON chuẩn
- *  - Dùng try/catch cho mọi hàm async
+ * Endpoints:
+ *   GET    /api/admin/stats
+ *   GET    /api/admin/reports
+ *   GET    /api/admin/reports/top-books
+ *   GET    /api/admin/reports/export
+ *   GET    /api/admin/users
+ *   PATCH  /api/admin/users/:id/status
+ *   DELETE /api/admin/users/:id
+ *   GET    /api/admin/borrows          (từ TV3)
+ *   GET    /api/admin/borrows/overdue  (từ TV3)
+ *   PUT    /api/admin/borrows/approve/:id
+ *   PUT    /api/admin/borrows/reject/:id
  */
 
-const reportModel = require("../models/reportModel");
+const reportModel  = require('../models/reportModel');
+const borrowCtrl   = require('./borrowController');
+const { success, error, paginated } = require('../utils/response');
 
-const adminController = {
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/stats
-  // ─────────────────────────────────────────────────────────
-  async getStats(req, res) {
-    try {
-      const stats = await reportModel.getOverallStats();
-      res.json(stats);
-    } catch (error) {
-      console.error("getStats error:", error);
-      res.status(500).json({ message: "Lỗi server khi lấy thống kê" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/reports/borrow-chart?year=2025
-  // ─────────────────────────────────────────────────────────
-  async getBorrowChartData(req, res) {
-    try {
-      const year = parseInt(req.query.year) || new Date().getFullYear();
-      const data = await reportModel.getBorrowChartData(year);
-      res.json(data);
-    } catch (error) {
-      console.error("getBorrowChartData error:", error);
-      res.status(500).json({ message: "Lỗi server khi lấy dữ liệu chart" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/reports/category-chart
-  // ─────────────────────────────────────────────────────────
-  async getCategoryChartData(req, res) {
-    try {
-      const data = await reportModel.getCategoryChartData();
-      res.json(data);
-    } catch (error) {
-      console.error("getCategoryChartData error:", error);
-      res.status(500).json({ message: "Lỗi server khi lấy phân bố thể loại" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/reports?from=&to=&type=
-  // ─────────────────────────────────────────────────────────
-  async getReports(req, res) {
-    try {
-      const { from, to, type = "borrows" } = req.query;
-
-      // Validate: phải có from và to
-      if (!from || !to) {
-        return res.status(400).json({ message: "Thiếu tham số from hoặc to" });
-      }
-
-      // Validate định dạng ngày YYYY-MM-DD
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(from) || !dateRegex.test(to)) {
-        return res.status(400).json({ message: "Định dạng ngày phải là YYYY-MM-DD" });
-      }
-
-      if (new Date(from) > new Date(to)) {
-        return res.status(400).json({ message: "Ngày bắt đầu phải trước ngày kết thúc" });
-      }
-
-      const validTypes = ["borrows", "returned", "overdue"];
-      if (!validTypes.includes(type)) {
-        return res.status(400).json({ message: "type phải là: borrows | returned | overdue" });
-      }
-
-      const data = await reportModel.getReportByDateRange(from, to, type);
-      res.json(data);
-    } catch (error) {
-      console.error("getReports error:", error);
-      res.status(500).json({ message: "Lỗi server khi lấy báo cáo" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/reports/top-books?limit=10
-  // ─────────────────────────────────────────────────────────
-  async getTopBooks(req, res) {
-    try {
-      const limit = Math.min(parseInt(req.query.limit) || 10, 50); // Tối đa 50
-      const data = await reportModel.getTopBooks(limit);
-      res.json(data);
-    } catch (error) {
-      console.error("getTopBooks error:", error);
-      res.status(500).json({ message: "Lỗi server khi lấy top sách" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/reports/export?format=pdf&from=&to=
-  //  (Tính năng nâng cao — làm sau)
-  // ─────────────────────────────────────────────────────────
-  async exportReport(req, res) {
-    try {
-      const { format = "pdf", from, to, type = "borrows" } = req.query;
-
-      if (!from || !to) {
-        return res.status(400).json({ message: "Thiếu tham số from hoặc to" });
-      }
-
-      const data = await reportModel.getReportByDateRange(from, to, type);
-
-      if (format === "excel") {
-        // ── Excel export bằng exceljs ──────────────────────
-        const ExcelJS = require("exceljs");
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet("Báo cáo mượn sách");
-
-        // Header
-        sheet.columns = [
-          { header: "Người mượn",  key: "user_name",    width: 20 },
-          { header: "Email",        key: "user_email",   width: 25 },
-          { header: "Tên sách",     key: "book_title",   width: 30 },
-          { header: "Ngày mượn",    key: "borrow_date",  width: 15 },
-          { header: "Hạn trả",      key: "due_date",     width: 15 },
-          { header: "Ngày trả",     key: "return_date",  width: 15 },
-          { header: "Trạng thái",   key: "status",       width: 12 },
-          { header: "Tiền phạt",    key: "fine",         width: 12 },
-        ];
-
-        // Style header row
-        sheet.getRow(1).eachCell((cell) => {
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
-          cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-          cell.alignment = { horizontal: "center" };
-        });
-
-        // Data
-        data.forEach(row => sheet.addRow(row));
-
-        // Xuất file
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", `attachment; filename="report_${from}_${to}.xlsx"`);
-        await workbook.xlsx.write(res);
-        return res.end();
-
-      } else {
-        // ── PDF export bằng pdfkit ─────────────────────────
-        const PDFDocument = require("pdfkit");
-        const doc = new PDFDocument({ margin: 40 });
-
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="report_${from}_${to}.pdf"`);
-        doc.pipe(res);
-
-        // Tiêu đề
-        doc.fontSize(18).text("BÁO CÁO MƯỢN SÁCH", { align: "center" });
-        doc.fontSize(11).text(`Từ ${from} đến ${to}`, { align: "center" });
-        doc.moveDown();
-
-        // Bảng đơn giản
-        data.forEach((row, i) => {
-          doc.fontSize(10).text(
-            `${i + 1}. ${row.user_name} | ${row.book_title} | ${row.status} | ${row.fine} VNĐ`
-          );
-        });
-
-        doc.end();
-      }
-
-    } catch (error) {
-      console.error("exportReport error:", error);
-      res.status(500).json({ message: "Lỗi khi xuất báo cáo" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  GET /api/admin/users
-  // ─────────────────────────────────────────────────────────
-  async getUsers(req, res) {
-    try {
-      const { page = 1, limit = 10, role, search } = req.query;
-      const result = await reportModel.getUsers({ page, limit, role, search });
-      res.json(result);
-    } catch (error) {
-      console.error("getUsers error:", error);
-      res.status(500).json({ message: "Lỗi server khi lấy danh sách user" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  PATCH /api/admin/users/:id/status
-  // ─────────────────────────────────────────────────────────
-  async toggleUserStatus(req, res) {
-    try {
-      const userId = parseInt(req.params.id);
-      const { is_active } = req.body;
-
-      if (typeof is_active !== "boolean") {
-        return res.status(400).json({ message: "is_active phải là true hoặc false" });
-      }
-
-      const success = await reportModel.toggleUserStatus(userId, is_active);
-      if (!success) {
-        return res.status(404).json({ message: "Không tìm thấy user hoặc không thể thay đổi" });
-      }
-
-      res.json({
-        message: is_active ? "Đã mở khóa tài khoản" : "Đã khóa tài khoản",
-        userId,
-        is_active,
-      });
-    } catch (error) {
-      console.error("toggleUserStatus error:", error);
-      res.status(500).json({ message: "Lỗi server" });
-    }
-  },
-
-  // ─────────────────────────────────────────────────────────
-  //  DELETE /api/admin/users/:id
-  // ─────────────────────────────────────────────────────────
-  async deleteUser(req, res) {
-    try {
-      const userId = parseInt(req.params.id);
-      const success = await reportModel.deleteUser(userId);
-
-      if (!success) {
-        return res.status(404).json({ message: "Không tìm thấy user hoặc không thể xóa admin" });
-      }
-
-      res.json({ message: "Đã xóa tài khoản thành công", userId });
-    } catch (error) {
-      console.error("deleteUser error:", error);
-      res.status(500).json({ message: "Lỗi server" });
-    }
-  },
+// ── GET /api/admin/stats ──────────────────────────────────────────────────────
+exports.getStats = async (_req, res) => {
+  try {
+    const stats = await reportModel.getStats();
+    return success(res, stats);
+  } catch (err) {
+    console.error('[getStats]', err);
+    return error(res);
+  }
 };
 
-module.exports = adminController;
+// ── GET /api/admin/reports ────────────────────────────────────────────────────
+exports.getReports = async (req, res) => {
+  try {
+    const { from, to, type, page = 1, limit = 20 } = req.query;
+    const { rows, total } = await reportModel.getReports({ from, to, type, page, limit });
+    return paginated(res, rows, total, page, limit);
+  } catch (err) {
+    console.error('[getReports]', err);
+    return error(res);
+  }
+};
+
+// ── GET /api/admin/reports/top-books ─────────────────────────────────────────
+exports.getTopBooks = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const books = await reportModel.getTopBooks(limit);
+    return success(res, books);
+  } catch (err) {
+    console.error('[getTopBooks]', err);
+    return error(res);
+  }
+};
+
+// ── GET /api/admin/reports/export ────────────────────────────────────────────
+exports.exportReport = async (req, res) => {
+  try {
+    const { from, to, type = 'all', format = 'json' } = req.query;
+    const { rows } = await reportModel.getReports({ from, to, type: type === 'all' ? '' : type, page: 1, limit: 1000 });
+
+    /*
+     * TODO (TV4): Tích hợp thư viện xuất file thật sự:
+     *   PDF   → pdfkit / puppeteer
+     *   Excel → exceljs
+     *
+     * Hiện tại trả JSON mockup kèm preview 5 dòng đầu.
+     */
+    return res.json({
+      success:     true,
+      message:     `[Mockup] Sẽ xuất ${format.toUpperCase()} trong production`,
+      export_info: { format, total_records: rows.length, filter: { from, to, type }, generated_at: new Date().toISOString() },
+      preview:     rows.slice(0, 5),
+    });
+  } catch (err) {
+    console.error('[exportReport]', err);
+    return error(res);
+  }
+};
+
+// ── GET /api/admin/users ──────────────────────────────────────────────────────
+exports.getUsers = async (req, res) => {
+  try {
+    const { role, is_active, search, page = 1, limit = 20 } = req.query;
+    const { rows, total } = await reportModel.getUsers({ role, is_active, search, page, limit });
+    return paginated(res, rows, total, page, limit);
+  } catch (err) {
+    console.error('[getUsers]', err);
+    return error(res);
+  }
+};
+
+// ── PATCH /api/admin/users/:id/status ────────────────────────────────────────
+exports.toggleUserStatus = async (req, res) => {
+  try {
+    const result = await reportModel.toggleUserStatus(req.params.id);
+    const msg = result.is_active ? 'Đã mở khóa tài khoản' : 'Đã khóa tài khoản';
+    return success(res, result, msg);
+  } catch (err) {
+    console.error('[toggleUserStatus]', err);
+    return error(res, err.message, err.statusCode || 500);
+  }
+};
+
+// ── DELETE /api/admin/users/:id ───────────────────────────────────────────────
+exports.deleteUser = async (req, res) => {
+  try {
+    await reportModel.deleteUser(req.params.id);
+    return success(res, null, 'Xóa tài khoản thành công');
+  } catch (err) {
+    if (err.code === 'ER_ROW_IS_REFERENCED_2')
+      return error(res, 'Không thể xóa: tồn tại dữ liệu liên quan', 409);
+    console.error('[deleteUser]', err);
+    return error(res, err.message, err.statusCode || 500);
+  }
+};
+
+// ── Borrow admin endpoints (re-export từ borrowController – TV3) ──────────────
+exports.getAllBorrows  = borrowCtrl.getAllBorrows;
+exports.getOverdue    = borrowCtrl.getOverdue;
+exports.approveBorrow = borrowCtrl.approveBorrow;
+exports.rejectBorrow  = borrowCtrl.rejectBorrow;
