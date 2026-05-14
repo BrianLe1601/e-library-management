@@ -1,5 +1,5 @@
-import Navigation from "../components/Navigation";
-import Footer from "../components/Footer";
+import Navigation from "./Header";
+import Footer from "./Footer";
 import { Outlet } from "react-router-dom";
 
 export default function UserLayout() {
