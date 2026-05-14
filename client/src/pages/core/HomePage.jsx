@@ -1,81 +1,132 @@
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BookOpen, Users, Clock, Award } from "lucide-react";
+import HeroCarousel  from "../../components/HeroCarousel";
+import BookCard from "../../components/BookCard";
+import { books } from "../data/mockData";
 
-const newArrivals = [
-  { id: 1, title: "The Midnight Library", author: "Matt Haig", cover: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop" },
-  { id: 2, title: "Atomic Habits", author: "James Clear", cover: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300&h=400&fit=crop" },
-  { id: 3, title: "Project Hail Mary", author: "Andy Weir", cover: "https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=300&h=400&fit=crop" },
-  { id: 4, title: "The Silent Patient", author: "Alex Michaelides", cover: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop" },
+const trendingBooks = books.filter((b) => b.rating >= 4.5).slice(0, 6);
+const newestTech = books.filter((b) => b.category === "IT").slice(0, 6);
+
+const stats = [
+  { icon: BookOpen, label: "Books Available", value: "50,000+" },
+  { icon: Users, label: "Active Members", value: "12,500+" },
+  { icon: Clock, label: "Books Borrowed", value: "3,200+" },
+  { icon: Award, label: "Award-winning Titles", value: "850+" },
 ];
 
-const popularBooks = [
-  { id: 5, title: "1984", author: "George Orwell", cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop" },
-  { id: 6, title: "To Kill a Mockingbird", author: "Harper Lee", cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&h=400&fit=crop" },
-  { id: 7, title: "Pride and Prejudice", author: "Jane Austen", cover: "https://images.unsplash.com/photo-1491841573634-28140fc7ced7?w=300&h=400&fit=crop" },
-  { id: 8, title: "The Great Gatsby", author: "F. Scott Fitzgerald", cover: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=300&h=400&fit=crop" },
-];
-
-function BookCard({ book }) {
+export default function HomePage() {
   return (
-    <Link
-      to={`/book/${book.id}`}
-      className="group cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md"
-    >
-      <div className="aspect-[3/4] overflow-hidden bg-gray-100">
-        <img
-          src={book.cover}
-          alt={book.title}
-          className="h-full w-full object-cover transition-transform group-hover:scale-105"
-        />
-      </div>
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 line-clamp-1">{book.title}</h3>
-        <p className="mt-1 text-gray-600">{book.author}</p>
-      </div>
-    </Link>
-  );
-}
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      {/* Hero Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <HeroCarousel />
+      </section>
 
-export default function Homepage() {
-  return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="text-center">
-            <h1 className="text-5xl font-bold text-gray-900 mb-4">Discover Your Next Great Read</h1>
-            <p className="text-xl text-gray-700 mb-8 max-w-2xl mx-auto">
-              Explore thousands of books, from timeless classics to contemporary bestsellers. Your next adventure starts here.
+      {/* Stats */}
+      <section className="bg-blue-900 dark:bg-slate-950 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {stats.map((stat) => (
+              <div key={stat.label} className="flex flex-col items-center text-center">
+                <div className="bg-blue-800/50 dark:bg-blue-900/50 p-3 rounded-xl mb-3">
+                  <stat.icon className="w-5 h-5 text-blue-300" />
+                </div>
+                <p className="text-2xl text-white" style={{ fontWeight: 700 }}>{stat.value}</p>
+                <p className="text-sm text-blue-200 mt-0.5">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trending Books */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="w-1 h-6 bg-blue-700 rounded-full" />
+              <span className="text-sm text-blue-700 dark:text-blue-400" style={{ fontWeight: 600 }}>
+                Most Popular
+              </span>
+            </div>
+            <h2 className="text-gray-900 dark:text-gray-100">Trending Books</h2>
+          </div>
+          <Link
+            to="/books"
+            className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors"
+            style={{ fontWeight: 500 }}
+          >
+            View all <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {trendingBooks.map((book) => (
+            <BookCard key={book.id} book={book} variant="trending" />
+          ))}
+        </div>
+      </section>
+
+      {/* Divider */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="border-t border-gray-200 dark:border-slate-700" />
+      </div>
+
+      {/* Newest in Tech */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="w-1 h-6 bg-emerald-600 rounded-full" />
+              <span className="text-sm text-emerald-700 dark:text-emerald-400" style={{ fontWeight: 600 }}>
+                Technology & Computing
+              </span>
+            </div>
+            <h2 className="text-gray-900 dark:text-gray-100">Newest in Tech</h2>
+          </div>
+          <Link
+            to="/books?category=IT"
+            className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors"
+            style={{ fontWeight: 500 }}
+          >
+            View all <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {newestTech.map((book) => (
+            <BookCard key={book.id} book={book} variant="trending" />
+          ))}
+        </div>
+      </section>
+
+      {/* CTA Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+        <div className="bg-gradient-to-r from-blue-800 to-blue-900 dark:from-blue-950 dark:to-slate-900 rounded-2xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div>
+            <h2 className="text-white text-2xl md:text-3xl mb-2">
+              Explore Our Full Collection
+            </h2>
+            <p className="text-blue-200 text-sm md:text-base max-w-md">
+              Browse thousands of titles across literature, science, technology, mathematics, philosophy, and more.
             </p>
+          </div>
+          <div className="flex gap-3 shrink-0">
             <Link
               to="/books"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-8 py-3 font-semibold text-white hover:bg-blue-700"
+              className="px-6 py-3 bg-white text-blue-900 rounded-xl text-sm hover:bg-blue-50 transition-colors"
+              style={{ fontWeight: 600 }}
             >
-              Browse Catalog
-              <ArrowRight className="h-5 w-5" />
+              Browse All Books
+            </Link>
+            <Link
+              to="/dashboard"
+              className="px-6 py-3 bg-blue-700/50 text-white border border-blue-500 rounded-xl text-sm hover:bg-blue-700 transition-colors"
+              style={{ fontWeight: 500 }}
+            >
+              My Dashboard
             </Link>
           </div>
         </div>
-      </div>
-
-      <div className="mx-auto w-full max-w-7xl px-6 py-16">
-        <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">New Arrivals</h2>
-          <div className="grid grid-cols-4 gap-6">
-            {newArrivals.map(book => (
-              <BookCard key={book.id} book={book} />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Most Popular Books</h2>
-          <div className="grid grid-cols-4 gap-6">
-            {popularBooks.map(book => (
-              <BookCard key={book.id} book={book} />
-            ))}
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

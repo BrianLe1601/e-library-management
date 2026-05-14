@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from "react";
 export default function OtpVerification() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(59);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  
+  const inputRefs = useRef([]);
 
   useEffect(() => {
     if (timer > 0) {
@@ -16,7 +15,7 @@ export default function OtpVerification() {
     }
   }, [timer]);
 
-  const handleChange = (index: number, value: string) => {
+  const handleChange = (index, value) => {
     if (value.length > 1) return;
     if (!/^\d*$/.test(value)) return;
 
@@ -29,13 +28,13 @@ export default function OtpVerification() {
     }
   };
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (index, e) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+  const handlePaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData("text").slice(0, 6);
     if (!/^\d+$/.test(pastedData)) return;
