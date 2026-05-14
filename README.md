@@ -91,36 +91,183 @@ src/
 
 ---
 
-# 📂 Cấu trúc Backend (`server/src`)
+## Cấu trúc thư mục Backend
+
+```
+server/
+├── src/
+│   ├── config/
+│   │   └── db.js                  ← MySQL connection pool (dùng chung)
+│   │
+│   ├── middlewares/
+│   │   ├── authMiddleware.js      ← authenticate + authorize(role)
+│   │   ├── validateMiddleware.js  ← bắt lỗi express-validator
+│   │   └── errorMiddleware.js     ← 404 + global error handler
+│   │
+│   ├── utils/
+│   │   ├── response.js            ← success / error / paginated helper
+│   │   ├── jwt.js                 ← signToken helper
+│   │   └── mailer.js              ← nodemailer (TV3 dùng)
+│   │
+│   ├── models/          ← SQL queries (KHÔNG có business logic)
+│   │   ├── userModel.js           ← TV1
+│   │   ├── bookModel.js           ← TV2
+│   │   ├── borrowModel.js         ← TV3
+│   │   └── reportModel.js         ← TV4
+│   │
+│   ├── controllers/     ← Nhận req → gọi model → trả res
+│   │   ├── authController.js      ← TV1
+│   │   ├── bookController.js      ← TV2
+│   │   ├── borrowController.js    ← TV3
+│   │   └── adminController.js     ← TV4
+│   │
+│   ├── routes/          ← Khai báo endpoint + middleware chain
+│   │   ├── authRoutes.js          ← TV1
+│   │   ├── bookRoutes.js          ← TV2
+│   │   ├── borrowRoutes.js        ← TV3
+│   │   └── adminRoutes.js         ← TV4
+│   │
+│   └── index.js                   ← Entry point, mount routes
+│
+├── .env.example
+├── .gitignore
+└── package.json
+```
+
+---
+
+## Phân công công việc
+
+| File cần làm                                     | Thành viên |
+|--------------------------------------------------|-----------|
+| `models/userModel.js` + `controllers/authController.js` + `routes/authRoutes.js` | **TV1** |
+| `models/bookModel.js` + `controllers/bookController.js` + `routes/bookRoutes.js` | **TV2** |
+| `models/borrowModel.js` + `controllers/borrowController.js` + `routes/borrowRoutes.js` | **TV3** |
+| `models/reportModel.js` + `controllers/adminController.js` + `routes/adminRoutes.js` | **TV4** |
+
+> **Shared files** (`config/`, `middlewares/`, `utils/`, `index.js`): ai cũng được sửa,  
+> nhưng cần **thông báo nhóm** trước khi thay đổi để tránh conflict.
+
+---
+
+## Quy ước Response
+
+Mọi controller dùng utils/response.js – **không** viết `res.json(...)` trực tiếp:
+
+```js
+const { success, error, paginated } = require('../utils/response');
+
+// Thành công
+return success(res, data, 'Thông báo', 201);
+
+// Lỗi
+return error(res, 'Lỗi server', 500);
+
+// Danh sách có phân trang
+return paginated(res, rows, total, page, limit);
+```
+
+Format response chuẩn:
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": { ... },
+  "meta": { "total": 100, "page": 1, "limit": 20, "totalPages": 5 }
+}
+```
+
+---
+
+## Setup & Chạy
 
 ```bash
-server/src/
-├── config/
-│   └── db.js                 ← Pool MySQL dùng chung
-├── middlewares/
-│   ├── authMiddleware.js      ← authenticate + authorize('admin','employee'...)
-│   ├── validateMiddleware.js  ← Bắt lỗi express-validator
-│   └── errorMiddleware.js     ← 404 + global error handler
-├── utils/
-│   ├── response.js            ← success() / error() / paginated()
-│   ├── jwt.js                 ← signToken()
-│   └── mailer.js              ← sendMail() (TV3 dùng)
-├── models/     ← CHỈ có SQL, không có logic
-│   ├── userModel.js           ← TV1
-│   ├── bookModel.js           ← TV2
-│   ├── borrowModel.js         ← TV3
-│   └── reportModel.js         ← TV4
-├── controllers/← Nhận req → gọi model → gọi response helper
-│   ├── authController.js      ← TV1
-│   ├── bookController.js      ← TV2
-│   ├── borrowController.js    ← TV3
-│   └── adminController.js     ← TV4
-├── routes/     ← Khai báo endpoint + gắn middleware
-│   ├── authRoutes.js          ← TV1
-│   ├── bookRoutes.js          ← TV2
-│   ├── borrowRoutes.js        ← TV3
-│   └── adminRoutes.js         ← TV4
-└── index.js                   ← Mount tất cả routes
+# 1. Cài dependencies
+npm install
+
+# 2. Tạo .env
+cp .env.example .env
+# Điền DB_*, JWT_SECRET, MAIL_* vào .env
+
+# 3. Import database
+mysql -u root -p < src/config/init.sql
+
+# 4. Chạy dev
+npm run dev
+```
+
+---
+
+## Biến môi trường (.env)
+
+| Biến | Mô tả |
+|------|-------|
+| `PORT` | Cổng server (mặc định 3000) |
+| `NODE_ENV` | `development` / `production` |
+| `CLIENT_URL` | URL frontend React (CORS) |
+| `DB_HOST` | Host MySQL |
+| `DB_PORT` | Cổng MySQL (3306) |
+| `DB_USER` | User MySQL |
+| `DB_PASSWORD` | Mật khẩu MySQL |
+| `DB_NAME` | Tên database (`e_library`) |
+| `JWT_SECRET` | Khóa ký JWT (**bắt buộc, giữ bí mật**) |
+| `JWT_EXPIRES_IN` | Thời hạn token (vd: `7d`) |
+| `MAIL_HOST` | SMTP host (TV3) |
+| `MAIL_USER` | Email gửi (TV3) |
+| `MAIL_PASS` | App password (TV3) |
+
+---
+
+## API Endpoints
+
+### TV1 – Auth & User
+
+| Method | Endpoint | Auth | Mô tả |
+|--------|----------|------|-------|
+| POST | `/api/auth/register` | Public | Đăng ký |
+| POST | `/api/auth/login` | Public | Đăng nhập → JWT |
+| GET | `/api/users/profile` | Token | Lấy profile |
+| PUT | `/api/users/profile` | Token | Cập nhật profile |
+| PUT | `/api/users/change-password` | Token | Đổi mật khẩu |
+
+### TV2 – Books
+
+| Method | Endpoint | Auth | Mô tả |
+|--------|----------|------|-------|
+| GET | `/api/books` | Public | Danh sách (?search=&category=&page=) |
+| GET | `/api/books/featured` | Public | Sách nổi bật |
+| GET | `/api/books/categories` | Public | Danh mục |
+| GET | `/api/books/:id` | Public | Chi tiết sách |
+| POST | `/api/books` | Admin | Tạo sách |
+| PUT | `/api/books/:id` | Admin | Cập nhật sách |
+| DELETE | `/api/books/:id` | Admin | Xóa sách |
+
+### TV3 – Borrow & Return
+
+| Method | Endpoint | Auth | Mô tả |
+|--------|----------|------|-------|
+| POST | `/api/borrow` | Token | Mượn sách |
+| PUT | `/api/borrow/return/:id` | Token | Trả sách |
+| PUT | `/api/borrow/extend/:id` | Token | Gia hạn |
+| GET | `/api/borrow/my-books` | Token | Sách đang mượn |
+| GET | `/api/borrow/history` | Token | Lịch sử |
+| GET | `/api/admin/borrows` | Admin/Emp | Tất cả lượt mượn |
+| GET | `/api/admin/borrows/overdue` | Admin/Emp | Quá hạn |
+| PUT | `/api/admin/borrows/approve/:id` | Admin/Emp | Duyệt |
+| PUT | `/api/admin/borrows/reject/:id` | Admin/Emp | Từ chối |
+
+### TV4 – Admin Dashboard
+
+| Method | Endpoint | Auth | Mô tả |
+|--------|----------|------|-------|
+| GET | `/api/admin/stats` | Admin/Emp | Dashboard stats |
+| GET | `/api/admin/reports` | Admin/Emp | Báo cáo (?from=&to=&type=) |
+| GET | `/api/admin/reports/top-books` | Admin/Emp | Top sách |
+| GET | `/api/admin/reports/export` | Admin/Emp | Xuất báo cáo |
+| GET | `/api/admin/users` | Admin/Emp | Danh sách user |
+| PATCH | `/api/admin/users/:id/status` | Admin | Khóa/mở khóa |
+| DELETE | `/api/admin/users/:id` | Admin | Xóa user |
+
 ```
 
 ---
