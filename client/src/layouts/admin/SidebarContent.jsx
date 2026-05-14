@@ -10,7 +10,7 @@ export default function SidebarContent({ collapsed, setMobileOpen }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-4 py-5 border-b border-slate-800 dark:border-slate-700 ${collapsed ? 'justify-center' : ''}`}>
+      <div className={`flex items-center gap-3 px-4 py-5 border-b border-slate-800 dark:border-slate-700 h-16 ${collapsed ? 'justify-center' : ''}`}>
         <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-600 shrink-0">
           <BookLock size={32} className="text-white" />
         </div>

@@ -6,6 +6,7 @@ import {
 import { useState } from "react";
 import { useTheme } from "../../components/ThemeContext";
 import ProfileDropdown from "./ProfileDropdown";
+import { NotificationPopover, mockNotifications } from "../../components/NotificationPopover";
 
 export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -13,6 +14,8 @@ export default function Header() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState(mockNotifications);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const { theme, toggleTheme } = useTheme();
 
@@ -42,21 +45,32 @@ return (
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleTheme}
-              className="flex items-center justify-center w-8 h-8 rounded-lg 
-                text-slate-200 dark:text-slate-400 
-                hover:text-indigo-500 dark:hover:text-indigo-400 
-                hover:bg-slate-100 dark:hover:bg-slate-800 
-                transition-colors duration-200 ease-in-out 
-                focus:outline-none hover:scale-105"
+              className="relative p-2 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
             >
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </button>
 
             {/* Notification Bell */}
-            <Link to="/dashboard?tab=notifications" className="relative p-2 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </Link>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowNotifications((prev) => !prev)}
+                className="relative p-2 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
+              >
+                <Bell className="w-5 h-5" />
+                {notifications.some((n) => !n.read) && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+                )}
+              </button>
+              {showNotifications && (
+                <NotificationPopover
+                  notifications={notifications}
+                  onClose={() => setShowNotifications(false)}
+                  onMarkAllRead={() => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))}
+                  viewAllPath="/notifications"
+                />
+              )}
+            </div>
 
             {/* Nav Links - Desktop */}
             <div className="hidden md:flex items-center gap-1 ml-1">

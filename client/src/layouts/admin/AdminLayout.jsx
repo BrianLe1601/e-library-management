@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import SidebarContent from './SidebarContent';
 import Header from './Header';
 
-export function Layout() {
+export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 

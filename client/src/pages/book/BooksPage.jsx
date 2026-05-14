@@ -1,284 +1,189 @@
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Search, SlidersHorizontal, BookOpen } from "lucide-react";
+import { books } from "../data/mockData";
+import BookCard  from "../../components/BookCard";
+import FilterSidebar from "../../components/FilterSidebar";
+import Pagination from "../../components/Pagination";
 
-const books = [
-  {
-    id: 1,
-    title: "The Midnight Library",
-    author: "Matt Haig",
-    genre: "Fiction",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&h=400&fit=crop",
-  },
-  {
-    id: 2,
-    title: "Atomic Habits",
-    author: "James Clear",
-    genre: "Self-Help",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300&h=400&fit=crop",
-  },
-  {
-    id: 3,
-    title: "Project Hail Mary",
-    author: "Andy Weir",
-    genre: "Science Fiction",
-    available: false,
-    cover:
-      "https://images.unsplash.com/photo-1621351183012-e2f9972dd9bf?w=300&h=400&fit=crop",
-  },
-  {
-    id: 4,
-    title: "The Silent Patient",
-    author: "Alex Michaelides",
-    genre: "Thriller",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=300&h=400&fit=crop",
-  },
-  {
-    id: 5,
-    title: "1984",
-    author: "George Orwell",
-    genre: "Fiction",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1512820790803-83ca734da794?w=300&h=400&fit=crop",
-  },
-  {
-    id: 6,
-    title: "To Kill a Mockingbird",
-    author: "Harper Lee",
-    genre: "Fiction",
-    available: false,
-    cover:
-      "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=300&h=400&fit=crop",
-  },
-  {
-    id: 7,
-    title: "Pride and Prejudice",
-    author: "Jane Austen",
-    genre: "Romance",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1491841573634-28140fc7ced7?w=300&h=400&fit=crop",
-  },
-  {
-    id: 8,
-    title: "The Great Gatsby",
-    author: "F. Scott Fitzgerald",
-    genre: "Fiction",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=300&h=400&fit=crop",
-  },
-  {
-    id: 9,
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    genre: "Non-Fiction",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1532012197267-da84d127e765?w=300&h=400&fit=crop",
-  },
-  {
-    id: 10,
-    title: "The Hobbit",
-    author: "J.R.R. Tolkien",
-    genre: "Fantasy",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1621944190310-e3cca1564bd7?w=300&h=400&fit=crop",
-  },
-  {
-    id: 11,
-    title: "Becoming",
-    author: "Michelle Obama",
-    genre: "Biography",
-    available: false,
-    cover:
-      "https://images.unsplash.com/photo-1553729784-e91953dec042?w=300&h=400&fit=crop",
-  },
-  {
-    id: 12,
-    title: "Educated",
-    author: "Tara Westover",
-    genre: "Biography",
-    available: true,
-    cover:
-      "https://images.unsplash.com/photo-1524578271613-d550eacf6090?w=300&h=400&fit=crop",
-  },
+const BOOKS_PER_PAGE = 9;
+
+const sortOptions = [
+  { value: "rating-desc", label: "Rating: High to Low" },
+  { value: "rating-asc", label: "Rating: Low to High" },
+  { value: "title-asc", label: "Title: A to Z" },
+  { value: "title-desc", label: "Title: Z to A" },
+  { value: "available", label: "Most Available" },
 ];
 
-const genres = [
-  "Fiction",
-  "Non-Fiction",
-  "Science Fiction",
-  "Fantasy",
-  "Romance",
-  "Thriller",
-  "Self-Help",
-  "Biography",
-];
-const authors = [
-  "Matt Haig",
-  "James Clear",
-  "Andy Weir",
-  "Alex Michaelides",
-  "George Orwell",
-  "Harper Lee",
-];
-
-export default function BooksPage() {
-  const [selectedGenres, setSelectedGenres] = useState([]);
-  const [selectedAuthors, setSelectedAuthors] = useState([]);
-  const [availabilityFilter, setAvailabilityFilter] = useState("all");
-
-  const toggleGenre = (genre) => {
-    setSelectedGenres((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre],
-    );
-  };
-
-  const toggleAuthor = (author) => {
-    setSelectedAuthors((prev) =>
-      prev.includes(author)
-        ? prev.filter((a) => a !== author)
-        : [...prev, author],
-    );
-  };
-
-  const filteredBooks = books.filter((book) => {
-    if (selectedGenres.length > 0 && !selectedGenres.includes(book.genre))
-      return false;
-    if (selectedAuthors.length > 0 && !selectedAuthors.includes(book.author))
-      return false;
-    if (availabilityFilter === "available" && !book.available) return false;
-    if (availabilityFilter === "unavailable" && book.available) return false;
-    return true;
+export default function BookListingPage() {
+  const [searchParams] = useSearchParams();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState("rating-desc");
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
+  const [filters, setFilters] = useState({
+    categories: searchParams.get("category") ? [searchParams.get("category")] : [],
+    authors: [],
+    publishers: [],
+    availability: "all",
   });
 
+  const filteredBooks = useMemo(() => {
+    let result = [...books];
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          b.category.toLowerCase().includes(q) ||
+          b.tags.some((t) => t.includes(q))
+      );
+    }
+
+    if (filters.categories.length > 0) {
+      result = result.filter((b) => filters.categories.includes(b.category));
+    }
+    if (filters.authors.length > 0) {
+      result = result.filter((b) => filters.authors.includes(b.author));
+    }
+    if (filters.publishers.length > 0) {
+      result = result.filter((b) => filters.publishers.includes(b.publisher));
+    }
+    if (filters.availability === "in-stock") {
+      result = result.filter((b) => b.availableCopies > 0);
+    } else if (filters.availability === "out-of-stock") {
+      result = result.filter((b) => b.availableCopies === 0);
+    }
+
+    switch (sortBy) {
+      case "rating-desc":
+        result.sort((a, b) => b.rating - a.rating);
+        break;
+      case "rating-asc":
+        result.sort((a, b) => a.rating - b.rating);
+        break;
+      case "title-asc":
+        result.sort((a, b) => a.title.localeCompare(b.title));
+        break;
+      case "title-desc":
+        result.sort((a, b) => b.title.localeCompare(a.title));
+        break;
+      case "available":
+        result.sort((a, b) => b.availableCopies - a.availableCopies);
+        break;
+    }
+
+    return result;
+  }, [searchQuery, filters, sortBy]);
+
+  const totalPages = Math.ceil(filteredBooks.length / BOOKS_PER_PAGE);
+  const paginatedBooks = filteredBooks.slice(
+    (currentPage - 1) * BOOKS_PER_PAGE,
+    currentPage * BOOKS_PER_PAGE
+  );
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <div className="mx-auto w-full max-w-7xl px-6 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Book Catalog</h1>
-
-        <div className="grid grid-cols-[280px_1fr] gap-8">
-          <div className="space-y-6">
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">Genre</h3>
-              <div className="space-y-3">
-                {genres.map((genre) => (
-                  <label
-                    key={genre}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedGenres.includes(genre)}
-                      onChange={() => toggleGenre(genre)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-gray-700">{genre}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">Author</h3>
-              <div className="space-y-3">
-                {authors.map((author) => (
-                  <label
-                    key={author}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedAuthors.includes(author)}
-                      onChange={() => toggleAuthor(author)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-gray-700">{author}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">
-                Availability Status
-              </h3>
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="availability"
-                    checked={availabilityFilter === "all"}
-                    onChange={() => setAvailabilityFilter("all")}
-                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">All Books</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="availability"
-                    checked={availabilityFilter === "available"}
-                    onChange={() => setAvailabilityFilter("available")}
-                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Available</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="availability"
-                    checked={availabilityFilter === "unavailable"}
-                    onChange={() => setAvailabilityFilter("unavailable")}
-                    className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Unavailable</span>
-                </label>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      {/* Page Header */}
+      <div className="bg-blue-900 dark:bg-slate-950 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-center gap-2 mb-2">
+            <BookOpen className="w-5 h-5 text-blue-300" />
+            <span className="text-blue-300 text-sm">Catalog</span>
           </div>
+          <h1 className="text-white mb-4">Book Catalog</h1>
+          <p className="text-blue-200 text-sm max-w-xl mb-6">
+            Browse our complete collection of academic and literary works. Use filters to find exactly what you need.
+          </p>
+          {/* Search in page header */}
+          <form onSubmit={handleSearch} className="flex max-w-lg bg-white/10 border border-white/20 rounded-xl overflow-hidden">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              placeholder="Search books, authors, topics..."
+              className="flex-1 bg-transparent px-4 py-3 text-sm text-white placeholder-white/50 outline-none"
+            />
+            <button type="submit" className="px-5 bg-blue-600 hover:bg-blue-500 transition-colors">
+              <Search className="w-4 h-4 text-white" />
+            </button>
+          </form>
+        </div>
+      </div>
 
-          <div>
-            <div className="mb-4 text-gray-600">
-              Showing {filteredBooks.length}{" "}
-              {filteredBooks.length === 1 ? "book" : "books"}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex gap-8">
+          {/* Sidebar */}
+          <FilterSidebar filters={filters} onChange={handleFilterChange} />
+
+          {/* Main Content */}
+          <div className="flex-1 min-w-0">
+            {/* Toolbar */}
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span style={{ fontWeight: 600 }} className="text-gray-900 dark:text-gray-100">
+                    {filteredBooks.length}
+                  </span>{" "}
+                  books found
+                  {searchQuery && (
+                    <span className="ml-1">
+                      for "{searchQuery}"
+                    </span>
+                  )}
+                </span>
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                className="text-sm border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {sortOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
-            <div className="grid grid-cols-3 gap-6">
-              {filteredBooks.map((book) => (
-                <div
-                  key={book.id}
-                  className="group overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md"
-                >
-                  <div className="aspect-[3/4] overflow-hidden bg-gray-100">
-                    <img
-                      src={book.cover}
-                      alt={book.title}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 line-clamp-1">
-                      {book.title}
-                    </h3>
-                    <p className="mt-1 text-gray-600">{book.author}</p>
-                    <Link
-                      to={`/book/${book.id}`}
-                      className="mt-3 block w-full rounded-lg bg-blue-600 py-2 text-center font-medium text-white hover:bg-blue-700"
-                    >
-                      View Details
-                    </Link>
-                  </div>
+
+            {/* Books Grid */}
+            {paginatedBooks.length > 0 ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {paginatedBooks.map((book) => (
+                    <BookCard key={book.id} book={book} variant="listing" />
+                  ))}
                 </div>
-              ))}
-            </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={(page) => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                />
+              </>
+            ) : (
+              <div className="text-center py-20">
+                <BookOpen className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
+                <h3 className="text-gray-700 dark:text-gray-300 mb-2">No books found</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  Try adjusting your search or filters
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
