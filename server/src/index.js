@@ -1,7 +1,8 @@
 'use strict';
-
 require('dotenv').config();
+require('./config/db');
 const express = require('express');
+const morgan  = require('morgan');
 const cors    = require('cors');
 
 // ── Route imports ─────────────────────────────────────────────────────────────
@@ -14,12 +15,13 @@ const adminRoutes  = require('./routes/adminRoutes');   // TV4
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
 
 const app  = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // ── Global middleware ─────────────────────────────────────────────────────────
 app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan('combined'));
 
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, _res, next) => {
@@ -29,7 +31,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ── Health check ──────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) =>
+app.get('/', (_req, res) =>
   res.json({ status: 'ok', ts: new Date().toISOString() })
 );
 
@@ -48,5 +50,6 @@ app.listen(PORT, () => {
   console.log(`E-Library API  →  http://localhost:${PORT}`);
   console.log(`ENV: ${process.env.NODE_ENV || 'development'}`);
 });
+
 
 module.exports = app;
