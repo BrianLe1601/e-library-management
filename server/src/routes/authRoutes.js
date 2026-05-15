@@ -6,13 +6,13 @@
  * ╚══════════════════════════════════════════════════════╝
  */
 
-const express    = require('express');
-const router     = express.Router();
-const { body }   = require('express-validator');
+const express  = require('express');
+const router   = express.Router();
+const { body } = require('express-validator');
 
-const { authenticate }            = require('../middlewares/authMiddleware');
-const { validate }                = require('../middlewares/validateMiddleware');
-const authController              = require('../controllers/authController');
+const { authenticate } = require('../middlewares/authMiddleware');
+const { validate }     = require('../middlewares/validateMiddleware');
+const authController   = require('../controllers/authController');
 
 // ── Validation rules ──────────────────────────────────────────────────────────
 const registerRules = [
