@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun } from 'lucide-react';
-import { useTheme } from '../../components/ThemeContext';
+import { BookOpen, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun, Book } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function RegisterPage() {
   const [showPass, setShowPass] = useState(false);
@@ -39,10 +39,10 @@ export default function RegisterPage() {
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <Library size={20} className="text-white" />
+              <BookOpen size={20} className="text-white" />
             </div>
             <div>
-              <p className="text-white font-semibold">LibraryAdmin</p>
+              <p className="text-white font-semibold">ELibrary</p>
               <p className="text-indigo-200 text-xs">Management System</p>
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="relative z-10">
-          <p className="text-indigo-300 text-xs">© 2026 LibraryAdmin. All rights reserved.</p>
+          <p className="text-indigo-300 text-xs">© 2026 ELibrary. All rights reserved.</p>
         </div>
       </div>
 
@@ -93,9 +93,9 @@ export default function RegisterPage() {
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Library size={16} className="text-white" />
+              <BookOpen size={16} className="text-white" />
             </div>
-            <span className="text-slate-900 dark:text-white font-semibold">LibraryAdmin</span>
+            <span className="text-slate-900 dark:text-white font-semibold">ELibrary</span>
           </div>
 
           <div className="mb-6">
@@ -132,34 +132,6 @@ export default function RegisterPage() {
                   className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60"
                 />
               </div>
-            </div>
-
-            {/* Role Selection */}
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Account Role</label>
-              <div className="relative">
-                <select
-                  required
-                  value={role}
-                  onChange={e => setRole(e.target.value)}
-                  className="w-full pl-4 pr-8 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 appearance-none"
-                >
-                  <option value="" disabled>Select your role</option>
-                  <option value="admin">Administrator</option>
-                  <option value="librarian">Librarian</option>
-                  <option value="user">Regular User</option>
-                  <option value="student">Student</option>
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              </div>
-              {role && (
-                <p className="text-xs text-indigo-400 mt-1.5">
-                  {role === 'admin' && '✓ Full access to all system features'}
-                  {role === 'librarian' && '✓ Book management and borrowing workflows'}
-                  {role === 'user' && '✓ Browse and borrow books'}
-                  {role === 'student' && '✓ Student borrowing privileges'}
-                </p>
-              )}
             </div>
 
             {/* Password */}

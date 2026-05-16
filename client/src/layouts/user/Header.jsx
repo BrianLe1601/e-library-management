@@ -4,7 +4,7 @@ import {
   Menu, X, LayoutDashboard, LogOut, BookMarked
 } from "lucide-react";
 import { useState } from "react";
-import { useTheme } from "../../components/ThemeContext";
+import { useTheme } from "../../context/ThemeContext";
 import ProfileDropdown from "./ProfileDropdown";
 import { NotificationPopover, mockNotifications } from "../../components/NotificationPopover";
 
@@ -17,6 +17,10 @@ export default function Header() {
   const [notifications, setNotifications] = useState(mockNotifications);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  // 1. BIẾN GIẢ LẬP TRẠNG THÁI ĐĂNG NHẬP (Bật true để hiện Profile, false để hiện nút Login)
+  // Sau này khi làm Backend, bạn sẽ lấy giá trị này từ AuthContext (ví dụ: const { isLoggedIn } = useAuth())
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
+
   const { theme, toggleTheme } = useTheme();
 
   const searchFilters = ["All", "Title", "Author", "Category"];
@@ -26,7 +30,7 @@ export default function Header() {
     console.log("Searching:", searchQuery, "Filter:", searchFilter);
   };
 
-return (
+  return (
     <nav className="bg-blue-900 dark:bg-slate-950 text-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
@@ -45,6 +49,7 @@ return (
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleTheme}
+              type="button"
               className="relative p-2 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
             >
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
@@ -79,8 +84,23 @@ return (
               </Link>
             </div>
 
-            {/* Profile Dropdown */}
-            <ProfileDropdown />
+            {/* 2. THAY THẾ KHU VỰC PROFILE BẰNG ĐIỀU KIỆN ĐĂNG NHẬP */}
+            {isLoggedIn ? (
+              // Đã đăng nhập: Hiện dropdown cá nhân
+              <ProfileDropdown />
+            ) : (
+              // Chưa đăng nhập: Hiện nút Login cá tính
+              <Link
+                to="/login"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-semibold 
+                  bg-white text-blue-900 hover:bg-blue-50 
+                  dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 
+                  transition-all shadow-sm active:scale-95"
+              >
+                <User size={15} />
+                <span>Login</span>
+              </Link>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -92,7 +112,7 @@ return (
           </div>
         </div>
 
-        {/* Mobile Search */}
+        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden pb-4 border-t border-white/10 pt-4 space-y-3">
             <div className="flex gap-2">
@@ -110,6 +130,17 @@ return (
               >
                 Dashboard
               </Link>
+              
+              {/* Thêm nút login ở menu mobile nếu chưa đăng nhập */}
+              {!isLoggedIn && (
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex-1 text-center py-2.5 text-sm font-bold text-blue-950 bg-white rounded-lg hover:bg-blue-50 transition-colors"
+                >
+                  Login
+                </Link>
+              )}
             </div>
           </div>
         )}
@@ -125,4 +156,3 @@ return (
     </nav>
   );
 }
-
