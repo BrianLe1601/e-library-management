@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun } from 'lucide-react';
-import { useTheme } from '../../components/ThemeContext';
+import { BookOpen, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 export default function Login() {
   const [showPass, setShowPass] = useState(false);
@@ -38,10 +38,10 @@ export default function Login() {
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <Library size={20} className="text-white" />
+              <BookOpen size={20} className="text-white" />
             </div>
             <div>
-              <p className="text-white font-semibold">LibraryAdmin</p>
+              <p className="text-white font-semibold">ELibrary</p>
               <p className="text-indigo-200 text-xs">Management System</p>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default function Login() {
         </div>
 
         <div className="relative z-10">
-          <p className="text-indigo-300 text-xs">© 2026 LibraryAdmin. All rights reserved.</p>
+          <p className="text-indigo-300 text-xs">© 2026 ELibrary. All rights reserved.</p>
         </div>
       </div>
 
@@ -92,9 +92,9 @@ export default function Login() {
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Library size={16} className="text-white" />
+              <BookOpen size={16} className="text-white" />
             </div>
-            <span className="text-slate-900 dark:text-white font-semibold">LibraryAdmin</span>
+            <span className="text-slate-900 dark:text-white font-semibold">ELibrary</span>
           </div>
 
           <div className="mb-6">
@@ -174,7 +174,7 @@ export default function Login() {
 
           {/* Social */}
           <div className="grid grid-cols-2 gap-3">
-            {['Google', 'Microsoft'].map(p => (
+            {['Google', 'Facebook'].map(p => (
               <button
                 key={p}
                 type="button"
