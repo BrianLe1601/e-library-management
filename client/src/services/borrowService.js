@@ -4,69 +4,35 @@
  * Tất cả hàm gọi API liên quan đến mượn/trả sách.
  * Mọi endpoint đều cần token (gắn tự động).
  */
-
 import api from "./api";
 
 const borrowService = {
-  // ── User endpoints ───────────────────────────────────────────────────────────
-
   /**
-   * Tạo yêu cầu mượn sách
-   * @param {number} book_id
-   * @returns {{ success, data: { borrow_id } }}
+   * Độc giả gửi yêu cầu mượn một cuốn sách
+   * @param {number} bookId
    */
-  borrowBook: (book_id) => api.post("/borrow", { book_id }),
+  borrowBook: (bookId) => api.post("/borrow", { book_id: bookId }),
 
   /**
-   * Trả sách
-   * @param {number} borrowId — ID của bản ghi borrow
-   * @returns {{ success, data: { fine_amount }, message }}
+   * Độc giả thực hiện trả sách (Hoặc thủ thư quét trả)
    */
   returnBook: (borrowId) => api.put(`/borrow/return/${borrowId}`),
 
   /**
-   * Gia hạn mượn (tối đa 2 lần, +14 ngày mỗi lần)
-   * @param {number} borrowId
-   * @returns {{ success, data: { new_due_date }, message }}
+   * Độc giả tự yêu cầu gia hạn thời gian mượn sách (+14 ngày, tối đa 2 lần)
    */
   extendBorrow: (borrowId) => api.put(`/borrow/extend/${borrowId}`),
 
   /**
-   * Lấy danh sách sách đang mượn của user hiện tại
-   * (status: borrowing / renewed / overdue)
+   * Lấy danh sách các cuốn sách Độc giả hiện tại đang mượn (Chưa trả)
    */
   getMyBooks: () => api.get("/borrow/my-books"),
 
   /**
-   * Lấy lịch sử mượn trả của user hiện tại
-   * @param {{ page?, limit? }} params
+   * Xem lịch sử mượn trả toàn bộ của Độc giả hiện tại
+   * @param {{ page, limit }} params
    */
   getHistory: (params = {}) => api.get("/borrow/history", { params }),
-
-  // ── Admin / Employee endpoints ───────────────────────────────────────────────
-
-  /**
-   * Lấy toàn bộ danh sách lượt mượn (admin/employee)
-   * @param {{ page?, limit?, status? }} params
-   */
-  getAllBorrows: (params = {}) => api.get("/admin/borrows", { params }),
-
-  /**
-   * Lấy danh sách sách đang quá hạn
-   */
-  getOverdue: () => api.get("/admin/borrows/overdue"),
-
-  /**
-   * Duyệt yêu cầu mượn
-   * @param {number} borrowId
-   */
-  approveBorrow: (borrowId) => api.put(`/admin/borrows/approve/${borrowId}`),
-
-  /**
-   * Từ chối yêu cầu mượn
-   * @param {number} borrowId
-   */
-  rejectBorrow: (borrowId) => api.put(`/admin/borrows/reject/${borrowId}`),
 };
 
 export default borrowService;

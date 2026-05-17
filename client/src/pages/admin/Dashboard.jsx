@@ -6,7 +6,6 @@
  *   adminService.getBorrowChartData() → GET /api/admin/reports/borrow-chart (cần thêm backend)
  *   borrowService.getAllBorrows()      → GET /api/admin/borrows (pending list)
  */
-
 import { useState, useEffect } from 'react';
 import {
   BookOpen, Users, Clock, TrendingUp, TrendingDown,
@@ -16,8 +15,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell, Sector,
 } from 'recharts';
-import { getStats, getTopBooks } from '../../services/adminService';
-import borrowService from '../../services/borrowService';
+import { getStats, getTopBooks, getAllBorrows, approveBorrow, rejectBorrow } from '../../services/adminService';
 
 // ── Recharts helpers ──────────────────────────────────────────────────────────
 const CATEGORY_COLORS = ['#6366f1','#10b981','#f59e0b','#3b82f6','#ec4899','#8b5cf6'];
@@ -49,7 +47,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-// ── Placeholder chart data (replace với API khi backend có endpoint) ──────────
+// ── Placeholder chart data ──────────
 const PLACEHOLDER_CHART = [
   { month:'T1', borrows:120, returns:90  },
   { month:'T2', borrows:180, returns:150 },
@@ -72,32 +70,45 @@ export default function Dashboard() {
         const [statsRes, topRes, borrowsRes] = await Promise.all([
           getStats(),
           getTopBooks(5),
-          borrowService.getAllBorrows({ status: 'borrowing', limit: 5 }),
+          getAllBorrows({ status: 'pending', limit: 5 }), // Lấy sách ĐANG CHỜ DUYỆT
         ]);
-        if (statsRes.data.success)   setStats(statsRes.data.data);
-        if (topRes.data.success)     setTopBooks(topRes.data.data);
-        if (borrowsRes.data.success) setPending(borrowsRes.data.data.slice(0, 5));
-      } catch (err) { console.error('Dashboard fetch:', err); }
-      finally { setLoading(false); }
+        
+        // CẢI TIẾN: api.js đã bóc tách response.data nên ta truy cập thẳng .success và .data
+        if (statsRes.success) setStats(statsRes.data);
+        if (topRes.success)   setTopBooks(topRes.data);
+        if (borrowsRes.success) {
+          // Xử lý dữ liệu phân trang (có thể là mảng trực tiếp hoặc nằm trong đối tượng rows)
+          const pendingItems = Array.isArray(borrowsRes.data) ? borrowsRes.data : (borrowsRes.data?.rows || []);
+          setPending(pendingItems.slice(0, 5));
+        }
+      } catch (err) { 
+        console.error('Dashboard fetch error:', err); 
+      } finally { 
+        setLoading(false); 
+      }
     };
     fetchAll();
   }, []);
 
   const handleApprove = async (id) => {
     try {
-      await borrowService.approveBorrow(id);
+      await approveBorrow(id);
       setPending(prev => prev.filter(r => r.id !== id));
-    } catch { /* silent */ }
+    } catch (error) { 
+      alert(error.message || "Lỗi duyệt phiếu mượn");
+    }
   };
 
   const handleReject = async (id) => {
+    if (!window.confirm("Bạn có chắc chắn muốn từ chối yêu cầu này?")) return;
     try {
-      await borrowService.rejectBorrow(id);
+      await rejectBorrow(id);
       setPending(prev => prev.filter(r => r.id !== id));
-    } catch { /* silent */ }
+    } catch (error) { 
+      alert(error.message || "Lỗi từ chối phiếu mượn");
+    }
   };
 
-  // Build pie data từ topBooks
   const pieData = topBooks.map((b, i) => ({
     name:  b.title.length > 15 ? b.title.slice(0, 15) + '…' : b.title,
     value: Number(b.borrow_count) || 1,
@@ -124,10 +135,10 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-slate-900 dark:text-white">Dashboard</h1>
+          <h1 className="text-slate-900 dark:text-white font-bold text-2xl">Dashboard</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Tổng quan hệ thống thư viện</p>
         </div>
-        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs">
+        <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           System Online
         </span>
@@ -151,7 +162,7 @@ export default function Dashboard() {
               {s.change && (
                 <div className="flex items-center gap-1.5 mt-3">
                   {s.up ? <TrendingUp size={13} className="text-emerald-400" /> : <TrendingDown size={13} className="text-red-400" />}
-                  <span className={`text-xs ${s.up ? 'text-emerald-400' : 'text-red-400'}`}>{s.change} this week</span>
+                  <span className={`text-xs ${s.up ? 'text-emerald-400' : 'text-red-400'}`}>{s.change} tuần này</span>
                 </div>
               )}
             </div>
@@ -165,7 +176,7 @@ export default function Dashboard() {
         <div className="xl:col-span-3 bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-slate-900 dark:text-white">Xu hướng mượn sách</h3>
+              <h3 className="text-slate-900 dark:text-white font-semibold">Xu hướng mượn sách</h3>
               <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">Lượt mượn vs trả theo tháng</p>
             </div>
           </div>
@@ -180,13 +191,12 @@ export default function Dashboard() {
               <Line type="monotone" dataKey="returns" name="Trả"  stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r:4, fill:'#10b981' }} />
             </LineChart>
           </ResponsiveContainer>
-          <p className="text-xs text-slate-400 mt-2 text-center">Dữ liệu mẫu — tích hợp API /admin/reports/borrow-chart sau</p>
         </div>
 
         {/* Pie chart: top books */}
         <div className="xl:col-span-2 bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <div className="mb-4">
-            <h3 className="text-slate-900 dark:text-white">Top sách nổi bật</h3>
+            <h3 className="text-slate-900 dark:text-white font-semibold">Top sách nổi bật</h3>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">Theo lượt mượn</p>
           </div>
           {pieData.length > 0 ? (
@@ -210,8 +220,8 @@ export default function Dashboard() {
                 {pieData.map((d) => (
                   <div key={d.name} className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                    <span className="text-slate-400 text-xs truncate">{d.name}</span>
-                    <span className="text-slate-500 text-xs ml-auto">{d.value} lượt</span>
+                    <span className="text-slate-500 dark:text-slate-400 text-xs truncate font-medium">{d.name}</span>
+                    <span className="text-slate-700 dark:text-slate-300 text-xs ml-auto font-semibold">{d.value} lượt</span>
                   </div>
                 ))}
               </div>
@@ -226,55 +236,52 @@ export default function Dashboard() {
       <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <h3 className="text-slate-900 dark:text-white">Yêu cầu mượn gần đây</h3>
-            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">{pending.length} lượt đang mượn</p>
+            <h3 className="text-slate-900 dark:text-white font-semibold">Yêu cầu mượn gần đây</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">{pending.length} lượt đang chờ duyệt</p>
           </div>
-          <a href="/admin/borrows" className="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1">
+          <a href="/admin/borrowing" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 text-xs font-medium flex items-center gap-1">
             <Eye size={13} /> Xem tất cả
           </a>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
-                {['ID', 'Người mượn', 'Sách', 'Ngày mượn', 'Hạn trả', 'Thao tác'].map(h => (
-                  <th key={h} className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">{h}</th>
+              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+                {['Mã Phiếu', 'Người mượn', 'Tựa sách', 'Ngày mượn', 'Thao tác'].map(h => (
+                  <th key={h} className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-5 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {pending.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-10 text-slate-400 text-sm">Không có dữ liệu</td></tr>
+                <tr><td colSpan={5} className="text-center py-10 text-slate-400 text-sm">Không có yêu cầu nào đang chờ duyệt</td></tr>
               ) : (
                 pending.map((req) => (
-                  <tr key={req.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr key={req.id} className="border-b last:border-0 border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     <td className="px-5 py-3.5">
-                      <span className="font-mono text-xs text-indigo-400">#{req.id}</span>
+                      <span className="font-mono text-xs font-medium text-indigo-500 dark:text-indigo-400">#{req.id}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
                           {(req.user_name || 'U').charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-slate-700 dark:text-slate-200 text-sm">{req.user_name || '—'}</span>
+                        <span className="text-slate-700 dark:text-slate-200 text-sm font-medium">{req.user_name || '—'}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300 text-sm">{req.book_title || '—'}</td>
                     <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">
-                      {req.borrow_date ? new Date(req.borrow_date).toLocaleDateString('vi-VN') : '—'}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">
-                      {req.due_date ? new Date(req.due_date).toLocaleDateString('vi-VN') : '—'}
+                      {req.created_at ? new Date(req.created_at).toLocaleDateString('vi-VN') : '—'}
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <button onClick={() => handleApprove(req.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs transition-colors">
-                          <CheckCircle size={12} /> Duyệt
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 font-medium text-xs transition-colors">
+                          <CheckCircle size={14} /> Duyệt
                         </button>
                         <button onClick={() => handleReject(req.id)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs transition-colors">
-                          <XCircle size={12} /> Từ chối
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 font-medium text-xs transition-colors">
+                          <XCircle size={14} /> Từ chối
                         </button>
                       </div>
                     </td>

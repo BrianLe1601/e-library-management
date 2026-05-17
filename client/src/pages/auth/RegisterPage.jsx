@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library, Eye, EyeOff, Mail, Lock, User, ArrowRight, Moon, Sun } from 'lucide-react';
+import { Library, Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import authService from '../../services/authService';
 
-// ── 1. ĐƯA COMPONENT INPUTFIELD RA NGOÀI ĐỂ TRÁNH LỖI MẤT FOCUS ──────────────────
-const InputField = ({ name, label, type = 'text', placeholder, icon: Icon, value, onChange, fieldErrors, showPass, setShowPass }) => (
+// Tách InputField ra ngoài để tránh Re-render mất focus khi gõ phím
+const InputField = ({ name, label, type = 'text', placeholder, icon: Icon, value, onChange, error, showPass, setShowPass }) => (
   <div>
-    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
+    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">{label}</label>
     <div className="relative">
-      {Icon && <Icon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />}
+      {Icon && <Icon size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />}
       <input
         type={type === 'password' ? (showPass ? 'text' : 'password') : type}
         name={name}
@@ -18,39 +18,47 @@ const InputField = ({ name, label, type = 'text', placeholder, icon: Icon, value
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={type === 'password' ? 'new-password' : name}
-        className={`w-full ${Icon ? 'pl-9' : 'pl-4'} ${type === 'password' ? 'pr-10' : 'pr-4'} py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border ${
-          fieldErrors[name]
-            ? 'border-red-400 dark:border-red-600 focus:ring-red-400/40'
-            : 'border-slate-200 dark:border-slate-700 focus:ring-indigo-500/40 focus:border-indigo-500/60'
-        } text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2`}
+        className={`w-full ${Icon ? 'pl-10' : 'pl-4'} ${type === 'password' ? 'pr-10' : 'pr-4'} py-2.5 rounded-xl border ${
+          error ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:ring-indigo-500/20'
+        } bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 transition-all`}
       />
-      {type === 'password' && (
-        <button type="button" onClick={() => setShowPass(p => !p)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-          {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+      {type === 'password' && setShowPass && (
+        <button
+          type="button"
+          onClick={() => setShowPass(!showPass)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1"
+        >
+          {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       )}
     </div>
-    {fieldErrors[name] && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{fieldErrors[name]}</p>}
+    {error && <p className="text-red-500 text-[11px] mt-1 font-medium">{error}</p>}
   </div>
 );
 
-// ── 2. COMPONENT CHÍNH ────────────────────────────────────────────────────────
 export default function RegisterPage() {
-  const [showPass, setShowPass]             = useState(false);
-  const [showConfirmPass, setShowConfirmPass] = useState(false); // State ẩn/hiện cho confirm password
-  const [loading, setLoading]               = useState(false);
-  const [error, setError]                   = useState('');
-  const [fieldErrors, setFieldErrors]       = useState({});
-  const navigate                            = useNavigate();
-  const { theme, toggleTheme }              = useTheme();
-  const { isLoading, isAuthenticated }      = useAuth(); // Bảo vệ route
+  const navigate = useNavigate();
+  const { isLoading, isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [generalError, setGeneralError] = useState('');
+  
+  // Quản lý lỗi chi tiết cho từng trường (Đồng bộ cấu trúc trả về từ express-validator)
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Form Đăng ký tích hợp đầy đủ các trường khớp cơ sở dữ liệu (gồm cả trường phone)
   const [form, setForm] = useState({
-    full_name: '', email: '', password: '', confirm_password: '', phone: '',
+    full_name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirm_password: ''
   });
 
-  // Chặn không cho user đã đăng nhập cố tình vào lại trang Register
+  // Điều hướng bảo vệ: Không cho phép truy cập trang đăng ký khi đã đăng nhập
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       navigate('/', { replace: true });
@@ -58,190 +66,214 @@ export default function RegisterPage() {
   }, [isLoading, isAuthenticated, navigate]);
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    setError('');
-    setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
-  };
-
-  const validate = () => {
-    const errs = {};
-    if (!form.full_name.trim())      errs.full_name = 'Vui lòng nhập họ tên';
-    if (!form.email.trim())          errs.email     = 'Vui lòng nhập email';
-    if (form.password.length < 8)   errs.password  = 'Mật khẩu tối thiểu 8 ký tự';
-    if (!/[A-Z]/.test(form.password)) errs.password = 'Mật khẩu phải có ít nhất 1 chữ hoa';
-    if (!/[0-9]/.test(form.password)) errs.password = 'Mật khẩu phải có ít nhất 1 chữ số';
-    if (form.password !== form.confirm_password) errs.confirm_password = 'Mật khẩu xác nhận không khớp';
-    return errs;
+    setForm({ ...form, [e.target.name]: e.target.value });
+    
+    // Xóa lỗi trường tương ứng khi người dùng bắt đầu sửa đổi
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors({ ...fieldErrors, [e.target.name]: '' });
+    }
+    if (generalError) setGeneralError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
+    setGeneralError('');
+    setFieldErrors({});
 
-    setLoading(true);
-    setError('');
+    // Client-side Validation cơ bản
+    if (form.password !== form.confirm_password) {
+      setFieldErrors({ confirm_password: 'Mật khẩu xác nhận không khớp!' });
+      return;
+    }
+
     try {
-      const { data } = await authService.register({
+      setLoading(true);
+      
+      // Chuẩn bị dữ liệu gửi lên Backend khớp schema authRoutes
+      const registerData = {
         full_name: form.full_name,
-        email:     form.email,
-        password:  form.password,
-        phone:     form.phone || undefined,
-      });
-      if (data.success) {
-        navigate('/login', { state: { registered: true } });
-      }
+        email: form.email,
+        password: form.password,
+        phone: form.phone || undefined // Nếu không nhập, bỏ qua để nhận giá trị mặc định NULL
+      };
+
+      await authService.register(registerData);
+      
+      // Đăng ký thành công -> Chuyển hướng sang trang đăng nhập kèm thông báo
+      alert('Đăng ký tài khoản thành công! Bạn có thể đăng nhập ngay bây giờ.');
+      navigate('/login');
     } catch (err) {
-      const serverErrors = err.response?.data?.errors;
-      if (serverErrors?.length) {
-        const mapped = {};
-        serverErrors.forEach(({ field, message }) => { mapped[field] = message; });
-        setFieldErrors(mapped);
+      console.error('[Register Error]', err);
+
+      // Xử lý lỗi validate chi tiết theo cấu trúc `{ field, message }` của Backend
+      if (err.errors && Array.isArray(err.errors)) {
+        const errorsMap = {};
+        err.errors.forEach(errObj => {
+          errorsMap[errObj.field] = errObj.message;
+        });
+        setFieldErrors(errorsMap);
+        setGeneralError(err.message || 'Dữ liệu nhập vào chưa hợp lệ. Vui lòng kiểm tra lại.');
       } else {
-        setError(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+        // Lỗi email trùng lặp (409) hoặc các lỗi hệ thống khác
+        setGeneralError(err.message || 'Có lỗi xảy ra trong quá trình đăng ký.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#070d1b] flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070d1b] flex">
-      {/* Left Panel */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 p-12 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5" />
-          <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 left-1/4 w-48 h-48 rounded-full bg-purple-500/10" />
-        </div>
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)',
-          backgroundSize: '32px 32px',
-        }} />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <BookOpen size={20} className="text-white" />
-            </div>
-            <div>
-              <p className="text-white font-semibold">E-Library</p>
-              <p className="text-indigo-200 text-xs">Management System</p>
-            </div>
+    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+      {/* Cột trái - Khối trang trí */}
+      <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 p-12 flex-col justify-between relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-indigo-800 opacity-90" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-indigo-400 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob animation-delay-2000" />
+
+        <div className="relative z-10 flex items-center gap-2.5 text-white font-bold text-xl">
+          <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
+            <Library size={22} className="text-white" />
           </div>
+          <span>E-Library</span>
         </div>
-        <div className="relative z-10 space-y-6">
-          <div>
-            <h2 className="text-4xl text-white leading-tight">
-              Join our library<br />
-              <span className="text-indigo-300">community today</span>
-            </h2>
-            <p className="text-indigo-200 mt-4 text-sm leading-relaxed">
-              Create your account to borrow books, track your reading history, and stay notified about due dates.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'Books Available', value: '50,000+' },
-              { label: 'Active Members', value: '12,500+' },
-              { label: 'Daily Borrows', value: '300+' },
-              { label: 'Free to Join', value: '100%' },
-            ].map(stat => (
-              <div key={stat.label} className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
-                <p className="text-indigo-200 text-xs">{stat.label}</p>
-                <p className="text-white text-xl font-semibold">{stat.value}</p>
-              </div>
-            ))}
-          </div>
+
+        <div className="relative z-10 max-w-md mb-20">
+          <h1 className="text-4xl font-extrabold text-white tracking-tight leading-tight mb-4">
+            Tham gia cộng đồng đọc giả thông thái
+          </h1>
+          <p className="text-indigo-100 text-sm leading-relaxed">
+            Chỉ với một tài khoản duy nhất, mở ra cánh cửa kết nối kho sách học thuật đồ sộ và quản lý mượn trả tiện ích.
+          </p>
         </div>
-        <div className="relative z-10">
-          <p className="text-indigo-300 text-xs">© 2026 E-Library. All rights reserved.</p>
+
+        <div className="relative z-10 text-xs text-indigo-200">
+          &copy; {new Date().getFullYear()} E-Library System. Tất cả các quyền được bảo lưu.
         </div>
       </div>
 
-      {/* Right Panel */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 relative">
-        <button onClick={toggleTheme}
-          className="absolute top-6 right-6 p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+      {/* Cột phải - Khối Form Đăng Ký */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center py-10 px-6 sm:px-12 lg:px-20 relative overflow-y-auto">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="absolute top-6 right-6 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+        >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        <div className="w-full max-w-sm">
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <BookOpen size={16} className="text-white" />
+        <div className="max-w-md w-full mx-auto">
+          <div className="flex lg:hidden items-center gap-2 mb-6 justify-center">
+            <div className="p-2 bg-indigo-600 rounded-xl text-white">
+              <Library size={24} />
             </div>
-            <span className="text-slate-900 dark:text-white font-semibold">E-Library</span>
+            <span className="text-xl font-bold text-slate-800 dark:text-white">E-Library</span>
           </div>
 
-          <div className="mb-6">
-            <h1 className="text-slate-900 dark:text-white">Create account</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Register to join the system</p>
+          <div className="mb-6 text-center lg:text-left">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
+              Tạo tài khoản mới
+            </h2>
+            <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
+              Điền các thông tin dưới đây để đăng ký thẻ thành viên điện tử
+            </p>
           </div>
 
-          {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
-              {error}
+          {generalError && (
+            <div className="mb-5 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-xs font-medium">
+              {generalError}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <InputField name="full_name" label="Họ và tên *" placeholder="Nguyễn Văn A" icon={User} value={form.full_name} onChange={handleChange} fieldErrors={fieldErrors} />
-            <InputField name="email" label="Email *" placeholder="example@email.com" icon={Mail} type="email" value={form.email} onChange={handleChange} fieldErrors={fieldErrors} />
-            <InputField name="phone" label="Số điện thoại (tùy chọn)" placeholder="0901234567" value={form.phone} onChange={handleChange} fieldErrors={fieldErrors} />
-            
-            {/* Password */}
-            <InputField 
-              name="password" 
-              label="Mật khẩu *" 
-              placeholder="Tối thiểu 8 ký tự, 1 chữ hoa, 1 số" 
-              icon={Lock} 
-              type="password" 
-              value={form.password} 
-              onChange={handleChange} 
-              fieldErrors={fieldErrors}
+            {/* Họ và tên */}
+            <InputField
+              name="full_name"
+              label="Họ và tên *"
+              placeholder="Nguyễn Văn A"
+              icon={User}
+              value={form.full_name}
+              onChange={handleChange}
+              error={fieldErrors.full_name}
+            />
+
+            {/* Email */}
+            <InputField
+              name="email"
+              label="Địa chỉ Email *"
+              placeholder="example@gmail.com"
+              icon={Mail}
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              error={fieldErrors.email}
+            />
+
+            {/* Số điện thoại */}
+            <InputField
+              name="phone"
+              label="Số điện thoại (Tùy chọn)"
+              placeholder="0912345678"
+              icon={Phone}
+              type="text"
+              value={form.phone}
+              onChange={handleChange}
+              error={fieldErrors.phone}
+            />
+
+            {/* Mật khẩu */}
+            <InputField
+              name="password"
+              label="Mật khẩu *"
+              placeholder="Tối thiểu 8 ký tự, có chữ hoa, chữ số"
+              icon={Lock}
+              type="password"
+              value={form.password}
+              onChange={handleChange}
+              error={fieldErrors.password}
               showPass={showPass}
               setShowPass={setShowPass}
             />
 
-            {/* Confirm Password - Giờ cũng có nút Mắt ẩn/hiện xịn sò */}
-            <InputField 
-              name="confirm_password" 
-              label="Xác nhận mật khẩu *" 
-              placeholder="Nhập lại mật khẩu" 
-              icon={Lock} 
-              type="password" 
-              value={form.confirm_password} 
-              onChange={handleChange} 
-              fieldErrors={fieldErrors}
+            {/* Xác nhận mật khẩu */}
+            <InputField
+              name="confirm_password"
+              label="Xác nhận mật khẩu *"
+              placeholder="Nhập lại mật khẩu giống phía trên"
+              icon={Lock}
+              type="password"
+              value={form.confirm_password}
+              onChange={handleChange}
+              error={fieldErrors.confirm_password}
               showPass={showConfirmPass}
               setShowPass={setShowConfirmPass}
             />
 
-            <button type="submit" disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/60 text-white rounded-xl text-sm transition-colors mt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/60 text-white rounded-xl text-sm font-semibold transition-colors mt-6 shadow-md shadow-indigo-600/10"
+            >
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Đang tạo tài khoản...
                 </span>
               ) : (
-                <><ArrowRight size={15} /> Tạo tài khoản</>
+                <>
+                  <ArrowRight size={15} />Đăng ký tài khoản
+                </>
               )}
             </button>
           </form>
 
-          <p className="text-center text-slate-400 text-xs mt-6">
+          <p className="text-center text-slate-400 dark:text-slate-500 text-xs mt-6">
             Đã có tài khoản?{' '}
-            <button onClick={() => navigate('/login')} className="text-indigo-400 hover:text-indigo-300">
-              Đăng nhập
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+            >
+              Đăng nhập tại đây
             </button>
           </p>
         </div>
