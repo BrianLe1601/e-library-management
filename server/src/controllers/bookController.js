@@ -8,6 +8,8 @@
  * Endpoints:
  *   GET    /api/books
  *   GET    /api/books/featured
+ *   GET    /api/books/top-rated    ← [MỚI]
+ *   GET    /api/books/newest       ← [MỚI]
  *   GET    /api/books/categories
  *   GET    /api/books/:id
  *   POST   /api/books          (admin)
@@ -48,6 +50,32 @@ exports.getFeatured = async (req, res) => {
   } catch (err) {
     console.error('[getFeatured]', err);
     return error(res, 'Lỗi khi lấy danh sách sách nổi bật', 500);
+  }
+};
+
+// ── [MỚI] GET /api/books/top-rated ───────────────────────────────────────────
+// Trả về tối đa 10 sách có avg_rating cao nhất (chỉ tính sách có ít nhất 1 review)
+exports.getTopRated = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const books = await bookModel.findTopRated(limit);
+    return success(res, books);
+  } catch (err) {
+    console.error('[getTopRated]', err);
+    return error(res);
+  }
+};
+
+// ── [MỚI] GET /api/books/newest ──────────────────────────────────────────────
+// Trả về tối đa 10 sách có created_at mới nhất
+exports.getNewest = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const books = await bookModel.findNewest(limit);
+    return success(res, books);
+  } catch (err) {
+    console.error('[getNewest]', err);
+    return error(res);
   }
 };
 
