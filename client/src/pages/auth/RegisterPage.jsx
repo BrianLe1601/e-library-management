@@ -129,7 +129,7 @@ export default function RegisterPage() {
         <div className="relative z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <Library size={20} className="text-white" />
+              <BookOpen size={20} className="text-white" />
             </div>
             <div>
               <p className="text-white font-semibold">E-Library</p>
@@ -176,7 +176,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <Library size={16} className="text-white" />
+              <BookOpen size={16} className="text-white" />
             </div>
             <span className="text-slate-900 dark:text-white font-semibold">E-Library</span>
           </div>

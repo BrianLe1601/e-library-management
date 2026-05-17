@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+// 1. Thêm Link từ react-router-dom và icon User từ lucide-react
+import { Link } from "react-router-dom";
 import {
   Menu,
   ChevronLeft,
@@ -7,21 +9,40 @@ import {
   Bell,
   Moon,
   Sun,
+  User, // Thêm icon User để làm nút Login
 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import ProfileDropdown from "./ProfileDropdown";
 import { NotificationPopover, mockNotifications } from "../../components/NotificationPopover";
 
+// 2. Bổ sung các props nhận từ AdminLayout để các nút bấm Sidebar hoạt động được
 export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilter, setSearchFilter] = useState("All");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState(mockNotifications);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // 3. BIẾN GIẢ LẬP TRẠNG THÁI ĐĂNG NHẬP (Bật true để hiện Profile, false để hiện nút Login)
+  // Sau này khi kết nối Backend, bạn sẽ thay thế bằng: const { isLoggedIn } = useAuth();
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
+
   const { theme, toggleTheme } = useTheme();
 
+  const searchFilters = ["All", "Title", "Author", "Category"];
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    console.log("Searching:", searchQuery, "Filter:", searchFilter);
+  };
+
   return (
-    <header className="h-14 bg-white dark:bg-[#0f1629] border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-3 shrink-0 top-0 z-50 h-16">
+    <header className="bg-white dark:bg-[#0f1629] border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-3 shrink-0 top-0 z-50 h-16 w-full">
       {/* Mobile menu */}
       <button
-        className="md:hidden text-slate-400 hover:text-slate-100"
+        className="md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"
         onClick={() => setMobileOpen(true)}
       >
         <Menu size={20} />
@@ -29,7 +50,7 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
 
       {/* Collapse toggle */}
       <button
-        className="hidden md:flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+        className="hidden md:flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
         onClick={() => setCollapsed((p) => !p)}
       >
         {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
@@ -78,9 +99,24 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
           )}
         </div>
 
-        {/* Avatar */}
-        <div className="">
-          <ProfileDropdown />
+        {/* 4. THAY THẾ KHU VỰC AVATAR BẰNG ĐIỀU KIỆN ĐĂNG NHẬP */}
+        <div className="flex items-center">
+          {isLoggedIn ? (
+            // Đã đăng nhập: Hiện danh mục cá nhân của Admin
+            <ProfileDropdown />
+          ) : (
+            // Chưa đăng nhập: Hiện nút Login màu Indigo đồng bộ với Dashboard Admin
+            <Link
+              to="/login"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold 
+                bg-indigo-600 text-white hover:bg-indigo-700 
+                dark:bg-indigo-500 dark:hover:bg-indigo-600 
+                transition-all shadow-sm active:scale-95"
+            >
+              <User size={15} />
+              <span>Login</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>
