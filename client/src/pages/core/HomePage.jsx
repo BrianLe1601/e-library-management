@@ -1,54 +1,41 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, BookOpen, Users, Clock, Award } from "lucide-react";
-import HeroCarousel from "../../components/HeroCarousel";
 import BookCard from "../../components/BookCard";
 import bookService from "../../services/bookService";
+import { getStats } from "../../services/adminService";
 
-const stats = [
-  { icon: BookOpen, label: "Sách có sẵn",   value: "50,000+" },
-  { icon: Users,    label: "Thành viên",     value: "12,500+" },
-  { icon: Clock,    label: "Lượt mượn",      value: "3,200+"  },
-  { icon: Award,    label: "Sách nổi bật",   value: "850+"    },
-];
-
+// Hiệu ứng tải trang khung xương (Skeleton)
 function BookSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden animate-pulse">
-      <div className="h-40 bg-gray-200 dark:bg-slate-700" />
-      <div className="p-3 space-y-2">
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-3/4" />
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/2" />
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-pulse shadow-sm">
+      <div className="h-48 bg-slate-200 dark:bg-slate-700" />
+      <div className="p-4 space-y-3">
+        <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
       </div>
     </div>
   );
 }
 
 export default function HomePage() {
-  const [featured, setFeatured]       = useState([]);
-  const [categories, setCategories]   = useState([]);
-  const [categoryBooks, setCategoryBooks] = useState([]);
-  const [loading, setLoading]         = useState(true);
+  const [featuredBooks, setFeaturedBooks] = useState([]);
+  const [systemStats, setSystemStats] = useState({ totalBooks: 0, totalUsers: 0, activeBorrows: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [featuredRes, categoriesRes] = await Promise.all([
+        // Gọi đồng thời 2 API để lấy sách nổi bật và số liệu hệ thống
+        const [booksRes, statsRes] = await Promise.all([
           bookService.getFeatured(6),
-          bookService.getCategories(),
+          getStats().catch(() => ({ success: false })) // Bẫy lỗi nếu backend chưa mở khóa
         ]);
-        if (featuredRes.data.success)   setFeatured(featuredRes.data.data);
-        if (categoriesRes.data.success) {
-          setCategories(categoriesRes.data.data);
-          // Lấy sách của thể loại đầu tiên có sách
-          const firstCat = categoriesRes.data.data.find(c => c.book_count > 0);
-          if (firstCat) {
-            const catRes = await bookService.getBooks({ category: firstCat.id, limit: 6 });
-            if (catRes.data.success) setCategoryBooks(catRes.data.data);
-          }
-        }
-      } catch (err) {
-        console.error('HomePage fetch error:', err);
+
+        if (booksRes.success) setFeaturedBooks(booksRes.data || []);
+        if (statsRes.success) setSystemStats(statsRes.data);
+      } catch (error) {
+        console.error("Lỗi tải trang chủ:", error);
       } finally {
         setLoading(false);
       }
@@ -56,101 +43,67 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <HeroCarousel />
-      </section>
+  // Map dữ liệu thật từ DB vào mảng thẻ hiển thị
+  const statsUI = [
+    { icon: BookOpen, label: "Tổng số sách",   value: `${systemStats.totalBooks.toLocaleString()}+` },
+    { icon: Users,    label: "Thành viên",     value: `${systemStats.totalUsers.toLocaleString()}+` },
+    { icon: Clock,    label: "Sách đang mượn", value: `${systemStats.activeBorrows.toLocaleString()}`  },
+    { icon: Award,    label: "Đánh giá tốt",   value: "99%+" }, // Đánh giá hiện để tĩnh vì DB chưa thống kê rating sâu
+  ];
 
-      {/* Stats */}
-      <section className="bg-blue-900 dark:bg-slate-950 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat) => (
-              <div key={stat.label} className="flex flex-col items-center text-center">
-                <div className="bg-blue-800/50 dark:bg-blue-900/50 p-3 rounded-xl mb-3">
-                  <stat.icon className="w-5 h-5 text-blue-300" />
-                </div>
-                <p className="text-2xl text-white font-bold">{stat.value}</p>
-                <p className="text-sm text-blue-200 mt-0.5">{stat.label}</p>
-              </div>
-            ))}
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
+      {/* ── HERO BANNER ── */}
+      <section className="relative overflow-hidden bg-indigo-600 dark:bg-indigo-900 py-20 px-6 sm:px-12 rounded-b-[3rem] shadow-xl">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 opacity-90" />
+        <div className="relative max-w-5xl mx-auto text-center space-y-6">
+          <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight drop-shadow-md">
+            Khơi Nguồn Tri Thức Mới
+          </h1>
+          <p className="text-indigo-100 text-lg md:text-xl max-w-2xl mx-auto">
+            Khám phá hàng ngàn tựa sách chất lượng cao. Mượn sách dễ dàng, quản lý thông minh ngay trên mọi thiết bị của bạn.
+          </p>
+          <div className="pt-4">
+            <Link to="/books" className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-indigo-600 rounded-full font-bold shadow-lg hover:bg-slate-100 hover:scale-105 transition-all">
+              Khám phá ngay <ArrowRight size={18} />
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Featured / Trending */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+      {/* ── STATISTICS CARDS ── */}
+      <section className="max-w-6xl mx-auto px-6 -mt-10 relative z-10 grid grid-cols-2 md:grid-cols-4 gap-4">
+        {statsUI.map((item, idx) => {
+          const Icon = item.icon;
+          return (
+            <div key={idx} className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center transform hover:-translate-y-1 transition-transform">
+              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center mb-4">
+                <Icon size={24} />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 dark:text-white">{item.value}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{item.label}</p>
+            </div>
+          );
+        })}
+      </section>
+
+      {/* ── FEATURED BOOKS ── */}
+      <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="w-1 h-6 bg-blue-700 rounded-full" />
-              <span className="text-sm text-blue-700 dark:text-blue-400 font-semibold">Được mượn nhiều nhất</span>
-            </div>
-            <h2 className="text-gray-900 dark:text-gray-100">Sách nổi bật</h2>
+            <h2 className="text-3xl font-bold text-slate-800 dark:text-white">Sách Đang Thịnh Hành</h2>
+            <p className="text-slate-500 mt-2">Những tựa sách được cộng đồng mượn đọc nhiều nhất tuần qua.</p>
           </div>
-          <Link to="/books" className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors font-medium">
-            Xem tất cả <ArrowRight className="w-4 h-4" />
+          <Link to="/books" className="hidden sm:flex items-center gap-2 text-indigo-600 font-semibold hover:underline">
+            Xem tất cả <ArrowRight size={16} />
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {loading
-            ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
-            : featured.length > 0
-              ? featured.map((book) => <BookCard key={book.id} book={book} variant="trending" />)
-              : <p className="col-span-6 text-center text-gray-400 py-8 text-sm">Chưa có dữ liệu sách</p>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+          {loading 
+            ? Array(6).fill(0).map((_, i) => <BookSkeleton key={i} />)
+            : featuredBooks.map((book) => <BookCard key={book.id} book={book} />)
           }
-        </div>
-      </section>
-
-      {/* Divider */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="border-t border-gray-200 dark:border-slate-700" />
-      </div>
-
-      {/* Category Books */}
-      {categoryBooks.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-1 h-6 bg-emerald-600 rounded-full" />
-                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold">
-                  {categories.find(c => c.book_count > 0)?.name || 'Theo thể loại'}
-                </span>
-              </div>
-              <h2 className="text-gray-900 dark:text-gray-100">Khám phá thêm</h2>
-            </div>
-            <Link to="/books" className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 transition-colors font-medium">
-              Xem tất cả <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categoryBooks.map((book) => <BookCard key={book.id} book={book} variant="trending" />)}
-          </div>
-        </section>
-      )}
-
-      {/* CTA Banner */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-        <div className="bg-gradient-to-r from-blue-800 to-blue-900 dark:from-blue-950 dark:to-slate-900 rounded-2xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div>
-            <h2 className="text-white text-2xl md:text-3xl font-bold mb-2">Khám phá toàn bộ thư viện</h2>
-            <p className="text-blue-200 text-sm md:text-base max-w-md">
-              Hàng nghìn đầu sách đa dạng — văn học, khoa học, công nghệ, triết học và nhiều hơn nữa.
-            </p>
-          </div>
-          <div className="flex gap-3 shrink-0">
-            <Link to="/books"
-              className="px-6 py-3 bg-white text-blue-900 rounded-xl text-sm hover:bg-blue-50 transition-colors font-semibold">
-              Xem tất cả sách
-            </Link>
-            <Link to="/dashboard"
-              className="px-6 py-3 bg-blue-700/50 text-white border border-blue-500 rounded-xl text-sm hover:bg-blue-700 transition-colors font-medium">
-              Dashboard của tôi
-            </Link>
-          </div>
         </div>
       </section>
     </div>
