@@ -99,6 +99,43 @@ const findFeatured = async (limit = 8) => {
   return rows;
 };
 
+// ── [MỚI] Top 10 sách được đánh giá sao cao nhất ─────────────────────────────
+const findTopRated = async (limit = 10) => {
+  const [rows] = await db.query(
+    `SELECT b.id, b.title, b.cover_url, b.available_copies,
+            a.name AS author,
+            COALESCE(AVG(r.rating), 0)  AS avg_rating,
+            COUNT(DISTINCT r.id)        AS review_count
+     FROM books b
+     JOIN authors a ON a.id = b.author_id
+     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
+     GROUP BY b.id
+     HAVING review_count > 0
+     ORDER BY avg_rating DESC, review_count DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+  return rows;
+};
+
+// ── [MỚI] Top 10 sách được thêm mới nhất ─────────────────────────────────────
+const findNewest = async (limit = 10) => {
+  const [rows] = await db.query(
+    `SELECT b.id, b.title, b.cover_url, b.available_copies,
+            b.created_at,
+            a.name AS author,
+            COALESCE(AVG(r.rating), 0) AS avg_rating
+     FROM books b
+     JOIN authors a ON a.id = b.author_id
+     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
+     GROUP BY b.id
+     ORDER BY b.created_at DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+  return rows;
+};
+
 // ── Danh mục ─────────────────────────────────────────────────────────────────
 const findAllCategories = async () => {
   const [rows] = await db.query(
@@ -149,4 +186,9 @@ const setCategories = async (bookId, categoryIds = []) => {
   await db.query('INSERT INTO book_categories (book_id, category_id) VALUES ?', [values]);
 };
 
-module.exports = { findAll, findById, findFeatured, findAllCategories, create, update, remove, setCategories };
+module.exports = {
+  findAll, findById, findFeatured,
+  findTopRated,  // [MỚI]
+  findNewest,    // [MỚI]
+  findAllCategories, create, update, remove, setCategories,
+};
