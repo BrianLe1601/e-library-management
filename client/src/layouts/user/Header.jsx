@@ -4,7 +4,7 @@ import {
   Menu, X, LayoutDashboard, LogOut, BookMarked
 } from "lucide-react";
 import { useState } from "react";
-import { useTheme } from "../../components/ThemeContext";
+import { useTheme } from "../../context/ThemeContext";
 import ProfileDropdown from "./ProfileDropdown";
 import { NotificationPopover, mockNotifications } from "../../components/NotificationPopover";
 

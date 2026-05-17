@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 // layouts
 import UserLayout from "../layouts/user/UserLayout";
-import AdminLayout from "../layouts/admin/AdminLayout"; 
+import AdminLayout from "../layouts/admin/AdminLayout";
 
 // auth pages
 import LoginPage from "../pages/auth/LoginPage";
@@ -26,33 +26,41 @@ import UserManagement from "../pages/admin/UserManagement";
 import BorrowingReturns from "../pages/admin/BorrowingReturns";
 import Reports from "../pages/admin/Reports";
 import NotificationsPage from "../pages/admin/NotificationsPage";
-
+import { ThemeProvider } from "../context/ThemeContext";
+import { AuthProvider } from "../context/AuthContext";
 function AppRoutes() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* --- PUBLIC ROUTES (No Layout) --- */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+      <ThemeProvider>
+        <AuthProvider>
+          <Routes>
+            {/* --- PUBLIC ROUTES (No Layout) --- */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
-        {/* --- PRIVATE ROUTES (With UserLayout) --- */}
-        <Route element={<UserLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/books" element={<BooksPage />} />
-          <Route path="/books/:id" element={<BookDetail />} />
-          <Route path="/dashboard" element={<UserDashboard />} />
-        </Route>
+            {/* --- PRIVATE ROUTES (With UserLayout) --- */}
+            <Route element={<UserLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/books" element={<BooksPage />} />
+              <Route path="/books/:id" element={<BookDetail />} />
+              <Route path="/dashboard" element={<UserDashboard />} />
+            </Route>
 
-        {/* --- PRIVATE ROUTES (With AdminLayout) --- */}
-        <Route element={<AdminLayout />}>
-          <Route path="/admin" element={<Dashboard />} />
-          <Route path="/admin/books" element={<BookInventory />} />
-          <Route path="/admin/users" element={<UserManagement />} />
-          <Route path="/admin/borrowing" element={<BorrowingReturns />} />
-          <Route path="/admin/reports" element={<Reports />} />
-          <Route path="/admin/notifications" element={<NotificationsPage />} />
-        </Route>
-      </Routes>
+            {/* --- PRIVATE ROUTES (With AdminLayout) --- */}
+            <Route element={<AdminLayout />}>
+              <Route path="/admin" element={<Dashboard />} />
+              <Route path="/admin/books" element={<BookInventory />} />
+              <Route path="/admin/users" element={<UserManagement />} />
+              <Route path="/admin/borrowing" element={<BorrowingReturns />} />
+              <Route path="/admin/reports" element={<Reports />} />
+              <Route
+                path="/admin/notifications"
+                element={<NotificationsPage />}
+              />
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

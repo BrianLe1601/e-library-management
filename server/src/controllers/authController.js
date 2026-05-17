@@ -33,8 +33,8 @@ exports.register = async (req, res) => {
 
     return success(res, { id, full_name, email, role: 'user' }, 'Đăng ký thành công', 201);
   } catch (err) {
-    console.error('[register]', err);
-    return error(res, 'Lỗi server', 500);
+    console.error('[authController.register] Error:', err);
+    return error(res, 'Lỗi server nội bộ', 500);
   }
 };
 
@@ -43,34 +43,37 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await userModel.findByEmail(email);
-    if (!user) return error(res, 'Email hoặc mật khẩu không đúng', 401);
+    // Sử dụng hàm credentials mới để tối ưu bộ nhớ truy vấn SQL
+    const userCredentials = await userModel.findCredentialsByEmail(email);
+    if (!userCredentials) return error(res, 'Email hoặc mật khẩu không chính xác', 401);
 
-    if (!user.is_active) return error(res, 'Tài khoản đã bị khóa', 403);
+    if (!userCredentials.is_active) return error(res, 'Tài khoản của bạn hiện đang bị khóa', 403);
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return error(res, 'Email hoặc mật khẩu không đúng', 401);
+    const match = await bcrypt.compare(password, userCredentials.password);
+    if (!match) return error(res, 'Email hoặc mật khẩu không chính xác', 401);
 
-    const token = signToken({ id: user.id, email: user.email, role: user.role, is_active: user.is_active });
-    const { password: _, ...safeUser } = user;
+    // Ký mã token an toàn
+    const token = signToken({ 
+      id: userCredentials.id, 
+      email: userCredentials.email, 
+      role: userCredentials.role 
+    });
+
+    // Lấy thông tin chi tiết an toàn hiển thị lên client
+    const safeUser = await userModel.findById(userCredentials.id);
 
     return success(res, { token, user: safeUser }, 'Đăng nhập thành công');
   } catch (err) {
-    console.error('[login]', err);
-    return error(res, 'Lỗi server', 500);
+    console.error('[authController.login] Error:', err);
+    return error(res, 'Lỗi server nội bộ', 500);
   }
 };
 
 // ── GET /api/users/profile ────────────────────────────────────────────────────
 exports.getProfile = async (req, res) => {
-  try {
-    const user = await userModel.findById(req.user.id);
-    if (!user) return error(res, 'Không tìm thấy người dùng', 404);
-    return success(res, user);
-  } catch (err) {
-    console.error('[getProfile]', err);
-    return error(res, 'Lỗi server', 500);
-  }
+  // Vì authMiddleware cải tiến của chúng ta đã bốc sẵn object user từ DB nên ở đây phản hồi thẳng, giảm 1 lượt query thừa
+  if (!req.user) return error(res, 'Không tìm thấy thông tin người dùng', 404);
+  return success(res, req.user);
 };
 
 // ── PUT /api/users/profile ────────────────────────────────────────────────────
@@ -78,13 +81,13 @@ exports.updateProfile = async (req, res) => {
   try {
     const { full_name, phone, avatar_url } = req.body;
     const updated = await userModel.updateProfile(req.user.id, { full_name, phone, avatar_url });
-    if (!updated) return error(res, 'Không có trường nào để cập nhật', 400);
+    if (!updated) return error(res, 'Không có dữ liệu thay đổi hợp lệ', 400);
 
     const user = await userModel.findById(req.user.id);
-    return success(res, user, 'Cập nhật thông tin thành công');
+    return success(res, user, 'Cập nhật thông tin hồ sơ thành công');
   } catch (err) {
-    console.error('[updateProfile]', err);
-    return error(res, 'Lỗi server', 500);
+    console.error('[authController.updateProfile] Error:', err);
+    return error(res, 'Lỗi server nội bộ', 500);
   }
 };
 
@@ -93,21 +96,23 @@ exports.changePassword = async (req, res) => {
   try {
     const { old_password, new_password } = req.body;
 
-    const user = await userModel.findByEmail(req.user.email); // có trường password
-    if (!user) return error(res, 'Không tìm thấy người dùng', 404);
+    // Lấy credentials để so sánh password cũ
+    const userCredentials = await userModel.findCredentialsByEmail(req.user.email);
+    if (!userCredentials) return error(res, 'Người dùng không tồn tại', 404);
 
-    const match = await bcrypt.compare(old_password, user.password);
-    if (!match) return error(res, 'Mật khẩu cũ không đúng', 400);
+    const match = await bcrypt.compare(old_password, userCredentials.password);
+    if (!match) return error(res, 'Mật khẩu hiện tại không đúng', 400);
 
-    if (old_password === new_password)
-      return error(res, 'Mật khẩu mới phải khác mật khẩu cũ', 400);
+    if (old_password === new_password) {
+      return error(res, 'Mật khẩu mới không được trùng với mật khẩu cũ', 400);
+    }
 
     const hashed = await bcrypt.hash(new_password, SALT_ROUNDS);
     await userModel.updatePassword(req.user.id, hashed);
 
-    return success(res, null, 'Đổi mật khẩu thành công');
+    return success(res, null, 'Thay đổi mật khẩu thành công');
   } catch (err) {
-    console.error('[changePassword]', err);
-    return error(res, 'Lỗi server', 500);
+    console.error('[authController.changePassword] Error:', err);
+    return error(res, 'Lỗi server nội bộ', 500);
   }
 };

@@ -1,22 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Library, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun } from 'lucide-react';
-import { useTheme } from '../../components/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from "../../context/AuthContext";
+import authService from "../../services/authService";
 
-export default function Login() {
+
+export default function LoginPage() {
+  const navigate = useNavigate();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+  
+  // Điều hướng bảo vệ: Nếu đã đăng nhập thành công, không cho quay lại trang login
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoading, isAuthenticated, navigate]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      navigate('/');
-    }, 1200);
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+    if (error) {
+      setError('');
+    }
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.email || !formData.password) {
+      setError('Vui lòng nhập đầy đủ email và mật khẩu');
+      return;
+    }
+    try {
+      setLoading(true);
+      setError('');
+      const response = await authService.login(formData);
+      const { token, user } = response.data.data;
+      login(token, user);
+      navigate('/');
+    } catch (error) {
+      const message = error.response?.data?.message ||'Đăng nhập thất bại';
+      setError(message);
+      console.error('Login failed:', error.response?.data || error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-[#070d1b] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#070d1b] flex">
@@ -104,6 +151,11 @@ export default function Login() {
             </p>
           </div>
 
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+              {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div>
@@ -112,9 +164,13 @@ export default function Login() {
                 <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="email"
+                  name="email"
                   required
+                  autoComplete="email"
                   placeholder="admin@library.com"
                   className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60"
+                  value={formData.email}
+                  onChange={handleChange}
                 />
               </div>
             </div>
@@ -131,9 +187,13 @@ export default function Login() {
                 <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPass ? 'text' : 'password'}
+                  name="password"
                   required
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   className="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60"
+                  value={formData.password}
+                  onChange={handleChange}
                 />
                 <button
                   type="button"

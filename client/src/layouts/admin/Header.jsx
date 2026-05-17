@@ -8,7 +8,7 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
-import { useTheme } from "../../components/ThemeContext";
+import { useTheme } from "../../context/ThemeContext";
 import ProfileDropdown from "./ProfileDropdown";
 import { NotificationPopover, mockNotifications } from "../../components/NotificationPopover";
 

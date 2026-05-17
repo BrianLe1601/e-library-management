@@ -1,18 +1,22 @@
 'use strict';
-/**
- * ╔══════════════════════════════════════════════════════╗
- * ║  THÀNH VIÊN 1 — Authentication & User System        ║
- * ║  Model: userModel.js                                ║
- * ╚══════════════════════════════════════════════════════╝
- *
- * Chứa toàn bộ query SQL liên quan đến bảng `users`.
- * Controller KHÔNG viết SQL trực tiếp, chỉ gọi các hàm ở đây.
- */
 
 const db = require('../config/db');
 
+// Hàm dùng riêng cho đăng nhập (Cần lấy trường password để đối chiếu bcrypt)
+const findCredentialsByEmail = async (email) => {
+  const [rows] = await db.query(
+    'SELECT id, email, password, role, is_active FROM users WHERE email = ?', 
+    [email]
+  );
+  return rows[0] || null;
+};
+
+// Hàm lấy thông tin an toàn (Không bao gồm trường mật khẩu)
 const findByEmail = async (email) => {
-  const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+  const [rows] = await db.query(
+    'SELECT id, full_name, email, phone, avatar_url, role, is_active, created_at FROM users WHERE email = ?',
+    [email]
+  );
   return rows[0] || null;
 };
 
@@ -34,13 +38,25 @@ const create = async ({ full_name, email, password, phone }) => {
 };
 
 const updateProfile = async (id, fields) => {
-  // fields = { full_name?, phone?, avatar_url? }
-  const cols   = [];
+  const cols = [];
   const values = [];
-  if (fields.full_name  !== undefined) { cols.push('full_name = ?');  values.push(fields.full_name);  }
-  if (fields.phone      !== undefined) { cols.push('phone = ?');      values.push(fields.phone);      }
-  if (fields.avatar_url !== undefined) { cols.push('avatar_url = ?'); values.push(fields.avatar_url); }
+  
+  // Xử lý chuẩn hóa dữ liệu: nếu truyền chuỗi rỗng hoặc undefined thì đưa về giá trị thích hợp hoặc bỏ qua
+  if (fields.full_name !== undefined) { 
+    cols.push('full_name = ?');  
+    values.push(fields.full_name.trim());  
+  }
+  if (fields.phone !== undefined) { 
+    cols.push('phone = ?');      
+    values.push(fields.phone ? fields.phone.trim() : null);      
+  }
+  if (fields.avatar_url !== undefined) { 
+    cols.push('avatar_url = ?'); 
+    values.push(fields.avatar_url ? fields.avatar_url.trim() : null); 
+  }
+  
   if (!cols.length) return false;
+  
   values.push(id);
   await db.query(`UPDATE users SET ${cols.join(', ')} WHERE id = ?`, values);
   return true;
@@ -50,4 +66,11 @@ const updatePassword = async (id, hashedPassword) => {
   await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, id]);
 };
 
-module.exports = { findByEmail, findById, create, updateProfile, updatePassword };
+module.exports = { 
+  findCredentialsByEmail, 
+  findByEmail, 
+  findById, 
+  create, 
+  updateProfile, 
+  updatePassword 
+};
