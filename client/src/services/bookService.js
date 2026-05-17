@@ -13,7 +13,6 @@ const bookService = {
   /**
    * Lấy danh sách sách có filter + phân trang
    * @param {{ search?, category?, page?, limit? }} params
-   * @returns {{ success, data: Book[], meta: { total, page, limit, totalPages } }}
    */
   getBooks: (params = {}) => api.get("/books", { params }),
 
@@ -28,6 +27,20 @@ const bookService = {
    * @param {number} limit
    */
   getFeatured: (limit = 8) => api.get("/books/featured", { params: { limit } }),
+
+  /**
+   * [MỚI] Lấy top 10 sách được đánh giá sao cao nhất
+   * Dùng cho section "Trending Books" trang Home
+   * @param {number} limit
+   */
+  getTopRated: (limit = 10) => api.get("/books/top-rated", { params: { limit } }),
+
+  /**
+   * [MỚI] Lấy top 10 sách được thêm mới nhất (ORDER BY created_at DESC)
+   * Dùng cho section "Sách Mới Nhất" trang Home
+   * @param {number} limit
+   */
+  getNewest: (limit = 10) => api.get("/books/newest", { params: { limit } }),
 
   /**
    * Lấy danh sách thể loại kèm book_count

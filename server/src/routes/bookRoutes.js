@@ -26,8 +26,10 @@ const bookRules = [
 ];
 
 // ── Public routes ─────────────────────────────────────────────────────────────
-// Lưu ý: /featured và /categories phải đặt TRƯỚC /:id
+// Lưu ý: các route tĩnh phải đặt TRƯỚC /:id
 router.get('/featured',    bookController.getFeatured);
+router.get('/top-rated',   bookController.getTopRated);   // [MỚI] Top 10 rating cao nhất
+router.get('/newest',      bookController.getNewest);     // [MỚI] Top 10 mới thêm nhất
 router.get('/categories',  bookController.getCategories);
 router.get('/',            bookController.getBooks);
 router.get('/:id',         bookController.getBookById);
