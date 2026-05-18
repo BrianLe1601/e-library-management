@@ -15,7 +15,7 @@ CREATE TABLE users (
     phone       VARCHAR(20)     DEFAULT NULL,
     avatar_url  VARCHAR(500)    DEFAULT NULL,
     role        ENUM('user','employee','admin') NOT NULL DEFAULT 'user',
-    is_active   TINYINT(1)      NOT NULL DEFAULT 1,
+    status      ENUM('pending', 'active', 'banned') DEFAULT 'pending',
     created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -135,6 +135,18 @@ CREATE TABLE reviews (
     UNIQUE KEY uq_user_book (user_id, book_id),
     CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_review_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+);
+
+-- ============================================================
+-- 10. OTPS (mã OTP tạm thời)
+-- ============================================================
+CREATE TABLE otps (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    otp_code VARCHAR(6) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (email) -- Tối ưu hóa tốc độ tìm kiếm theo Email
 );
 
 -- ============================================================

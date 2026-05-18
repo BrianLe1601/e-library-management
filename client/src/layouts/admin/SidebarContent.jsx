@@ -47,7 +47,7 @@ export default function SidebarContent({ collapsed, setMobileOpen }) {
 
       {/* Bottom */}
       <div className="border-t border-slate-800 dark:border-slate-700 p-2 space-y-1">
-        <button className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800/60 dark:hover:bg-slate-700/60 hover:text-slate-100 transition-all ${collapsed ? 'justify-center' : ''}`}>
+        <button onClick={() => navigate('/admin/settings')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800/60 dark:hover:bg-slate-700/60 hover:text-slate-100 transition-all ${collapsed ? 'justify-center' : ''}`}>
           <Settings size={18} className="shrink-0" />
           {!collapsed && <span className="text-sm">Settings</span>}
         </button>

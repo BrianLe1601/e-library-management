@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library, Eye, EyeOff, Mail, Lock, User, ArrowRight, Moon, Sun } from 'lucide-react';
+import { BookOpen, Eye, EyeOff, Mail, Lock, User, ArrowRight, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import authService from '../../services/authService';
@@ -47,7 +47,7 @@ export default function RegisterPage() {
   const { isLoading, isAuthenticated }      = useAuth(); // Bảo vệ route
 
   const [form, setForm] = useState({
-    full_name: '', email: '', password: '', confirm_password: '', phone: '',
+    full_name: '', email: '', password: '', confirm_password: '', phone: '', role: 'user'
   });
 
   // Chặn không cho user đã đăng nhập cố tình vào lại trang Register
@@ -65,45 +65,46 @@ export default function RegisterPage() {
 
   const validate = () => {
     const errs = {};
-    if (!form.full_name.trim())      errs.full_name = 'Vui lòng nhập họ tên';
-    if (!form.email.trim())          errs.email     = 'Vui lòng nhập email';
-    if (form.password.length < 8)   errs.password  = 'Mật khẩu tối thiểu 8 ký tự';
-    if (!/[A-Z]/.test(form.password)) errs.password = 'Mật khẩu phải có ít nhất 1 chữ hoa';
-    if (!/[0-9]/.test(form.password)) errs.password = 'Mật khẩu phải có ít nhất 1 chữ số';
-    if (form.password !== form.confirm_password) errs.confirm_password = 'Mật khẩu xác nhận không khớp';
+    if (!form.full_name.trim())      errs.full_name = 'Please enter your full name';
+    if (!form.email.trim())          errs.email     = 'Please enter your email';
+    if (form.password.length < 8)   errs.password  = 'Password must be at least 8 characters';
+    if (!/[A-Z]/.test(form.password)) errs.password = 'Password must contain at least one uppercase letter';
+    if (!/[0-9]/.test(form.password)) errs.password = 'Password must contain at least one digit';
+    if (form.password !== form.confirm_password) errs.confirm_password = 'Password confirmation does not match';
     return errs;
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
+  e.preventDefault();
+  const errs = validate();
+  if (Object.keys(errs).length) { setFieldErrors(errs); return; }
 
-    setLoading(true);
-    setError('');
-    try {
-      const { data } = await authService.register({
-        full_name: form.full_name,
-        email:     form.email,
-        password:  form.password,
-        phone:     form.phone || undefined,
-      });
-      if (data.success) {
-        navigate('/login', { state: { registered: true } });
-      }
-    } catch (err) {
-      const serverErrors = err.response?.data?.errors;
-      if (serverErrors?.length) {
-        const mapped = {};
-        serverErrors.forEach(({ field, message }) => { mapped[field] = message; });
-        setFieldErrors(mapped);
-      } else {
-        setError(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  setError('');
+  try {
+    // Gọi API thông qua authService hiện tại của bạn
+    const response = await authService.register({
+      full_name: form.full_name,
+      email: form.email,
+      password: form.password,
+      phone: form.phone || undefined,
+      role: 'user' // Luôn đăng ký với role user, không cho phép chọn role khi đăng ký để tránh lỗ hổng bảo mật
+    });
+
+    // Chuyển hướng sang trang OTP và truyền Email cũng như mã OTP debug nếu có
+    navigate('/verify-otp', {
+      state: {
+        email: form.email,
+        debugOtp: response.data?.debugOtp,
+      },
+    });
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Đăng ký không thành công. Vui lòng thử lại.';
+    setError(msg);
+  } finally {
+    setLoading(false);
+  }
+}
 
   if (isLoading) {
     return (
@@ -230,18 +231,18 @@ export default function RegisterPage() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Đang tạo tài khoản...
+                  Creating account...
                 </span>
               ) : (
-                <><ArrowRight size={15} /> Tạo tài khoản</>
+                <><ArrowRight size={15} /> Create Account</>
               )}
             </button>
           </form>
 
           <p className="text-center text-slate-400 text-xs mt-6">
-            Đã có tài khoản?{' '}
+            Already have an account?{' '}
             <button onClick={() => navigate('/login')} className="text-indigo-400 hover:text-indigo-300">
-              Đăng nhập
+              Sign in
             </button>
           </p>
         </div>
