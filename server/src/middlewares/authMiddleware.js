@@ -2,32 +2,70 @@
 
 const jwt = require('jsonwebtoken');
 const userModel = require('../models/userModel');
+const { error } = require('../utils/response');
 
-// Middleware 1: Kiểm tra xem Token có hợp lệ không
-const verifyToken = (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Truy cập bị từ chối, thiếu mã Token.' });
+/**
+ * authenticate
+ * Xác thực JWT từ header "Authorization: Bearer <token>".
+ * - Kiểm tra token hợp lệ
+ * - Lấy full user object từ DB (tránh dùng decoded JWT làm user data)
+ * - Kiểm tra tài khoản còn active không
+ * - Gắn req.user để controller sử dụng
+ * 
+ * Returns 401 nếu thiếu token hoặc token hết hạn
+ * Returns 404 nếu user không tồn tại trong DB
+ * Returns 403 nếu tài khoản bị khóa
+ */
+const authenticate = async (req, res, next) => {
+  const header = req.headers['authorization'] || '';
+  
+  if (!header.startsWith('Bearer ')) {
+    return error(res, 'Định dạng token phải là Bearer <token>', 401);
+  }
 
-    try {
-        const verified = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = verified; // Đính thông tin { id, email, role } vào request
-        next();
-    } catch (err) {
-        res.status(403).json({ message: 'Token không hợp lệ hoặc đã hết hạn.' });
+  const token = header.slice(7); // Bỏ "Bearer " prefix
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Cải tiến quan trọng: Kiểm tra xem user có bị Admin khóa đột xuất trong lúc token còn hạn không
+    const user = await userModel.findById(decoded.id);
+    if (!user) {
+      return error(res, 'Người dùng không tồn tại hoặc đã bị xóa', 404);
     }
+    
+    if (user.status === 'banned') {
+      return error(res, 'Tài khoản của bạn đã bị khóa, vui lòng liên hệ quản trị viên', 403);
+    }
+    
+    if (user.status === 'pending') {
+      return error(res, 'Tài khoản chưa được xác thực OTP, vui lòng kiểm tra email', 401);
+    }
+
+    req.user = user; // Gắn hẳn thông tin sạch từ DB vào req.user
+    next();
+  } catch (err) {
+    const message = err.name === 'TokenExpiredError' ? 'Token đã hết hạn, vui lòng đăng nhập lại' : 'Token không hợp lệ';
+    return error(res, message, 401);
+  }
 };
 
-// Middleware 2: Kiểm tra danh sách quyền được phép gọi API
-const checkRole = (allowedRoles) => {
-    return (req, res, next) => {
-        if (!allowedRoles.includes(req.user.role)) {
-            return res.status(403).json({ message: 'Bạn không có quyền thực hiện hành động này.' });
-        }
-        next();
-    };
+/**
+ * authorize(...roles)
+ * Phân quyền theo role. Dùng SAU authenticate.
+ * Ví dụ: router.delete('/admin', authenticate, authorize('admin'), controller)
+ */
+const authorize = (...roles) => (req, res, next) => {
+  if (!req.user) {
+    return error(res, 'Không tìm thấy thông tin người dùng', 401);
+  }
+  if (!roles.includes(req.user.role)) {
+    return error(res, 'Bạn không có quyền truy cập tài nguyên này', 403);
+  }
+  next();
 };
 
 module.exports = {
-    authenticate: verifyToken,
-    authorize: checkRole,
+  authenticate,
+  authorize,
 };

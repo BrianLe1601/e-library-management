@@ -26,7 +26,7 @@ const getStats = async () => {
      FROM borrows`
   );
   const [[{ totalUsers }]] = await db.query(
-    `SELECT COUNT(*) AS totalUsers FROM users WHERE role = 'user' AND is_active = 1`
+    `SELECT COUNT(*) AS totalUsers FROM users WHERE role = 'user' AND status = 'active'`
   );
   return {
     totalBooks:        Number(totalBooks),
@@ -87,12 +87,12 @@ const getTopBooks = async (limit = 10) => {
 };
 
 // ── Danh sách users (admin) ───────────────────────────────────────────────────
-const getUsers = async ({ role, is_active, search, page = 1, limit = 20 }) => {
+const getUsers = async ({ role, status, search, page = 1, limit = 20 }) => {
   const conds  = [];
   const params = [];
-  if (role)             { conds.push('u.role = ?');      params.push(role);          }
-  if (is_active != null){ conds.push('u.is_active = ?'); params.push(Number(is_active)); }
-  if (search)           { conds.push('(u.full_name LIKE ? OR u.email LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
+  if (role)    { conds.push('u.role = ?');   params.push(role); }
+  if (status)  { conds.push('u.status = ?'); params.push(status); }
+  if (search)  { conds.push('(u.full_name LIKE ? OR u.email LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
 
   const where  = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
@@ -100,7 +100,7 @@ const getUsers = async ({ role, is_active, search, page = 1, limit = 20 }) => {
 
   const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM users u ${where}`, params);
   const [rows] = await db.query(
-    `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.is_active, u.created_at,
+    `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.status, u.created_at,
             COUNT(b.id) AS total_borrows
      FROM users u
      LEFT JOIN borrows b ON b.user_id = u.id
@@ -114,12 +114,14 @@ const getUsers = async ({ role, is_active, search, page = 1, limit = 20 }) => {
 };
 
 const toggleUserStatus = async (id) => {
-  const [[user]] = await db.query('SELECT id, role, is_active FROM users WHERE id = ?', [id]);
+  const [[user]] = await db.query('SELECT id, role, status FROM users WHERE id = ?', [id]);
   if (!user) throw Object.assign(new Error('Người dùng không tồn tại'), { statusCode: 404 });
   if (user.role === 'admin') throw Object.assign(new Error('Không thể khóa tài khoản admin'), { statusCode: 403 });
-  const newStatus = user.is_active ? 0 : 1;
-  await db.query('UPDATE users SET is_active = ? WHERE id = ?', [newStatus, id]);
-  return { id, is_active: Boolean(newStatus) };
+  
+  // Toggle giữa 'active' và 'banned'
+  const newStatus = user.status === 'banned' ? 'active' : 'banned';
+  await db.query('UPDATE users SET status = ? WHERE id = ?', [newStatus, id]);
+  return { id, status: newStatus };
 };
 
 const deleteUser = async (id) => {

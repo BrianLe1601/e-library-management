@@ -7,7 +7,7 @@ export function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit() {
     e.preventDefault();
     if (!email) return;
     setLoading(true);

@@ -31,7 +31,7 @@ const findById = async (id) => {
 const create = async ({ full_name, email, password, phone }) => {
   const [result] = await db.query(
     `INSERT INTO users (full_name, email, password, phone, role, status)
-     VALUES (?, ?, ?, ?, 'user', 'active')`,
+     VALUES (?, ?, ?, ?, 'user', 'pending')`,
     [full_name, email, password, phone || null]
   );
   return result.insertId;
