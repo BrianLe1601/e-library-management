@@ -12,7 +12,7 @@ const DEFAULT_BORROW_DAYS  = 14;
 const MAX_RENEWALS         = 2;
 
 // ── 1. Tạo yêu cầu mượn sách (User gửi yêu cầu, trạng thái 'pending') ──────────
-const create = async ({ user_id, book_id }) => {
+const create = async ({ user_id, book_id, due_date }) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -39,10 +39,10 @@ const create = async ({ user_id, book_id }) => {
     }
 
     // Tạo phiếu mượn ở trạng thái chờ duyệt 'pending'
-    // Lưu ý: Sách chỉ thực sự trừ kho KHI ĐƯỢC THỦ THƯ DUYỆT (approve) để tránh giữ chỗ ảo
+    // Lưu ý: Sách chỉ thực sự trừ kho KHI ĐƯỢC EMPLOYEE DUYỆT (approve) để tránh giữ chỗ ảo
     const [result] = await conn.query(
-      `INSERT INTO borrows (user_id, book_id, status) VALUES (?, ?, 'pending')`,
-      [user_id, book_id]
+      `INSERT INTO borrows (user_id, book_id, status, due_date) VALUES (?, ?, 'pending', ?)`,
+      [user_id, book_id, due_date]
     );
 
     await conn.commit();

@@ -82,7 +82,8 @@ export default function BookDetail() {
   const totalCopies = book.total_copies || 0;
   const availabilityPercentage = totalCopies > 0 ? (availableCopies / totalCopies) * 100 : 0;
   const isAvailable = availableCopies > 0;
-  const categoriesList = book.categories ? book.categories.split(',') : [];
+  const categoriesList = Array.isArray(book.categories) 
+  ? book.categories : (typeof book.categories === 'string' ? book.categories.split(',') : []);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
