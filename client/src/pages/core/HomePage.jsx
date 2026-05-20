@@ -12,6 +12,7 @@ const stats = [
   { icon: Award,    label: "Sách nổi bật",   value: "850+"    },
 ];
 
+// Hiệu ứng tải trang khung xương (Skeleton)
 function BookSkeleton() {
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden animate-pulse">
@@ -53,6 +54,7 @@ export default function HomePage() {
         setLoading(false);
       }
     };
+    
     fetchData();
   }, []);
 
