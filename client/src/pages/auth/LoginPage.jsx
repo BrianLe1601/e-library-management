@@ -1,17 +1,17 @@
-import React, { useState , useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
 
-
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isLoading, isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -78,192 +78,141 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070d1b] flex">
-      {/* Left Panel - Branding */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 p-12 relative overflow-hidden">
-        {/* Background decoration */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5" />
-          <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 left-1/4 w-48 h-48 rounded-full bg-purple-500/10" />
+    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+      {/* Khối giao diện Trái (Giữ nguyên giao diện đẹp) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-indigo-600 p-12 flex-col justify-between relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-indigo-800 opacity-90" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-indigo-400 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-50 animate-blob animation-delay-2000" />
+        
+        <div className="relative z-10 flex items-center gap-2.5 text-white font-bold text-xl">
+          <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
+            <Library size={22} className="text-white" />
+          </div>
+          <span>E-Library</span>
         </div>
 
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)',
-          backgroundSize: '32px 32px',
-        }} />
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <BookOpen size={20} className="text-white" />
-            </div>
-            <div>
-              <p className="text-white font-semibold">ELibrary</p>
-              <p className="text-indigo-200 text-xs">Management System</p>
-            </div>
-          </div>
+        <div className="relative z-10 max-w-md mb-20">
+          <h1 className="text-4xl font-extrabold text-white tracking-tight leading-tight mb-4">
+            Khám phá tri thức số tại thư viện thông minh
+          </h1>
+          <p className="text-indigo-100 text-sm leading-relaxed">
+            Mượn sách trực tuyến, theo dõi hạn trả dễ dàng và tiếp cận hàng ngàn tựa sách hấp dẫn mọi lúc, mọi nơi.
+          </p>
         </div>
 
-        <div className="relative z-10 space-y-6">
-          <div>
-            <h2 className="text-4xl text-white leading-tight">
-              Manage your library<br />
-              <span className="text-indigo-300">smarter & faster</span>
-            </h2>
-            <p className="text-indigo-200 mt-4 text-sm leading-relaxed">
-              A complete library management system with real-time analytics, borrowing workflows, and intelligent reporting.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'Books Managed', value: '12,847' },
-              { label: 'Active Members', value: '3,420' },
-              { label: 'Monthly Borrows', value: '1,234' },
-              { label: 'System Uptime', value: '99.9%' },
-            ].map(stat => (
-              <div key={stat.label} className="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
-                <p className="text-indigo-200 text-xs">{stat.label}</p>
-                <p className="text-white text-xl font-semibold">{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative z-10">
-          <p className="text-indigo-300 text-xs">© 2026 ELibrary. All rights reserved.</p>
+        <div className="relative z-10 text-xs text-indigo-200">
+          &copy; {new Date().getFullYear()} E-Library System. Tất cả các quyền được bảo lưu.
         </div>
       </div>
 
-      {/* Right Panel - Form */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 relative">
-        {/* Theme toggle */}
+      {/* Khối Form Đăng Nhập */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-20 relative">
         <button
+          type="button"
           onClick={toggleTheme}
-          className="absolute top-6 right-6 p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="absolute top-6 right-6 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
         >
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        <div className="w-full max-w-sm">
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <BookOpen size={16} className="text-white" />
+        <div className="max-w-md w-full mx-auto">
+          <div className="flex lg:hidden items-center gap-2 mb-8 justify-center">
+            <div className="p-2 bg-indigo-600 rounded-xl text-white">
+              <Library size={24} />
             </div>
-            <span className="text-slate-900 dark:text-white font-semibold">ELibrary</span>
+            <span className="text-xl font-bold text-slate-800 dark:text-white">E-Library</span>
           </div>
 
-          <div className="mb-6">
-            <h1 className="text-slate-900 dark:text-white">Welcome back</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-              Sign in to access your dashboard
+          <div className="mb-8 text-center lg:text-left">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
+              Chào mừng quay trở lại!
+            </h2>
+            <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
+              Vui lòng nhập thông tin tài khoản của bạn để tiếp tục
             </p>
           </div>
 
+          {/* Hiển thị lỗi chuẩn xác */}
           {error && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            <div className="mb-5 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-medium text-center">
               {error}
             </div>
           )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
             <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Email Address</label>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+                Địa chỉ Email *
+              </label>
               <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="email"
                   name="email"
                   required
-                  autoComplete="email"
-                  placeholder="admin@library.com"
-                  className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60"
+                  placeholder="name@example.com"
                   value={formData.email}
                   onChange={handleChange}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                 />
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs text-slate-500 dark:text-slate-400">Password</label>
-                <button type="button" className="text-xs text-indigo-400 hover:text-indigo-300">
-                  Forgot password?
-                </button>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Mật khẩu *
+                </label>
               </div>
               <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPass ? 'text' : 'password'}
                   name="password"
                   required
-                  autoComplete="current-password"
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60"
                   value={formData.password}
                   onChange={handleChange}
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPass(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  onClick={() => setShowPass(!showPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1"
                 >
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/60 text-white rounded-xl text-sm transition-colors mt-2"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/60 text-white rounded-xl text-sm font-semibold transition-colors mt-6 shadow-md shadow-indigo-600/10"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
+                  Đang đăng nhập...
                 </span>
               ) : (
                 <>
-                  Sign In
+                  Đăng nhập
                   <ArrowRight size={15} />
                 </>
               )}
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-            <span className="text-slate-400 text-xs">or continue with</span>
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-          </div>
-
-          {/* Social */}
-          <div className="grid grid-cols-2 gap-3">
-            {['Google', 'Facebook'].map(p => (
-              <button
-                key={p}
-                type="button"
-                className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
-          <p className="text-center text-slate-400 text-xs mt-6">
-            Don't have an account?{' '}
+          <p className="text-center text-slate-400 dark:text-slate-500 text-xs mt-8">
+            Chưa có tài khoản thư viện?{' '}
             <button
+              type="button"
               onClick={() => navigate('/register')}
-              className="text-indigo-400 hover:text-indigo-300"
+              className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
             >
-              Register here
+              Đăng ký ngay
             </button>
           </p>
         </div>

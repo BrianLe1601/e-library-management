@@ -64,7 +64,7 @@ export default function ProfileDropdown() {
           
           <div className="p-1.5">
             <Link
-              to="/admin/settings"
+              to="/dashboard"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-xl
                          text-slate-600 dark:text-slate-300 

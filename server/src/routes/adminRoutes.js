@@ -18,24 +18,23 @@ const router  = express.Router();
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const adminController             = require('../controllers/adminController');
 
+// MỞ KHÓA API STATS CHO TRANG CHỦ PUBLIC (Ai cũng xem được số lượng sách)
+router.get('/stats', adminController.getStats);
 // Tất cả admin routes yêu cầu đăng nhập
 router.use(authenticate);
 
-// ── Dashboard & Reports (admin + employee) ────────────────────────────────────
-router.get('/stats',                authorize('admin', 'employee'), adminController.getStats);
+// ── Nhóm Route Dashboard & Báo cáo (Cả Admin và Nhân viên thủ thư đều được xem) ──
 router.get('/reports',              authorize('admin', 'employee'), adminController.getReports);
 router.get('/reports/top-books',    authorize('admin', 'employee'), adminController.getTopBooks);
 router.get('/reports/export',       authorize('admin', 'employee'), adminController.exportReport);
 
-// ── User management (admin only) ──────────────────────────────────────────────
-router.get   ('/users',             authorize('admin', 'employee'), adminController.getUsers);
-router.patch ('/users/:id/status',  authorize('admin'),             adminController.toggleUserStatus);
-router.delete('/users/:id',         authorize('admin'),             adminController.deleteUser);
-
-// ── Borrow management ─────────────────────────────────────────────────────────
+// ── Nhóm Route Tra cứu Phiếu mượn tổng thể (Admin và Nhân viên thủ thư phối hợp quản lý) ──
 router.get('/borrows',              authorize('admin', 'employee'), adminController.getAllBorrows);
 router.get('/borrows/overdue',      authorize('admin', 'employee'), adminController.getOverdue);
-router.put('/borrows/approve/:id',  authorize('admin', 'employee'), adminController.approveBorrow);
-router.put('/borrows/reject/:id',   authorize('admin', 'employee'), adminController.rejectBorrow);
+
+// ── Nhóm Quyền lực cao: Quản lý Thành viên (Chỉ Admin tối cao mới được quyền can thiệp) ──
+router.get   ('/users',             authorize('admin', 'employee'), adminController.getUsers); // Thủ thư được phép xem danh sách để tra cứu độc giả tại quầy
+router.patch ('/users/:id/status',  authorize('admin'),             adminController.toggleUserStatus);
+router.delete('/users/:id',         authorize('admin'),             adminController.deleteUser);
 
 module.exports = router;

@@ -33,8 +33,7 @@ export default function ProfileDropdown() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 pl-2 pr-3 py-1.5 bg-white/10 hover:bg-white/20 
-                   rounded-xl transition-colors border border-white/20"
+        className="flex items-center gap-2 pl-2 pr-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl transition-colors border border-white/20"
       >
         <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center 
                         text-xs text-white font-semibold">
