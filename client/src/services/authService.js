@@ -35,12 +35,6 @@ const authService = {
    * @param {{ old_password, new_password }} data
    */
   changePassword: (data) => api.put("/users/change-password", data),
-  
-  /**
-   * Verify OTP sent to email after registration
-   * @param {{ email, otpCode }} data
-   */
-  verifyOtp: (data) => api.post("/auth/verify-otp", data),
 };
 
 export default authService;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { Settings, LogOut, BookLock } from 'lucide-react';
 import { navItems } from './navItems';
 import Profile from './Profile';
@@ -7,8 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function SidebarContent({ collapsed, setMobileOpen }) {
   const { logout } = useAuth();
-  const navigate = useNavigate();
-  
+
   return (
     <div className="flex flex-col h-full bg-slate-900 dark:bg-[#0d1526]">
       {/* Khối Logo */}
@@ -47,13 +46,12 @@ export default function SidebarContent({ collapsed, setMobileOpen }) {
         ))}
       </nav>
 
-      {/* Bottom */}
-      <div className="border-t border-slate-800 dark:border-slate-700 p-2 space-y-1">
-        <button onClick={() => navigate('/admin/settings')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-800/60 dark:hover:bg-slate-700/60 hover:text-slate-100 transition-all ${collapsed ? 'justify-center' : ''}`}>
+      {/* Khu vực Footer Sidebar (Profile & Nút đăng xuất) */}
+      <div className="border-t border-slate-800/80 p-3 space-y-2 pb-6">
+        <button className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/60 hover:text-slate-100 transition-all font-medium ${collapsed ? 'justify-center px-0' : ''}`}>
           <Settings size={18} className="shrink-0" />
           {!collapsed && <span className="text-sm">Cài đặt hệ thống</span>}
         </button>
-        
         <button
           onClick={logout}
           className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition-all font-medium ${collapsed ? 'justify-center px-0' : ''}`}

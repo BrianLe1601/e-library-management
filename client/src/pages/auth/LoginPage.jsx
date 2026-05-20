@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Eye, EyeOff, Mail, Lock, User, ChevronDown, ArrowRight, Moon, Sun } from 'lucide-react';
+import { Library, Eye, EyeOff, Mail, Lock, ArrowRight, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
@@ -36,38 +36,35 @@ export default function LoginPage() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!formData.email || !formData.password) {
-    setError('Please enter both email and password');
-    return;
-  }
-  try {
-    setLoading(true);
-    setError('');
-    
-    const response = await authService.login(formData);
-    const { token, user } = response.data.data; // Đọc thông tin user & token từ backend trả về
-    
-    // Lưu session đăng nhập vào Context toàn cục của hệ thống
-    login(token, user);
-    
-    // LOGIC ĐIỀU HƯỚNG CHUYÊN SÂU THEO VAI TRÒ (ROLE-BASED REDIRECTION)
-    if (user && (user.role === 'admin' || user.role === 'employee')) {
-      // Đưa Admin và Nhân viên thư viện thẳng vào Dashboard trang quản trị hệ thống
-      navigate('/admin', { replace: true });
-    } else {
-      // Đưa độc giả thông thường về trang chủ của UserLayout để tìm và mượn sách
-      navigate('/', { replace: true });
+    e.preventDefault();
+    if (!formData.email || !formData.password) {
+      setError('Vui lòng nhập đầy đủ email và mật khẩu.');
+      return;
     }
-    
-  } catch (error) {
-    const message = error.response?.data?.message || 'Login failed';
-    setError(message);
-    console.error('Login failed:', error.response?.data || error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+
+    try {
+      setLoading(true);
+      setError('');
+      
+      // 1. Gọi API gửi yêu cầu đăng nhập lên Server
+      const response = await authService.login({
+        email: formData.email,
+        password: formData.password
+      });
+      
+      // 2. Nếu thành công -> lưu thông tin (token, user) vào State toàn cục
+      if (response.success) {
+        login(response.data);
+      }
+    } catch (err) {
+      console.error('[Login Error]', err);
+      // Lỗi do api.js trả về trực tiếp, gọi thẳng err.message
+      const msg = err.message || 'Email hoặc mật khẩu không chính xác. Vui lòng thử lại!';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (

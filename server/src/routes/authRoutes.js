@@ -47,7 +47,6 @@ const updateProfileRules = [
 // ── Public routes ─────────────────────────────────────────────────────────────
 router.post('/auth/register',         registerRules,       validate, authController.register);
 router.post('/auth/login',            loginRules,          validate, authController.login);
-router.post('/auth/verify-otp',       authController.verifyOtp);
 
 // ── Protected routes (yêu cầu JWT) ───────────────────────────────────────────
 router.get ('/users/profile',         authenticate, authController.getProfile);
