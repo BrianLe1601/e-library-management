@@ -22,7 +22,7 @@ CREATE TABLE users (
     phone       VARCHAR(20) DEFAULT NULL,
     avatar_url  VARCHAR(500) DEFAULT NULL,
     role        ENUM('user','employee','admin') NOT NULL DEFAULT 'user',
-    is_active   TINYINT(1) NOT NULL DEFAULT 1,
+    status      ENUM('pending', 'active', 'banned') DEFAULT 'pending',
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -158,7 +158,7 @@ CREATE TABLE notifications (
 -- ============================================================
 -- THÊM DỮ LIỆU MẪU (MOCK DATA LOGIC CHUẨN)
 -- ============================================================
-INSERT INTO users (id, full_name, email, password, phone, role, is_active) VALUES
+INSERT INTO users (id, full_name, email, password, phone, role, status) VALUES
 (1, 'Admin System', 'admin@library.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0123456789', 'admin', 1),
 (2, 'Nhân viên 1', 'employee1@library.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0987654321', 'employee', 1),
 (3, 'Nhân viên 2', 'employee2@library.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0912345678', 'employee', 1),

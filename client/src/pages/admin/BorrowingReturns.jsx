@@ -1,43 +1,17 @@
-import React, { useState } from 'react';
-import { CheckCircle, Bell, Clock, AlertTriangle, BookOpen, RotateCcw, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  CheckCircle, Bell, Clock, AlertTriangle, BookOpen, 
+  RotateCcw, XCircle, Loader2, BookmarkCheck 
+} from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
-
-const pendingBorrows = [
-  { id: 'BRW-001', user: 'Alice Johnson', book: 'Dune', category: 'Sci-Fi', requestDate: '2026-05-10', dueDate: '2026-05-24', avatar: 'AJ' },
-  { id: 'BRW-002', user: 'Bob Martinez', book: 'Clean Code', category: 'Technology', requestDate: '2026-05-10', dueDate: '2026-05-24', avatar: 'BM' },
-  { id: 'BRW-003', user: 'Chloe Davis', book: 'Sapiens', category: 'History', requestDate: '2026-05-09', dueDate: '2026-05-23', avatar: 'CD' },
-  { id: 'BRW-004', user: 'David Kim', book: '1984', category: 'Fiction', requestDate: '2026-05-09', dueDate: '2026-05-23', avatar: 'DK' },
-  { id: 'BRW-005', user: 'Emma Wilson', book: 'A Brief History of Time', category: 'Science', requestDate: '2026-05-08', dueDate: '2026-05-22', avatar: 'EW' },
-];
-
-const activeBorrows = [
-  { id: 'ACT-001', user: 'Frank Lee', book: 'The Great Gatsby', category: 'Fiction', borrowDate: '2026-04-25', dueDate: '2026-05-16', daysLeft: 6, avatar: 'FL' },
-  { id: 'ACT-002', user: 'Grace Nguyen', book: 'The Art of War', category: 'History', borrowDate: '2026-04-28', dueDate: '2026-05-19', daysLeft: 9, avatar: 'GN' },
-  { id: 'ACT-003', user: 'Henry Brown', book: 'To Kill a Mockingbird', category: 'Fiction', borrowDate: '2026-05-01', dueDate: '2026-05-22', daysLeft: 12, avatar: 'HB' },
-  { id: 'ACT-004', user: 'Iris Chen', book: 'Philosophy of Mind', category: 'Philosophy', borrowDate: '2026-05-03', dueDate: '2026-05-24', daysLeft: 14, avatar: 'IC' },
-  { id: 'ACT-005', user: 'Jack Smith', book: 'Cosmos', category: 'Science', borrowDate: '2026-04-20', dueDate: '2026-05-11', daysLeft: 1, avatar: 'JS' },
-];
-
-const overdueBooks = [
-  { id: 'OVD-001', user: 'Kevin Park', book: 'The Alchemist', category: 'Fiction', borrowDate: '2026-04-01', dueDate: '2026-04-22', daysOverdue: 18, finePerDay: 0.5, avatar: 'KP' },
-  { id: 'OVD-002', user: 'Linda Torres', book: 'Brave New World', category: 'Fiction', borrowDate: '2026-03-28', dueDate: '2026-04-18', daysOverdue: 22, finePerDay: 0.5, avatar: 'LT' },
-  { id: 'OVD-003', user: 'Mike Johnson', book: 'Quantum Physics', category: 'Science', borrowDate: '2026-04-05', dueDate: '2026-04-26', daysOverdue: 14, finePerDay: 0.75, avatar: 'MJ' },
-  { id: 'OVD-004', user: 'Nora Kim', book: 'The Republic', category: 'Philosophy', borrowDate: '2026-03-20', dueDate: '2026-04-10', daysOverdue: 30, finePerDay: 0.5, avatar: 'NK' },
-  { id: 'OVD-005', user: 'Oscar Lee', book: 'Data Structures', category: 'Technology', borrowDate: '2026-04-08', dueDate: '2026-04-29', daysOverdue: 11, finePerDay: 0.75, avatar: 'OL' },
-];
-
-const avatarColors = [
-  'from-indigo-500 to-purple-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-500 to-orange-600',
-  'from-pink-500 to-rose-600',
-  'from-blue-500 to-cyan-600',
-];
+import { 
+  getAllBorrows, getOverdueBorrows, approveBorrow, rejectBorrow 
+} from '../../services/adminService';
 
 export default function BorrowingReturns() {
-  const [pendingList, setPendingList] = useState(pendingBorrows);
-  const [activeList, setActiveList] = useState(activeBorrows);
-  const [overdueList, setOverdueList] = useState(overdueBooks);
+  const [pendingList, setPendingList] = useState([]);
+  const [activeList, setActiveList] = useState([]);
+  const [overdueList, setOverdueList] = useState([]);
   const [notifiedIds, setNotifiedIds] = useState([]);
 
   const handleApprove = (id) => {
