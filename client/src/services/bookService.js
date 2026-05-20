@@ -1,59 +1,44 @@
 /**
- * services/bookService.js — TV2: Book Management System
- *
+ * services/bookService.js — Book Management System
  * Tất cả hàm gọi API liên quan đến sách.
- * Public routes không cần token. Admin routes cần token (tự động).
  */
-
 import api from "./api";
 
 const bookService = {
-  // ── Public ──────────────────────────────────────────────────────────────────
-
-  /**
-   * Lấy danh sách sách có filter + phân trang
-   * @param {{ search?, category?, page?, limit? }} params
-   * @returns {{ success, data: Book[], meta: { total, page, limit, totalPages } }}
-   */
+  // ── Public ────────────────────────────────────────────────────────────────
+  /** Danh sách sách (search, filter, sort, page) */
   getBooks: (params = {}) => api.get("/books", { params }),
 
-  /**
-   * Lấy chi tiết một cuốn sách kèm reviews, avg_rating
-   * @param {number|string} id
-   */
+  /** Chi tiết một cuốn sách */
   getBookById: (id) => api.get(`/books/${id}`),
 
-  /**
-   * Lấy sách nổi bật cho trang Home (mượn nhiều nhất + còn sách)
-   * @param {number} limit
-   */
+  /** Sách nổi bật (trang chủ) */
   getFeatured: (limit = 8) => api.get("/books/featured", { params: { limit } }),
 
-  /**
-   * Lấy danh sách thể loại kèm book_count
-   */
+  /** Top 10 sách đánh giá cao nhất */
+  getTopRated: (limit = 10) => api.get("/books/top-rated", { params: { limit } }),
+
+  /** Top 10 sách mới thêm gần đây */
+  getNewest: (limit = 10) => api.get("/books/newest", { params: { limit } }),
+
+  /** Tất cả danh mục (kèm book_count) */
   getCategories: () => api.get("/books/categories"),
 
-  // ── Admin only ───────────────────────────────────────────────────────────────
+  /** Tất cả tác giả (kèm book_count) — cho FilterSidebar */
+  getAuthors: () => api.get("/books/authors"),
 
-  /**
-   * Tạo sách mới
-   * @param {{ title, author_id, publisher_id?, isbn?, publish_year?,
-   *           description?, cover_url?, total_copies?, category_ids? }} data
-   */
+  /** Tất cả nhà xuất bản (kèm book_count) — cho FilterSidebar */
+  getPublishers: () => api.get("/books/publishers"),
+
+  
+  // ── Admin ─────────────────────────────────────────────────────────────────
+  /** Thêm mới sách */
   createBook: (data) => api.post("/books", data),
 
-  /**
-   * Cập nhật thông tin sách
-   * @param {number} id
-   * @param {object} data — các trường cần cập nhật
-   */
+  /** Cập nhật sách */
   updateBook: (id, data) => api.put(`/books/${id}`, data),
 
-  /**
-   * Xóa sách (kiểm tra FK trước — sách đang mượn sẽ báo lỗi)
-   * @param {number} id
-   */
+  /** Xóa sách */
   deleteBook: (id) => api.delete(`/books/${id}`),
 };
 

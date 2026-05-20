@@ -9,73 +9,115 @@
 const db = require('../config/db');
 
 // ── Danh sách sách (search, category, pagination) ─────────────────────────────
-const findAll = async ({ search = '', category = '', page = 1, limit = 12 }) => {
+const findAll = async ({ search = '', category = '', author = '', publisher = '', sort = 'latest', page = 1, limit = 12 }) => {
   const conditions = [];
-  const params     = [];
+  const params = [];
 
+  // 1. Tìm kiếm từ khóa (Tiêu đề hoặc Tác giả)
   if (search) {
     conditions.push('(b.title LIKE ? OR a.name LIKE ?)');
     params.push(`%${search}%`, `%${search}%`);
   }
+
+  // 2. Lọc theo danh mục (Có thể là chuỗi "1,2,3" hoặc ID đơn lẻ)
   if (category) {
-    conditions.push('c.id = ?');
-    params.push(category);
+    const catIds = String(category).split(',').map(Number).filter(Boolean);
+    if (catIds.length > 0) {
+      conditions.push(`b.id IN (SELECT book_id FROM book_categories WHERE category_id IN (${catIds.map(() => '?').join(',')}))`);
+      params.push(...catIds);
+    }
   }
 
-  const where  = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  // 3. Lọc theo nhiều tác giả (Chuỗi ngăn cách bởi dấu phẩy từ FilterSidebar)
+  if (author) {
+    const authorIds = String(author).split(',').map(Number).filter(Boolean);
+    if (authorIds.length > 0) {
+      conditions.push(`b.author_id IN (${authorIds.map(() => '?').join(',')})`);
+      params.push(...authorIds);
+    }
+  }
+
+  // 4. Lọc theo nhiều nhà xuất bản
+  if (publisher) {
+    const pubIds = String(publisher).split(',').map(Number).filter(Boolean);
+    if (pubIds.length > 0) {
+      conditions.push(`b.publisher_id IN (${pubIds.map(() => '?').join(',')})`);
+      params.push(...pubIds);
+    }
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Tính toán phân trang
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
 
-  const [[{ total }]] = await db.query(
-    `SELECT COUNT(DISTINCT b.id) AS total
-     FROM books b
-     JOIN authors a ON a.id = b.author_id
-     LEFT JOIN book_categories bc ON bc.book_id = b.id
-     LEFT JOIN categories c ON c.id = bc.category_id
-     ${where}`,
-    params
-  );
+  // Lấy tổng số dòng để phân trang
+  const countSql = `
+    SELECT COUNT(DISTINCT b.id) AS total
+    FROM books b
+    JOIN authors a ON a.id = b.author_id
+    LEFT JOIN book_categories bc ON bc.book_id = b.id
+    ${where}
+  `;
+  const [[{ total }]] = await db.query(countSql, params);
 
-  const [rows] = await db.query(
-    `SELECT b.id, b.title, b.isbn, b.publish_year, b.cover_url,
-            b.total_copies, b.available_copies,
-            a.name AS author,
-            p.name AS publisher,
-            GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ', ') AS categories
-     FROM books b
-     JOIN authors a ON a.id = b.author_id
-     LEFT JOIN publishers p ON p.id = b.publisher_id
-     LEFT JOIN book_categories bc ON bc.book_id = b.id
-     LEFT JOIN categories c ON c.id = bc.category_id
-     ${where}
-     GROUP BY b.id
-     ORDER BY b.created_at DESC
-     LIMIT ? OFFSET ?`,
-    [...params, Number(limit), offset]
-  );
+  // Xử lý sắp xếp (Khớp với value của sortOptions trong BooksPage.jsx)
+  let orderBy = 'ORDER BY b.id DESC'; // mặc định là latest
+  if (sort === 'rating-desc') orderBy = 'ORDER BY rating DESC';
+  if (sort === 'rating-asc') orderBy = 'ORDER BY rating ASC';
+  if (sort === 'title-asc') orderBy = 'ORDER BY b.title ASC';
+  if (sort === 'title-desc') orderBy = 'ORDER BY b.title DESC';
+  if (sort === 'available') orderBy = 'ORDER BY b.available_copies DESC';
 
-  return { rows, total: Number(total) };
+  // Câu lệnh SQL chính thức - Ép ALIAS thành CamelCase cho React đọc trực tiếp
+  const mainSql = `
+    SELECT 
+      b.id, b.title, b.isbn, b.publish_year AS year, b.description,
+      b.cover_url AS coverUrl, b.total_copies AS totalCopies, 
+      b.available_copies AS availableCopies,
+      a.name AS author, p.name AS publisher,
+      COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating,
+      (SELECT COUNT(*) FROM reviews WHERE book_id = b.id) AS reviewCount
+    FROM books b
+    JOIN authors a ON a.id = b.author_id
+    LEFT JOIN publishers p ON p.id = b.publisher_id
+    LEFT JOIN book_categories bc ON bc.book_id = b.id
+    ${where}
+    GROUP BY b.id
+    ${orderBy}
+    LIMIT ? OFFSET ?
+  `;
+
+  // Đẩy tham số limit và offset vào mảng dữ liệu an toàn
+  const [rows] = await db.query(mainSql, [...params, Number(limit), offset]);
+
+  // Giả lập mảng trường tags mà Frontend yêu cầu bóc tách
+  const formattedRows = rows.map(row => ({
+    ...row,
+    tags: [row.author, row.publisher].filter(Boolean)
+  }));
+
+  return { rows: formattedRows, total: Number(total) };
 };
 
-// ── Chi tiết sách ─────────────────────────────────────────────────────────────
+// ── Tìm kiếm chi tiết một cuốn sách ──
 const findById = async (id) => {
-  const [rows] = await db.query(
-    `SELECT b.*,
-            a.name AS author, a.bio AS author_bio,
-            p.name AS publisher,
-            GROUP_CONCAT(DISTINCT c.id   ORDER BY c.name SEPARATOR ',') AS category_ids,
-            GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ',') AS categories,
-            COALESCE(AVG(r.rating), 0) AS avg_rating,
-            COUNT(DISTINCT r.id)       AS review_count
-     FROM books b
-     JOIN authors a ON a.id = b.author_id
-     LEFT JOIN publishers p ON p.id = b.publisher_id
-     LEFT JOIN book_categories bc ON bc.book_id = b.id
-     LEFT JOIN categories c ON c.id = bc.category_id
-     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
-     WHERE b.id = ?
-     GROUP BY b.id`,
-    [id]
-  );
+  const sql = `
+    SELECT 
+      b.id, b.title, b.isbn, b.publish_year AS year, b.description,
+      b.cover_url AS coverUrl, b.total_copies AS totalCopies, 
+      b.available_copies AS availableCopies,
+      a.name AS author, p.name AS publisher,
+      (SELECT c.name FROM categories c 
+       JOIN book_categories bc ON bc.category_id = c.id 
+       WHERE bc.book_id = b.id LIMIT 1) AS category,
+      COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating
+    FROM books b
+    JOIN authors a ON a.id = b.author_id
+    LEFT JOIN publishers p ON p.id = b.publisher_id
+    WHERE b.id = ?
+  `;
+  const [rows] = await db.query(sql, [id]);
   return rows[0] || null;
 };
 
@@ -102,11 +144,16 @@ const findFeatured = async (limit = 8) => {
 // ── Danh mục ─────────────────────────────────────────────────────────────────
 const findAllCategories = async () => {
   const [rows] = await db.query(
-    `SELECT c.id, c.name, c.description, COUNT(bc.book_id) AS book_count
-     FROM categories c
-     LEFT JOIN book_categories bc ON bc.category_id = c.id
-     GROUP BY c.id
-     ORDER BY c.name`
+    `SELECT 
+    c.id, 
+    c.name, 
+    c.description, 
+    COUNT(bc.book_id) AS book_count
+    FROM categories c
+    LEFT JOIN book_categories bc 
+       ON bc.category_id = c.id
+    GROUP BY c.id, c.name, c.description
+    ORDER BY book_count DESC`
   );
   return rows;
 };
@@ -124,9 +171,9 @@ const create = async (fields) => {
 };
 
 const update = async (id, fields) => {
-  const cols   = [];
+  const cols = [];
   const values = [];
-  const allowed = ['title','author_id','publisher_id','isbn','publish_year','description','cover_url','total_copies'];
+  const allowed = ['title', 'author_id', 'publisher_id', 'isbn', 'publish_year', 'description', 'cover_url', 'total_copies'];
   for (const key of allowed) {
     if (fields[key] !== undefined) { cols.push(`${key} = ?`); values.push(fields[key]); }
   }

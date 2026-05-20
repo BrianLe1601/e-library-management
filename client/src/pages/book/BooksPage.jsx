@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search, SlidersHorizontal, BookOpen } from "lucide-react";
-import { books } from "../data/mockData";
-import BookCard  from "../../components/BookCard";
+import bookService from "../../services/bookService"; 
+import BookCard from "../../components/BookCard";
 import FilterSidebar from "../../components/FilterSidebar";
 import Pagination from "../../components/Pagination";
 
@@ -18,7 +18,15 @@ const sortOptions = [
 
 export default function BookListingPage() {
   const [searchParams] = useSearchParams();
+  
+  // Các State quản lý dữ liệu từ Backend
+  const [booksList, setBooksList] = useState([]);
+  const [totalBooks, setTotalBooks] = useState(0); // Đã thêm biến này để đếm TỔNG số sách tìm được
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
+  // Các State quản lý Bộ lọc
   const [sortBy, setSortBy] = useState("rating-desc");
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
   const [filters, setFilters] = useState({
@@ -28,62 +36,7 @@ export default function BookListingPage() {
     availability: "all",
   });
 
-  const filteredBooks = useMemo(() => {
-    let result = [...books];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          b.author.toLowerCase().includes(q) ||
-          b.category.toLowerCase().includes(q) ||
-          b.tags.some((t) => t.includes(q))
-      );
-    }
-
-    if (filters.categories.length > 0) {
-      result = result.filter((b) => filters.categories.includes(b.category));
-    }
-    if (filters.authors.length > 0) {
-      result = result.filter((b) => filters.authors.includes(b.author));
-    }
-    if (filters.publishers.length > 0) {
-      result = result.filter((b) => filters.publishers.includes(b.publisher));
-    }
-    if (filters.availability === "in-stock") {
-      result = result.filter((b) => b.availableCopies > 0);
-    } else if (filters.availability === "out-of-stock") {
-      result = result.filter((b) => b.availableCopies === 0);
-    }
-
-    switch (sortBy) {
-      case "rating-desc":
-        result.sort((a, b) => b.rating - a.rating);
-        break;
-      case "rating-asc":
-        result.sort((a, b) => a.rating - b.rating);
-        break;
-      case "title-asc":
-        result.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      case "title-desc":
-        result.sort((a, b) => b.title.localeCompare(a.title));
-        break;
-      case "available":
-        result.sort((a, b) => b.availableCopies - a.availableCopies);
-        break;
-    }
-
-    return result;
-  }, [searchQuery, filters, sortBy]);
-
-  const totalPages = Math.ceil(filteredBooks.length / BOOKS_PER_PAGE);
-  const paginatedBooks = filteredBooks.slice(
-    (currentPage - 1) * BOOKS_PER_PAGE,
-    currentPage * BOOKS_PER_PAGE
-  );
-
+  // HÀM XỬ LÝ SỰ KIỆN: Reset về trang 1 khi đổi bộ lọc hoặc tìm kiếm
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
     setCurrentPage(1);
@@ -94,9 +47,41 @@ export default function BookListingPage() {
     setCurrentPage(1);
   };
 
+  // GỌI API MỖI KHI BỘ LỌC HOẶC TRANG THAY ĐỔI
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+    const fetchBooks = async () => {
+      setLoading(true);
+      try {
+        const apiParams = {
+          search: searchQuery,
+          categories: filters.categories.join(','), // Chú ý: Backend của bạn nhận param là "categories" (số nhiều) hay "category"? Hãy đồng bộ với Backend nhé.
+          authors: filters.authors.join(','),
+          publishers: filters.publishers.join(','),
+          availability: filters.availability,
+          sort: sortBy,
+          page: currentPage,
+          limit: BOOKS_PER_PAGE
+        };
+
+        const response = await bookService.getBooks(apiParams);
+        
+        if (response.data?.success) {
+          setBooksList(response.data.data || []);
+          
+          // Lấy đúng số liệu tổng phân trang từ cấu trúc response.data.pagination của bạn
+          const totalItems = response.data.pagination?.totalItems || 0;
+          setTotalBooks(totalItems);
+          setTotalPages(response.data.pagination?.totalPages || Math.ceil(totalItems / BOOKS_PER_PAGE) || 1);
+        }
+      } catch (error) {
+        console.error("Lỗi khi kết nối API kho sách:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBooks();
+  }, [searchQuery, filters, sortBy, currentPage]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -107,16 +92,17 @@ export default function BookListingPage() {
             <BookOpen className="w-5 h-5 text-blue-300" />
             <span className="text-blue-300 text-sm">Catalog</span>
           </div>
-          <h1 className="text-white mb-4">Book Catalog</h1>
+          <h1 className="text-white text-3xl font-bold mb-4">Book Catalog</h1>
           <p className="text-blue-200 text-sm max-w-xl mb-6">
             Browse our complete collection of academic and literary works. Use filters to find exactly what you need.
           </p>
-          {/* Search in page header */}
+          
+          {/* Search form in page header */}
           <form onSubmit={handleSearch} className="flex max-w-lg bg-white/10 border border-white/20 rounded-xl overflow-hidden">
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search books, authors, topics..."
               className="flex-1 bg-transparent px-4 py-3 text-sm text-white placeholder-white/50 outline-none"
             />
@@ -128,32 +114,35 @@ export default function BookListingPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex gap-8">
-          {/* Sidebar */}
-          <FilterSidebar filters={filters} onChange={handleFilterChange} />
+        <div className="flex flex-col md:flex-row gap-8">
+          
+          {/* Sidebar Filters */}
+          <div className="w-full md:w-64 shrink-0">
+            <FilterSidebar filters={filters} onChange={handleFilterChange} />
+          </div>
 
           {/* Main Content */}
           <div className="flex-1 min-w-0">
-            {/* Toolbar */}
+            {/* Toolbar Top */}
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  <span style={{ fontWeight: 600 }} className="text-gray-900 dark:text-gray-100">
-                    {filteredBooks.length}
+                  {/* Hiển thị số lượng sách dựa trên biến totalBooks mới */ }
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                    {totalBooks}
                   </span>{" "}
                   books found
                   {searchQuery && (
-                    <span className="ml-1">
-                      for "{searchQuery}"
-                    </span>
+                    <span className="ml-1">for "{searchQuery}"</span>
                   )}
                 </span>
               </div>
+              
               <select
                 value={sortBy}
                 onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
-                className="text-sm border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+                className="text-sm border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -162,26 +151,52 @@ export default function BookListingPage() {
             </div>
 
             {/* Books Grid */}
-            {paginatedBooks.length > 0 ? (
+            {loading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                 {/* Skeleton Loading (Tùy chọn hiển thị 6 thẻ mờ nhấp nháy trong lúc đợi API) */}
+                 {Array.from({length: 6}).map((_, i) => (
+                    <div key={i} className="h-64 bg-gray-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+                 ))}
+              </div>
+            ) : booksList.length > 0 ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {paginatedBooks.map((book) => (
+                  {booksList.map((book) => (
                     <BookCard key={book.id} book={book} variant="listing" />
                   ))}
                 </div>
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={(page) => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                />
+                
+                {totalPages > 1 && (
+                  <div className="mt-8">
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={(page) => { 
+                        setCurrentPage(page); 
+                        window.scrollTo({ top: 0, behavior: "smooth" }); 
+                      }}
+                    />
+                  </div>
+                )}
               </>
             ) : (
-              <div className="text-center py-20">
+              /* Empty State (Khi không tìm thấy sách) */
+              <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700">
                 <BookOpen className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-                <h3 className="text-gray-700 dark:text-gray-300 mb-2">No books found</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-500">
-                  Try adjusting your search or filters
+                <h3 className="text-gray-700 dark:text-gray-300 mb-2 font-semibold">No books found</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Try adjusting your search or filters to find what you're looking for.
                 </p>
+                <button 
+                  onClick={() => {
+                     setSearchQuery("");
+                     setFilters({categories: [], authors: [], publishers: [], availability: "all"});
+                     setCurrentPage(1);
+                  }}
+                  className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Clear all filters
+                </button>
               </div>
             )}
           </div>

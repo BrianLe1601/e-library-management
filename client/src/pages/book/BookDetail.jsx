@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -12,38 +12,85 @@ import {
   Share2,
   Bookmark,
   ChevronRight,
+  Loader2
 } from "lucide-react";
-import { books, reviews } from "../data/mockData";
+import bookService from "../../services/bookService";
 import { StarRating } from "../../components/StarRating";
-import BookCard from "../../components/BookCard";
+// import BookCard from "../../components/BookCard"; // (Bạn có thể dùng nếu muốn đổi RelatedBooks sang dạng Component chuẩn)
 
 export default function BookDetail() {
   const { id } = useParams();
+  
+  // 1. Khởi tạo State lưu trữ dữ liệu thật từ API
+  const [book, setBook] = useState(null);
+  const [bookReviews, setBookReviews] = useState([]);
+  const [relatedBooks, setRelatedBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // State tương tác UI
   const [borrowSuccess, setBorrowSuccess] = useState(false);
   const [extensionSent, setExtensionSent] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
 
-  const book = books.find((b) => b.id === id);
-  const bookReviews = reviews.filter((r) => r.bookId === id);
-  const relatedBooks = books
-    .filter((b) => b.category === book?.category && b.id !== id)
-    .slice(0, 4);
+  // 2. Fetch dữ liệu mỗi khi ID trên thanh URL thay đổi
+  useEffect(() => {
+    const fetchBookDetails = async () => {
+      setLoading(true);
+      // Cuộn lên đầu trang mỗi khi chuyển sang sách khác
+      window.scrollTo({ top: 0, behavior: "smooth" }); 
+      
+      try {
+        const response = await bookService.getBookById(id);
+        
+        // Khớp với cấu trúc backend trả về: { success: true, data: { book, reviews, relatedBooks } }
+        if (response.data?.success) {
+          setBook(response.data.data.book);
+          setBookReviews(response.data.data.reviews || []);
+          setRelatedBooks(response.data.data.relatedBooks || []);
+        }
+      } catch (error) {
+        console.error("Lỗi khi tải dữ liệu chi tiết sách:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    if (id) {
+      fetchBookDetails();
+    }
+    
+    // Reset các trạng thái thông báo khi đổi sách
+    setBorrowSuccess(false);
+    setExtensionSent(false);
+  }, [id]);
+
+  // 3. Hiển thị Loading khi đang chờ API
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-gray-500">Đang tải thông tin sách...</p>
+      </div>
+    );
+  }
+
+  // 4. Nếu tải xong mà không có sách (ID sai hoặc bị xóa)
   if (!book) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-          <h2 className="text-gray-700 dark:text-gray-300 mb-2">Book not found</h2>
+          <h2 className="text-gray-700 dark:text-gray-300 mb-2">Không tìm thấy sách</h2>
           <Link to="/books" className="text-blue-600 hover:text-blue-800 text-sm">
-            ← Back to catalog
+            ← Quay lại thư viện
           </Link>
         </div>
       </div>
     );
   }
 
-  const availabilityPercentage = (book.availableCopies / book.totalCopies) * 100;
+  // Xử lý các phép toán UI dựa trên dữ liệu thật
+  const availabilityPercentage = book.totalCopies > 0 ? (book.availableCopies / book.totalCopies) * 100 : 0;
   const isAvailable = book.availableCopies > 0;
 
   return (
@@ -108,9 +155,10 @@ export default function BookDetail() {
             {/* Category Badge */}
             <div className="flex items-center gap-2 mb-3">
               <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs px-3 py-1 rounded-full" style={{ fontWeight: 600 }}>
-                {book.category}
+                {book.category || 'Uncategorized'}
               </span>
-              {book.tags.slice(0, 2).map((tag) => (
+              {/* An toàn lấy tags từ DB (nếu có) */}
+              {(book.tags || []).slice(0, 2).map((tag) => (
                 <span key={tag} className="bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 text-xs px-2.5 py-1 rounded-full">
                   {tag}
                 </span>
@@ -124,7 +172,7 @@ export default function BookDetail() {
             <div className="flex items-center gap-3 mb-6">
               <StarRating rating={book.rating} size="md" showValue />
               <span className="text-sm text-gray-400">|</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{bookReviews.length + 4} reviews</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{bookReviews.length} reviews</span>
             </div>
 
             {/* Metadata Grid */}
@@ -144,7 +192,7 @@ export default function BookDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mb-0.5">Publisher</p>
-                  <p className="text-sm text-gray-900 dark:text-gray-100" style={{ fontWeight: 500 }}>{book.publisher}</p>
+                  <p className="text-sm text-gray-900 dark:text-gray-100" style={{ fontWeight: 500 }}>{book.publisher || "N/A"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -153,7 +201,7 @@ export default function BookDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mb-0.5">ISBN</p>
-                  <p className="text-sm text-gray-900 dark:text-gray-100 font-mono">{book.isbn}</p>
+                  <p className="text-sm text-gray-900 dark:text-gray-100 font-mono">{book.isbn || "N/A"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -163,7 +211,7 @@ export default function BookDetail() {
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mb-0.5">Year</p>
                   <p className="text-sm text-gray-900 dark:text-gray-100" style={{ fontWeight: 500 }}>
-                    {book.year < 0 ? `${Math.abs(book.year)} BC` : book.year}
+                    {book.year ? (book.year < 0 ? `${Math.abs(book.year)} BC` : book.year) : "N/A"}
                   </p>
                 </div>
               </div>
@@ -200,8 +248,8 @@ export default function BookDetail() {
             {/* Description */}
             <div className="mb-8">
               <h3 className="text-gray-900 dark:text-gray-100 mb-3">Description</h3>
-              <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
-                {book.description}
+              <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm whitespace-pre-wrap">
+                {book.description || "No description available."}
               </p>
             </div>
 
@@ -251,7 +299,7 @@ export default function BookDetail() {
         <div className="mb-12">
           <div className="flex items-center gap-2 mb-6">
             <div className="w-1 h-6 bg-blue-700 rounded-full" />
-            <h2 className="text-gray-900 dark:text-gray-100">Customer Reviews</h2>
+            <h2 className="text-gray-900 dark:text-gray-100 font-bold text-xl">Customer Reviews</h2>
           </div>
 
           {bookReviews.length > 0 ? (
@@ -263,14 +311,17 @@ export default function BookDetail() {
                 >
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 bg-blue-700 rounded-full flex items-center justify-center text-white text-sm shrink-0" style={{ fontWeight: 600 }}>
-                      {review.userInitials}
+                      {review.userInitials || "U"}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                         <span className="text-gray-900 dark:text-gray-100 text-sm" style={{ fontWeight: 600 }}>
                           {review.userName}
                         </span>
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{review.date}</span>
+                        {/* Format hiển thị ngày giờ ngắn gọn từ chuỗi ISO DB trả về */}
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          {new Date(review.date).toLocaleDateString()}
+                        </span>
                       </div>
                       <div className="mb-2">
                         <StarRating rating={review.rating} size="sm" />
@@ -293,7 +344,7 @@ export default function BookDetail() {
           <div>
             <div className="flex items-center gap-2 mb-6">
               <div className="w-1 h-6 bg-blue-700 rounded-full" />
-              <h2 className="text-gray-900 dark:text-gray-100">More in {book.category}</h2>
+              <h2 className="text-gray-900 dark:text-gray-100 font-bold text-xl">More in {book.category}</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {relatedBooks.map((b) => (
@@ -305,10 +356,10 @@ export default function BookDetail() {
                   <img
                     src={b.coverUrl}
                     alt={b.title}
-                    className="w-full h-36 object-cover"
+                    className="w-full h-48 sm:h-56 object-cover"
                   />
                   <div className="p-3">
-                    <p className="text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors mb-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors mb-1">
                       {b.title}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{b.author}</p>
