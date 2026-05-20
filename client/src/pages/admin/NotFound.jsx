@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 import { Home, ArrowLeft, BookOpen, Search } from 'lucide-react';
 
 export default function NotFound() {
@@ -110,7 +110,7 @@ export default function NotFound() {
 
         {/* Footer note */}
         <p className="mt-12 text-slate-400 dark:text-slate-600 text-xs">
-          LibraryAdmin v2.0 • Error Code: 404_PAGE_NOT_FOUND
+          E-Library • Error Code: 404_PAGE_NOT_FOUND
         </p>
       </div>
     </div>

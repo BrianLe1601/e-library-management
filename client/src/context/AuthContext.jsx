@@ -1,102 +1,102 @@
 /**
- * context/AuthContext.jsx — Quản lý Trạng thái Đăng nhập Toàn cục
+ * context/AuthContext.jsx — TV1: Global Authentication State
+ *
+ * Cung cấp: user, token, isLoading, login(), logout()
+ * Dùng: useAuth() hook ở bất kỳ component nào
+ *
+ * Cách hoạt động:
+ *  1. Khi app khởi động → đọc token từ localStorage → gọi /users/profile để verify
+ *  2. login() → lưu token + user vào state + localStorage
+ *  3. logout() → xóa token + reset state → redirect /login
+ *  4. Mọi component cần biết user đang là ai → useAuth()
  */
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import authService from "../services/authService";
 import { useNavigate } from "react-router-dom";
-
+// ── Context creation ──────────────────────────────────────────────────────────
 const AuthContext = createContext(null);
 
+// ── Provider ──────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }) {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null); // Bổ sung state Token để quản lý reactive nhất quán
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser]         = useState(null);
+  const [isLoading, setIsLoading] = useState(true); // true khi đang check token lúc reload
 
-  // ── Khởi động: Kiểm tra trạng thái phiên làm việc cũ ──
+  // ── Khởi động: đọc token từ localStorage và verify với server ────────────────
   useEffect(() => {
     const initAuth = async () => {
-      const storedToken = localStorage.getItem("token");
-      const storedUser  = localStorage.getItem("user");
-
-      if (!storedToken) {
+      const token = localStorage.getItem("token");
+      if (!token) {
         setIsLoading(false);
         return;
       }
-
       try {
-        // Đặt token vào state trước để các API gọi trong quá trình init có thể sử dụng
-        setToken(storedToken);
-        
-        // Gọi API xác thực thông tin profile trực tiếp từ Server Backend
-        const response = await authService.getProfile(); 
-        
-        if (response && response.success) {
-          setUser(response.data);
-          localStorage.setItem("user", JSON.stringify(response.data));
+        // Gọi /users/profile để kiểm tra token còn hợp lệ không
+        const { data } = await authService.getProfile();
+        if (data.success) {
+          setUser(data.data);
         } else {
-          // Nếu API trả về thất bại (ví dụ tài khoản bị khóa ở Backend)
-          logout();
+          // Token không hợp lệ → xóa đi
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
         }
-      } catch (err) {
-        console.error("Phiên đăng nhập hết hạn hoặc token không hợp lệ:", err);
-        // Nếu có dữ liệu cũ trong máy thì dùng tạm để tránh mất giao diện khi rớt mạng, 
-        // nhưng nếu lỗi 401 thì xóa sạch để yêu cầu đăng nhập lại
-        if (err.response?.status === 401) {
-          logout();
-        } else if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
+      } catch {
+        // Token hết hạn hoặc server lỗi → clear
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
       } finally {
         setIsLoading(false);
       }
     };
-
     initAuth();
   }, []);
 
-  // ── Hàm xử lý Đăng nhập thành công ──
-  const login = useCallback((authData) => {
-    // authData mong đợi cấu trúc: { token, user: { id, full_name, role, ... } }
-    if (!authData?.token) return;
+  // ── Đồng bộ hóa Logout giữa các Tabs (Multi-tab Sync) ────────────────────────
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      // Nếu một tab khác xóa token (tức là vừa ẩn nút logout), tab này cũng tự reset state
+      if (e.key === "token" && !e.newValue) {
+        setUser(null);
+        navigate("/login");
+      }
+    };
 
-    localStorage.setItem("token", authData.token);
-    localStorage.setItem("user", JSON.stringify(authData.user));
-    
-    setToken(authData.token);
-    setUser(authData.user);
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [navigate]);
+
+  // ── login(): gọi sau khi server trả về token ─────────────────────────────────
+  const login = useCallback((token, userData) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(userData));
+    setUser(userData);
   }, []);
 
-  // ── Hàm xử lý Đăng xuất / Xóa dấu vết ──
+  // ── logout(): xóa state + localStorage ───────────────────────────────────────
   const logout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    
-    setToken(null);
     setUser(null);
-    
+    // Redirect về trang login
     navigate("/login");
   }, [navigate]);
 
-  // ── Đồng bộ cập nhật thông tin cá nhân (Khi sửa Profile) ──
+  // ── updateUser(): dùng sau khi cập nhật profile ───────────────────────────────
   const updateUser = useCallback((newUserData) => {
-    setUser((prevUser) => {
-      const updated = { ...prevUser, ...newUserData };
-      localStorage.setItem("user", JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+    const updated = { ...user, ...newUserData };
+    localStorage.setItem("user", JSON.stringify(updated));
+    setUser(updated);
+  }, [user]);
 
-  // ── Các thuộc tính dẫn xuất (Computed Values) để code ngắn gọn ở các Page ──
-  const isAuthenticated = !!user && !!token;
+  // ── Computed values ───────────────────────────────────────────────────────────
+  const isAuthenticated = !!user;
   const isAdmin         = user?.role === "admin";
   const isEmployee      = user?.role === "employee";
   const isAdminOrEmployee = isAdmin || isEmployee;
 
   const value = {
     user,
-    token, // Cung cấp token trực tiếp để axios interceptor kết nối dễ dàng
     isLoading,
     isAuthenticated,
     isAdmin,
@@ -109,15 +109,18 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {!isLoading && children} {/* Chặn đứng việc render UI lỗi khi chưa xác thực xong xuôi */}
+      {children}
     </AuthContext.Provider>
   );
 }
 
+// ── Custom hook: useAuth() ────────────────────────────────────────────────────
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth bắt buộc phải được đặt bên trong mảng bọc AuthProvider");
+    throw new Error("useAuth() phải được dùng bên trong <AuthProvider>");
   }
   return context;
 }
+
+export default AuthContext;

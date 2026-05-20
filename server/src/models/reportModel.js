@@ -5,143 +5,137 @@
  * ║  Model: reportModel.js                              ║
  * ╚══════════════════════════════════════════════════════╝
  */
+
 const db = require('../config/db');
 
-// ── 1. Thống kê Dashboard (Gộp các truy vấn đơn lẻ thành 1 câu query hiệu năng cao) ──
+// ── Dashboard stats ───────────────────────────────────────────────────────────
 const getStats = async () => {
-  const [rows] = await db.query(`
-    SELECT 
-      (SELECT COUNT(*) FROM books) AS totalBooks, -- Đổi từ SUM(total_copies) thành COUNT(*) để đếm đầu sách
-      (SELECT COUNT(*) FROM borrows WHERE status IN ('borrowing','renewed','overdue')) AS activeBorrows,
-      (SELECT COUNT(*) FROM users WHERE YEAR(created_at) = YEAR(CURRENT_DATE) AND MONTH(created_at) = MONTH(CURRENT_DATE) AND role = 'user') AS newUsersThisMonth,
-      (SELECT COALESCE(SUM(fine_amount), 0) FROM borrows) AS totalFine,
-      (SELECT COALESCE(SUM(CASE WHEN fine_paid = 0 THEN fine_amount ELSE 0 END), 0) FROM borrows) AS unpaidFine,
-      (SELECT COUNT(*) FROM users WHERE role = 'user') AS totalUsers
-  `);
-  
-  return rows[0];
+  const [[{ totalBooks }]] = await db.query(
+    'SELECT COALESCE(SUM(total_copies), 0) AS totalBooks FROM books'
+  );
+  const [[{ activeBorrows }]] = await db.query(
+    `SELECT COUNT(*) AS activeBorrows FROM borrows WHERE status IN ('borrowing','renewed','overdue')`
+  );
+  const [[{ newUsersThisMonth }]] = await db.query(
+    `SELECT COUNT(*) AS newUsersThisMonth FROM users
+     WHERE YEAR(created_at) = YEAR(CURRENT_DATE) AND MONTH(created_at) = MONTH(CURRENT_DATE) AND role = 'user'`
+  );
+  const [[{ totalFine, unpaidFine }]] = await db.query(
+    `SELECT COALESCE(SUM(fine_amount), 0) AS totalFine,
+            COALESCE(SUM(CASE WHEN fine_paid = 0 THEN fine_amount ELSE 0 END), 0) AS unpaidFine
+     FROM borrows`
+  );
+  const [[{ totalUsers }]] = await db.query(
+    `SELECT COUNT(*) AS totalUsers FROM users WHERE role = 'user' AND status = 'active'`
+  );
+  return {
+    totalBooks:        Number(totalBooks),
+    activeBorrows:     Number(activeBorrows),
+    newUsersThisMonth: Number(newUsersThisMonth),
+    totalUsers:        Number(totalUsers),
+    totalFine:         Number(totalFine),
+    unpaidFine:        Number(unpaidFine),
+  };
 };
 
-// ── 2. Báo cáo Thống kê chi tiết theo khoảng thời gian ──
-const getReports = async ({ startDate, endDate }) => {
+// ── Báo cáo mượn trả ─────────────────────────────────────────────────────────
+const getReports = async ({ from, to, type, page = 1, limit = 20 }) => {
+  const conds  = [];
   const params = [];
-  let dateCondition = '';
+  if (from) { conds.push('b.borrow_date >= ?'); params.push(from); }
+  if (to)   { conds.push('b.borrow_date <= ?'); params.push(to);   }
+  if (type) { conds.push('b.status = ?');       params.push(type); }
+  const where   = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  const offset  = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const limitN  = Math.min(100, Number(limit));
 
-  if (startDate && endDate) {
-    dateCondition = 'WHERE b.created_at BETWEEN ? AND ?';
-    params.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
-  }
-
-  const [rows] = await db.query(`
-    SELECT 
-      COUNT(*) AS total_transactions,
-      COUNT(CASE WHEN b.status = 'returned' THEN 1 END) AS returned_count,
-      COUNT(CASE WHEN b.status IN ('borrowing','renewed','overdue') THEN 1 END) AS active_count,
-      COUNT(CASE WHEN b.status = 'rejected' THEN 1 END) AS rejected_count,
-      COALESCE(SUM(b.fine_amount), 0) AS total_fines_generated,
-      COALESCE(SUM(CASE WHEN b.fine_paid = 1 THEN b.fine_amount ELSE 0 END), 0) AS total_fines_collected
-    FROM borrows b
-    ${dateCondition}
-  `, params);
-
-  return rows[0];
-};
-
-// ── 3. Thống kê Top sách mượn nhiều nhất ──
-const getTopBooks = async (limitN = 5) => {
-  const [rows] = await db.query(`
-    SELECT 
-      bk.id, bk.title, bk.isbn, bk.cover_url,
-      a.name AS author,
-      COUNT(b.id) AS borrow_count
-    FROM borrows b
-    JOIN books bk ON bk.id = b.book_id
-    JOIN authors a ON a.id = bk.author_id
-    WHERE b.status != 'rejected'
-    GROUP BY bk.id
-    ORDER BY borrow_count DESC
-    LIMIT ?
-  `, [Number(limitN)]);
-  
-  return rows;
-};
-
-// ── 4. Quản lý Danh sách Người dùng (Phân trang + Tìm kiếm nâng cao) ──
-const getUsers = async ({ role = '', status = '', search = '', page = 1, limit = 10 }) => {
-  const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
-  const conditions = [];
-  const params = [];
-
-  if (role) {
-    conditions.push('u.role = ?');
-    params.push(role);
-  }
-
-  if (status) {
-    conditions.push('u.status = ?');
-    params.push(status);
-  }
-  
-  if (search) {
-    conditions.push('(u.full_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-  }
-
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-
-  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM users u ${where}`, params);
-
-  const [rows] = await db.query(`
-    SELECT 
-      u.id, u.full_name, u.email, u.phone, u.avatar_url, u.role, u.status, u.created_at,
-      COUNT(CASE WHEN b.status IN ('borrowing','renewed','overdue') THEN 1 END) AS current_borrowing_count
-    FROM users u
-    LEFT JOIN borrows b ON b.user_id = u.id
-    ${where}
-    GROUP BY u.id
-    ORDER BY u.created_at DESC
-    LIMIT ? OFFSET ?
-  `, [...params, Number(limit), offset]);
-
+  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM borrows b ${where}`, params);
+  const [rows] = await db.query(
+    `SELECT b.id, u.full_name AS user_name, u.email,
+            bk.title AS book_title, h.full_name AS handled_by,
+            b.borrow_date, b.due_date, b.return_date,
+            b.status, b.renewed_count, b.fine_amount, b.fine_paid
+     FROM borrows b
+     JOIN users u  ON u.id  = b.user_id
+     JOIN books bk ON bk.id = b.book_id
+     LEFT JOIN users h ON h.id = b.handled_by
+     ${where}
+     ORDER BY b.borrow_date DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limitN, offset]
+  );
   return { rows, total: Number(total) };
 };
 
-// ── 5. Đóng/Mở khóa tài khoản người dùng ──
+// ── Top sách được mượn nhiều ──────────────────────────────────────────────────
+const getTopBooks = async (limit = 10) => {
+  const [rows] = await db.query(
+    `SELECT bk.id, bk.title, bk.cover_url,
+            a.name AS author,
+            COUNT(b.id)           AS borrow_count,
+            COALESCE(AVG(r.rating), 0) AS avg_rating
+     FROM books bk
+     LEFT JOIN borrows b ON b.book_id = bk.id
+     LEFT JOIN authors a ON a.id = bk.author_id
+     LEFT JOIN reviews r ON r.book_id = bk.id AND r.is_visible = 1
+     GROUP BY bk.id
+     ORDER BY borrow_count DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+  return rows;
+};
+
+// ── Danh sách users (admin) ───────────────────────────────────────────────────
+const getUsers = async ({ role, status, search, page = 1, limit = 20 }) => {
+  const conds  = [];
+  const params = [];
+  if (role)    { conds.push('u.role = ?');   params.push(role); }
+  if (status)  { conds.push('u.status = ?'); params.push(status); }
+  if (search)  { conds.push('(u.full_name LIKE ? OR u.email LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
+
+  const where  = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const limitN = Math.min(100, Number(limit));
+
+  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM users u ${where}`, params);
+  const [rows] = await db.query(
+    `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.status, u.created_at,
+            COUNT(b.id) AS total_borrows
+     FROM users u
+     LEFT JOIN borrows b ON b.user_id = u.id
+     ${where}
+     GROUP BY u.id
+     ORDER BY u.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limitN, offset]
+  );
+  return { rows, total: Number(total) };
+};
+
 const toggleUserStatus = async (id) => {
   const [[user]] = await db.query('SELECT id, role, status FROM users WHERE id = ?', [id]);
   if (!user) throw Object.assign(new Error('Người dùng không tồn tại'), { statusCode: 404 });
   if (user.role === 'admin') throw Object.assign(new Error('Không thể khóa tài khoản admin'), { statusCode: 403 });
   
-  const newStatus = user.status === 'active' ? 'locked' : 'active';
+  // Toggle giữa 'active' và 'banned'
+  const newStatus = user.status === 'banned' ? 'active' : 'banned';
   await db.query('UPDATE users SET status = ? WHERE id = ?', [newStatus, id]);
   return { id, status: newStatus };
 };
 
-// ── 6. Xóa tài khoản (Chuyển đổi sang giải pháp An toàn dữ liệu: Soft Delete) ──
 const deleteUser = async (id) => {
   const [[user]] = await db.query('SELECT id, role FROM users WHERE id = ?', [id]);
-  if (!user) throw Object.assign(new Error('Người dùng không tồn tại trên hệ thống'), { statusCode: 404 });
-  if (user.role === 'admin') throw Object.assign(new Error('Không cho phép xóa tài khoản Admin hệ thống'), { statusCode: 403 });
+  if (!user) throw Object.assign(new Error('Người dùng không tồn tại'), { statusCode: 404 });
+  if (user.role === 'admin') throw Object.assign(new Error('Không thể xóa tài khoản admin'), { statusCode: 403 });
 
-  // Kiểm tra độc giả còn sách chưa trả hay không trước khi hủy kích hoạt
   const [[{ active }]] = await db.query(
     `SELECT COUNT(*) AS active FROM borrows WHERE user_id = ? AND status IN ('borrowing','renewed','overdue')`,
     [id]
   );
-  if (active > 0) {
-    throw Object.assign(new Error(`Không thể hủy tài khoản: Độc giả này vẫn đang mượn ${active} cuốn sách chưa hoàn trả`), { statusCode: 400 });
-  }
+  if (active > 0) throw Object.assign(new Error(`Không thể xóa: user có ${active} lượt mượn đang active`), { statusCode: 409 });
 
-  // Thực hiện Soft Delete: Đánh dấu ngừng hoạt động vĩnh viễn và đổi tên email để giải phóng đăng ký nếu cần
-  await db.query(`UPDATE users SET status = 'locked', role = 'user' WHERE id = ?`, [id]);
-  return true;
+  await db.query('DELETE FROM users WHERE id = ?', [id]);
 };
 
-module.exports = {
-  getStats,
-  getReports,
-  getTopBooks,
-  getUsers,
-  toggleUserStatus,
-  deleteUser
-};
+module.exports = { getStats, getReports, getTopBooks, getUsers, toggleUserStatus, deleteUser };

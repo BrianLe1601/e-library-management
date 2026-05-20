@@ -4,59 +4,55 @@
  * Tất cả hàm gọi API liên quan đến sách.
  * Public routes không cần token. Admin routes cần token (tự động).
  */
+
 import api from "./api";
 
 const bookService = {
-  // ── Phân hệ Độc giả (Public / Thao tác xem) ───────────────────────────────────
+  // ── Public ──────────────────────────────────────────────────────────────────
 
   /**
    * Lấy danh sách sách có filter + phân trang
-   * @param {{ search?, category?, author?, publisher?, sort?, page?, limit? }} params
+   * @param {{ search?, category?, page?, limit? }} params
+   * @returns {{ success, data: Book[], meta: { total, page, limit, totalPages } }}
    */
   getBooks: (params = {}) => api.get("/books", { params }),
 
   /**
-   * Xem chi tiết thông tin một cuốn sách
+   * Lấy chi tiết một cuốn sách kèm reviews, avg_rating
    * @param {number|string} id
    */
   getBookById: (id) => api.get(`/books/${id}`),
 
   /**
-   * Lấy danh sách sách nổi bật/mượn nhiều hiển thị ở trang chủ
+   * Lấy sách nổi bật cho trang Home (mượn nhiều nhất + còn sách)
+   * @param {number} limit
    */
   getFeatured: (limit = 8) => api.get("/books/featured", { params: { limit } }),
 
   /**
-   * [MỚI] Lấy top 10 sách được đánh giá sao cao nhất
-   * Dùng cho section "Trending Books" trang Home
-   */
-  getTopRated: (limit = 10) => api.get("/books/top-rated", { params: { limit } }),
-
-  /**
-   * [MỚI] Lấy top 10 sách được thêm mới nhất (ORDER BY created_at DESC)
-   * Dùng cho section "Sách Mới Nhất" trang Home
-   */
-  getNewest: (limit = 10) => api.get("/books/newest", { params: { limit } }),
-
-  /**
-   * Lấy danh sách toàn bộ danh mục/thể loại sách kèm số lượng
+   * Lấy danh sách thể loại kèm book_count
    */
   getCategories: () => api.get("/books/categories"),
 
-  // ── Phân hệ Quản lý Kho Sách (Admin / Employee Only) ─────────────────────────
+  // ── Admin only ───────────────────────────────────────────────────────────────
 
   /**
-   * Thêm mới một đầu sách vào kho dữ liệu
+   * Tạo sách mới
+   * @param {{ title, author_id, publisher_id?, isbn?, publish_year?,
+   *           description?, cover_url?, total_copies?, category_ids? }} data
    */
   createBook: (data) => api.post("/books", data),
 
   /**
-   * Cập nhật thông tin chi tiết của một đầu sách
+   * Cập nhật thông tin sách
+   * @param {number} id
+   * @param {object} data — các trường cần cập nhật
    */
   updateBook: (id, data) => api.put(`/books/${id}`, data),
 
   /**
-   * Xóa một đầu sách khỏi hệ thống thư viện
+   * Xóa sách (kiểm tra FK trước — sách đang mượn sẽ báo lỗi)
+   * @param {number} id
    */
   deleteBook: (id) => api.delete(`/books/${id}`),
 };

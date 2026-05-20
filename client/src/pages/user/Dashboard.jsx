@@ -59,7 +59,7 @@ export function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-col md:flex-row gap-6">
           {/* Sidebar nav */}
-          <div className="md:w-56 shrink-0">
+          <div className="md:w-65 shrink-0">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
               {TABS.map((tab) => {
                 const Icon     = tab.icon;
@@ -98,7 +98,7 @@ export function DashboardPage() {
               <div className="space-y-2.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Email</span>
-                  <span className="text-gray-900 dark:text-gray-100 text-xs truncate max-w-[110px]">{user?.email || '—'}</span>
+                  <span className="text-gray-900 dark:text-gray-100 text-xs truncate max-w-[200px]">{user?.email || '—'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Vai trò</span>

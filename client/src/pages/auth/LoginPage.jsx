@@ -5,9 +5,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
 
+
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, isLoading, isAuthenticated, user } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const { theme, toggleTheme } = useTheme();
@@ -17,17 +18,12 @@ export default function LoginPage() {
     password: '',
   });
   
-  // ── ĐIỀU HƯỚNG BẢO VỆ CHUẨN XÁC ──
+  // Điều hướng bảo vệ: Nếu đã đăng nhập thành công, không cho quay lại trang login
   useEffect(() => {
-    // Chỉ điều hướng khi đã load xong Context và user đã đăng nhập
-    if (!isLoading && isAuthenticated && user) {
-      if (user.role === 'admin' || user.role === 'employee') {
-        navigate('/admin', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
+    if (!isLoading && isAuthenticated) {
+      navigate('/', { replace: true });
     }
-  }, [isLoading, isAuthenticated, user, navigate]);
+  }, [isLoading, isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setFormData({
@@ -50,27 +46,24 @@ export default function LoginPage() {
     setError('');
     
     const response = await authService.login(formData);
-    // Do api.js đã intercept, 'response' chính là object JSON từ Backend
-    if (!response.success) {
-      setError(response.message || 'Login failed');
-      return;
+    const { token, user } = response.data.data; // Đọc thông tin user & token từ backend trả về
+    
+    // Lưu session đăng nhập vào Context toàn cục của hệ thống
+    login(token, user);
+    
+    // LOGIC ĐIỀU HƯỚNG CHUYÊN SÂU THEO VAI TRÒ (ROLE-BASED REDIRECTION)
+    if (user && (user.role === 'admin' || user.role === 'employee')) {
+      // Đưa Admin và Nhân viên thư viện thẳng vào Dashboard trang quản trị hệ thống
+      navigate('/admin', { replace: true });
+    } else {
+      // Đưa độc giả thông thường về trang chủ của UserLayout để tìm và mượn sách
+      navigate('/', { replace: true });
     }
-
-    // 'response.data' lúc này chứa { token, user }
-    const data = response.data;
-
-    if (!data || !data.token || !data.user) {
-      setError('Invalid server response');
-      return;
-    }
-
-    // Lưu session vào Context. 
-    // Ngay khi hàm này chạy xong, Context cập nhật -> useEffect ở trên sẽ tự động Navigate!
-    login(data);
     
   } catch (error) {
-    const message = error.response?.data?.message || error.message || 'Login failed';
+    const message = error.response?.data?.message || 'Login failed';
     setError(message);
+    console.error('Login failed:', error.response?.data || error.message);
   } finally {
     setLoading(false);
   }

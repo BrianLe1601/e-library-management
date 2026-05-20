@@ -4,155 +4,169 @@
  * ║  THÀNH VIÊN 3 — Borrow & Return System              ║
  * ║  Controller: borrowController.js                    ║
  * ╚══════════════════════════════════════════════════════╝
+ *
+ * Endpoints (user):
+ *   POST  /api/borrows
+ *   GET   /api/borrows/my-books
+ *   GET   /api/borrows/history
+ *   POST  /api/borrows/extend/:id
+ *
+ * Endpoints (employee + admin):
+ *   PUT   /api/borrows/return/:id
+ *   PUT   /api/admin/borrows/approve/:id
+ *   PUT   /api/admin/borrows/reject/:id
+ *
+ * Endpoints (admin):
+ *   GET   /api/admin/borrows
+ *   GET   /api/admin/borrows/overdue
  */
 
-const db = require('../config/db');
-const borrowModel = require('../models/borrowModel');
+const borrowModel          = require('../models/borrowModel');
 const { success, error, paginated } = require('../utils/response');
 
-// ─── Độc giả endpoints ─────────────────────────────────────────────────────────
+// ─── User endpoints ───────────────────────────────────────────────────────────
 
+// POST /api/borrows
+// [SỬA] Thêm validate book_id trước khi gọi model
 exports.createBorrow = async (req, res) => {
   try {
     const { book_id } = req.body;
-    // TỰ ĐỘNG TÍNH TOÁN HẠN TRẢ (Hôm nay + 14 ngày)
-    const today = new Date();
-    const dueDate = new Date();
-    dueDate.setDate(today.getDate() + 14);
-    const formattedDueDate = dueDate.toISOString().split('T')[0]; // Định dạng chuẩn YYYY-MM-DD cho MySQL
 
-    // TRUYỀN THÊM due_date VÀO MODEL
-    const id = await borrowModel.create({ 
-      user_id: req.user.id, 
-      book_id, 
-      due_date: formattedDueDate
+    if (!book_id || isNaN(Number(book_id)))
+      return error(res, 'book_id không hợp lệ', 400);
+
+    const id = await borrowModel.create({
+      user_id:    req.user.id,
+      book_id:    Number(book_id),
+      handled_by: req.user.role !== 'user' ? req.user.id : null,
     });
 
-    return success(res, { borrow_id: id }, 'Gửi yêu cầu mượn sách lên hệ thống thành công, vui lòng chờ phê duyệt!', 201);
+    return success(res, { borrow_id: id }, 'Tạo yêu cầu mượn thành công', 201);
   } catch (err) {
-    console.error('[createBorrow Error]', err);
-    return error(res, err.message || 'Lỗi hệ thống khi tạo yêu cầu mượn sách', err.statusCode || 500);
+    console.error('[createBorrow]', err);
+    return error(res, err.message || 'Lỗi server', err.statusCode || 500);
   }
 };
 
+// PUT /api/borrows/return/:id  — chỉ employee và admin
+// [SỬA] Kiểm tra phiếu tồn tại trước, employee/admin mới xác nhận trả được
+exports.returnBook = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Không tìm thấy phiếu mượn', 404);
+
+    const result = await borrowModel.returnBook(req.params.id, req.user.id);
+
+    const msg = result.fine_amount > 0
+      ? `Trả sách thành công. Tiền phạt: ${result.fine_amount.toLocaleString('vi-VN')}đ`
+      : 'Trả sách thành công';
+
+    return success(res, result, msg);
+  } catch (err) {
+    console.error('[returnBook]', err);
+    return error(res, err.message || 'Lỗi server', err.statusCode || 500);
+  }
+};
+
+// POST /api/borrows/extend/:id
+// [SỬA] Kiểm tra phiếu có thuộc về user không trước khi gia hạn
+exports.extendBorrow = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Không tìm thấy phiếu mượn', 404);
+
+    // User chỉ gia hạn phiếu của chính mình
+    // Employee/Admin có thể gia hạn thay
+    if (req.user.role === 'user' && borrow.user_id !== req.user.id)
+      return error(res, 'Bạn không có quyền gia hạn phiếu này', 403);
+
+    const result = await borrowModel.extendBorrow(req.params.id, req.user.id);
+    return success(res, result, `Gia hạn thành công đến ${result.new_due_date}`);
+  } catch (err) {
+    console.error('[extendBorrow]', err);
+    return error(res, err.message || 'Lỗi server', err.statusCode || 500);
+  }
+};
+
+// GET /api/borrows/my-books — sách đang mượn
 exports.getMyBooks = async (req, res) => {
   try {
-    const rows = await borrowModel.findCurrentlyBorrowingByUser(req.user.id);
-    return success(res, rows);
+    const books = await borrowModel.findActiveByUser(req.user.id);
+    return success(res, books);
   } catch (err) {
-    console.error('[getMyBooks Error]', err);
-    return error(res, 'Không thể lấy danh sách sách đang mượn', 500);
+    console.error('[getMyBooks]', err);
+    return error(res);
   }
 };
 
+// GET /api/borrows/history — lịch sử mượn trả
 exports.getHistory = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const { rows, total } = await borrowModel.findHistoryByUser(req.user.id, { page, limit });
-    return paginated(res, rows, total, Number(page), Number(limit));
+    const { rows, total } = await borrowModel.findHistoryByUser(
+      req.user.id, { page, limit }
+    );
+    return paginated(res, rows, total, page, limit);
   } catch (err) {
-    console.error('[getHistory Error]', err);
-    return error(res, 'Không thể lấy lịch sử mượn trả', 500);
+    console.error('[getHistory]', err);
+    return error(res);
   }
 };
 
-exports.extendBorrow = async (req, res) => {
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
+// ─── Employee + Admin endpoints ───────────────────────────────────────────────
 
-    // Thực hiện gia hạn an toàn trong Transaction
-    await borrowModel.extendInTransaction(connection, req.params.id, req.user.id);
-
-    await connection.commit();
-    return success(res, null, 'Gia hạn thời gian trả sách thành công thêm 14 ngày!');
-  } catch (err) {
-    await connection.rollback();
-    console.error('[extendBorrow Error]', err);
-    return error(res, err.message || 'Lỗi hệ thống khi gia hạn sách', err.statusCode || 500);
-  } finally {
-    connection.release();
-  }
-};
-
-// ─── Quản trị viên / Thủ thư endpoints ──────────────────────────────────────────
-
+// GET /api/admin/borrows — toàn bộ phiếu mượn (có filter)
+// [BỔ SUNG] Thêm filter user_id từ query
 exports.getAllBorrows = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status = '', search = '' } = req.query;
-    const { rows, total } = await borrowModel.findAll({ page, limit, status, search });
-    return paginated(res, rows, total, Number(page), Number(limit));
+    const { page = 1, limit = 20, status = '', user_id = '' } = req.query;
+    const { rows, total } = await borrowModel.findAll({ page, limit, status, user_id });
+    return paginated(res, rows, total, page, limit);
   } catch (err) {
-    console.error('[getAllBorrows Error]', err);
-    return error(res, 'Lỗi hệ thống khi lấy toàn bộ danh sách phiếu mượn', 500);
+    console.error('[getAllBorrows]', err);
+    return error(res);
   }
 };
 
+// GET /api/admin/borrows/overdue — danh sách quá hạn
 exports.getOverdue = async (_req, res) => {
   try {
     const rows = await borrowModel.findOverdue();
     return success(res, rows);
   } catch (err) {
-    console.error('[getOverdue Error]', err);
-    return error(res, 'Lỗi hệ thống khi thống kê danh sách quá hạn', 500);
+    console.error('[getOverdue]', err);
+    return error(res);
   }
 };
 
+// PUT /api/admin/borrows/approve/:id — duyệt phiếu mượn
 exports.approveBorrow = async (req, res) => {
-  const connection = await db.getConnection();
   try {
-    await connection.beginTransaction();
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Không tìm thấy phiếu mượn', 404);
 
-    await borrowModel.approveInTransaction(connection, req.params.id, req.user.id);
-
-    await connection.commit();
-    return success(res, null, 'Đã phê duyệt phiếu mượn sách và trừ kho thành công.');
+    await borrowModel.updateStatus(req.params.id, 'borrowing', req.user.id);
+    return success(res, null, 'Đã duyệt yêu cầu mượn');
   } catch (err) {
-    await connection.rollback();
-    console.error('[approveBorrow Error]', err);
-    return error(res, err.message || 'Lỗi hệ thống khi phê duyệt yêu cầu mượn', err.statusCode || 500);
-  } finally {
-    connection.release();
+    console.error('[approveBorrow]', err);
+    return error(res);
   }
 };
 
+// PUT /api/admin/borrows/reject/:id — từ chối phiếu mượn
 exports.rejectBorrow = async (req, res) => {
-  const connection = await db.getConnection();
   try {
-    await connection.beginTransaction();
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Không tìm thấy phiếu mượn', 404);
 
-    await borrowModel.rejectInTransaction(connection, req.params.id, req.user.id);
-
-    await connection.commit();
-    return success(res, null, 'Đã từ chối yêu cầu mượn sách thành công.');
+    await borrowModel.updateStatus(req.params.id, 'cancelled', req.user.id);
+    return success(res, null, 'Đã từ chối yêu cầu mượn');
   } catch (err) {
-    await connection.rollback();
-    console.error('[rejectBorrow Error]', err);
-    return error(res, err.message || 'Lỗi hệ thống khi xử lý từ chối phiếu mượn', err.statusCode || 500);
-  } finally {
-    connection.release();
-  }
-};
-
-exports.returnBook = async (req, res) => {
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
-
-    const { fineAmount } = await borrowModel.returnInTransaction(connection, req.params.id);
-
-    await connection.commit();
-    
-    const message = fineAmount > 0 
-      ? `Làm thủ tục trả sách thành công! Độc giả trả quá hạn, yêu cầu thu phí phạt: ${fineAmount.toLocaleString('vi-VN')} VND.` 
-      : 'Làm thủ tục nhận lại sách trả về kho thành công (Phiếu mượn đúng hạn)!';
-
-    return success(res, { fine_amount: fineAmount }, message);
-  } catch (err) {
-    await connection.rollback();
-    console.error('[returnBook Error]', err);
-    return error(res, err.message || 'Lỗi hệ thống khi làm thủ tục nhận sách trả', err.statusCode || 500);
-  } finally {
-    connection.release();
+    console.error('[rejectBorrow]', err);
+    return error(res);
   }
 };
