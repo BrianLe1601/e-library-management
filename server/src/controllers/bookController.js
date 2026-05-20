@@ -17,23 +17,31 @@
  *   DELETE /api/books/:id      (admin)
  */
 
-const db          = require('../config/db');
-const bookModel   = require('../models/bookModel');
+const db = require('../config/db'); // Import pool gốc để tạo kết nối transaction
+const bookModel = require('../models/bookModel');
 const { success, error, paginated } = require('../utils/response');
- 
-// GET /api/books
+
+// ── GET /api/books ────────────────────────────────────────────────────────────
 exports.getBooks = async (req, res) => {
   try {
-    const { search='', category='', author='', publisher='', sort='latest', page=1, limit=12 } = req.query;
-    const { rows, total } = await bookModel.findAll({ search, category, author, publisher, sort, page: Number(page), limit: Number(limit) });
+    const { 
+      search = '', 
+      category = '', 
+      author = '', 
+      publisher = '', 
+      sort = 'latest',
+      page = 1, 
+      limit = 12 
+    } = req.query;
+    const { rows, total } = await bookModel.findAll({ search, category, page, limit });
     return paginated(res, rows, total, Number(page), Number(limit));
   } catch (err) {
     console.error('[getBooks]', err);
     return error(res, 'Lỗi khi lấy danh sách sách', 500);
   }
 };
- 
-// GET /api/books/featured
+
+// ── GET /api/books/featured ───────────────────────────────────────────────────
 exports.getFeatured = async (req, res) => {
   try {
     const { limit = 8 } = req.query;
@@ -44,8 +52,9 @@ exports.getFeatured = async (req, res) => {
     return error(res, 'Lỗi khi lấy danh sách sách nổi bật', 500);
   }
 };
- 
-// GET /api/books/top-rated
+
+// ── [MỚI] GET /api/books/top-rated ───────────────────────────────────────────
+// Trả về tối đa 10 sách có avg_rating cao nhất (chỉ tính sách có ít nhất 1 review)
 exports.getTopRated = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
@@ -56,8 +65,9 @@ exports.getTopRated = async (req, res) => {
     return error(res);
   }
 };
- 
-// GET /api/books/newest
+
+// ── [MỚI] GET /api/books/newest ──────────────────────────────────────────────
+// Trả về tối đa 10 sách có created_at mới nhất
 exports.getNewest = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
@@ -68,8 +78,8 @@ exports.getNewest = async (req, res) => {
     return error(res);
   }
 };
- 
-// GET /api/books/categories
+
+// ── GET /api/books/categories ─────────────────────────────────────────────────
 exports.getCategories = async (_req, res) => {
   try {
     const categories = await bookModel.findAllCategories();
@@ -79,40 +89,8 @@ exports.getCategories = async (_req, res) => {
     return error(res, 'Lỗi khi lấy danh sách thể loại', 500);
   }
 };
- 
-// GET /api/books/authors — Dùng cho FilterSidebar
-exports.getAuthors = async (_req, res) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT a.id, a.name, COUNT(b.id) AS book_count
-       FROM authors a
-       LEFT JOIN books b ON b.author_id = a.id
-       GROUP BY a.id ORDER BY a.name`
-    );
-    return success(res, rows);
-  } catch (err) {
-    console.error('[getAuthors]', err);
-    return error(res, 'Lỗi khi lấy danh sách tác giả', 500);
-  }
-};
- 
-// GET /api/books/publishers — Dùng cho FilterSidebar
-exports.getPublishers = async (_req, res) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT p.id, p.name, COUNT(b.id) AS book_count
-       FROM publishers p
-       LEFT JOIN books b ON b.publisher_id = p.id
-       GROUP BY p.id ORDER BY p.name`
-    );
-    return success(res, rows);
-  } catch (err) {
-    console.error('[getPublishers]', err);
-    return error(res, 'Lỗi khi lấy danh sách nhà xuất bản', 500);
-  }
-};
- 
-// GET /api/books/:id
+
+// ── GET /api/books/:id ────────────────────────────────────────────────────────
 exports.getBookById = async (req, res) => {
   try {
     const book = await bookModel.findById(req.params.id);
@@ -123,52 +101,69 @@ exports.getBookById = async (req, res) => {
     return error(res, 'Lỗi hệ thống khi tìm chi tiết sách', 500);
   }
 };
- 
-// POST /api/books (admin)
+
+// ── POST /api/books (admin) ───────────────────────────────────────────────────
 exports.createBook = async (req, res) => {
-  const connection = await db.getConnection();
+  const connection = await db.getConnection(); // Khởi tạo kết nối đơn từ Pool
   try {
-    await connection.beginTransaction();
+    await connection.beginTransaction(); // BẮT ĐẦU TRANSACTION
+
     const { category_ids, ...fields } = req.body;
+    
+    // Ghi vào bảng books trong môi trường transaction cách ly
     const id = await bookModel.createInTransaction(connection, fields);
+    
+    // Nếu có mảng thể loại, ghi tiếp vào bảng liên kết trung gian
     if (category_ids && Array.isArray(category_ids) && category_ids.length > 0) {
       await bookModel.setCategoriesInTransaction(connection, id, category_ids);
     }
-    await connection.commit();
+
+    await connection.commit(); // Hoàn thành toàn vẹn - Lưu dữ liệu vĩnh viễn vào DB
+    
     const book = await bookModel.findById(id);
     return success(res, book, 'Tạo thông tin sách mới thành công', 201);
   } catch (err) {
-    await connection.rollback();
-    console.error('[createBook]', err);
+    await connection.rollback(); // Có bất kỳ lỗi gì xảy ra -> ROLLBACK lại toàn bộ
+    console.error('[createBook Transaction Error]', err);
     return error(res, err.message || 'Lỗi hệ thống, không thể thêm sách mới', 500);
   } finally {
-    connection.release();
+    connection.release(); // Giải phóng kết nối trả lại cho Pool
   }
 };
- 
-// PUT /api/books/:id (admin)
+
+// ── PUT /api/books/:id (admin) ────────────────────────────────────────────────
 exports.updateBook = async (req, res) => {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
+
     const { category_ids, ...fields } = req.body;
     const bookId = req.params.id;
+
     const updated = await bookModel.updateInTransaction(connection, bookId, fields);
-    if (!updated) { await connection.rollback(); return error(res, 'Không tìm thấy sách để cập nhật', 404); }
-    if (category_ids !== undefined) await bookModel.setCategoriesInTransaction(connection, bookId, category_ids);
+    if (!updated) {
+      await connection.rollback();
+      return error(res, 'Không tìm thấy sách để cập nhật hồ sơ', 404);
+    }
+
+    if (category_ids !== undefined) {
+      await bookModel.setCategoriesInTransaction(connection, bookId, category_ids);
+    }
+
     await connection.commit();
+    
     const book = await bookModel.findById(bookId);
     return success(res, book, 'Cập nhật thông tin sách thành công');
   } catch (err) {
     await connection.rollback();
-    console.error('[updateBook]', err);
+    console.error('[updateBook Transaction Error]', err);
     return error(res, err.message || 'Lỗi hệ thống khi cập nhật sách', 500);
   } finally {
     connection.release();
   }
 };
- 
-// DELETE /api/books/:id (admin)
+
+// ── DELETE /api/books/:id (admin) ─────────────────────────────────────────────
 exports.deleteBook = async (req, res) => {
   try {
     const deleted = await bookModel.remove(req.params.id);
@@ -176,7 +171,7 @@ exports.deleteBook = async (req, res) => {
     return success(res, null, 'Xóa sách ra khỏi kho thành công');
   } catch (err) {
     if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-      return error(res, 'Sách này đang được mượn hoặc có lịch sử mượn, không thể xóa', 409);
+      return error(res, 'Hành động bị từ chối: Cuốn sách này hiện đang có độc giả mượn hoặc nằm trong lịch sử phiếu mượn', 409);
     }
     console.error('[deleteBook]', err);
     return error(res, 'Lỗi hệ thống khi thực hiện xóa sách', 500);
