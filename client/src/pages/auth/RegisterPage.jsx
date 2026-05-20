@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Eye, EyeOff, Mail, Lock, User, ArrowRight, Moon, Sun } from 'lucide-react';
+import {Library,Phone, BookOpen, Eye, EyeOff, Mail, Lock, User, ArrowRight, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import authService from '../../services/authService';
