@@ -1,11 +1,10 @@
-import { LayoutDashboard, BookOpen, Users, RotateCcw, BarChart2, Bell, Settings } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Users, RotateCcw, BarChart2, Bell } from 'lucide-react';
 
 export const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/books', icon: BookOpen, label: 'Book Inventory' },
   { to: '/admin/users', icon: Users, label: 'User Management' },
   { to: '/admin/borrowing', icon: RotateCcw, label: 'Borrowing & Returns' },
-  { to: '/admin/reports', icon: BarChart2, label: 'Reports' },
   { to: '/admin/notifications', icon: Bell, label: 'Notifications' },
-  { to: '/admin/settings', icon: Settings, label: 'Settings' },
+  { to: '/admin/reports', icon: BarChart2, label: 'Reports' },
 ];

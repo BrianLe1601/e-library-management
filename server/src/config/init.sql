@@ -119,31 +119,6 @@ CREATE TABLE reviews (
     CONSTRAINT fk_review_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 
--- ============================================================
--- 10. OTPS (mã OTP tạm thời)
--- ============================================================
-CREATE TABLE otps (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    otp_code VARCHAR(6) NOT NULL,
-    expires_at DATETIME NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX (email) -- Tối ưu hóa tốc độ tìm kiếm theo Email
-);
-
--- ============================================================
--- INDEXES
--- ============================================================
-CREATE INDEX idx_users_role        ON users(role);
-CREATE INDEX idx_books_title       ON books(title);
-CREATE INDEX idx_books_author      ON books(author_id);
-CREATE INDEX idx_books_publisher   ON books(publisher_id);
-CREATE INDEX idx_borrows_user      ON borrows(user_id);
-CREATE INDEX idx_borrows_book      ON borrows(book_id);
-CREATE INDEX idx_borrows_handler   ON borrows(handled_by);
-CREATE INDEX idx_borrows_status    ON borrows(status);
-CREATE INDEX idx_borrows_due_date  ON borrows(due_date);
-CREATE INDEX idx_reviews_book      ON reviews(book_id);
 CREATE TABLE notifications (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id     INT UNSIGNED NOT NULL,
