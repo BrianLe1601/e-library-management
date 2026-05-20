@@ -5,7 +5,7 @@ const db = require('../config/db');
 // Hàm dùng riêng cho đăng nhập (Cần lấy trường password để đối chiếu bcrypt)
 const findCredentialsByEmail = async (email) => {
   const [rows] = await db.query(
-    'SELECT id, email, password, role, status FROM users WHERE email = ?', 
+    'SELECT id, email, password, role, is_active FROM users WHERE email = ?', 
     [email]
   );
   return rows[0] || null;
@@ -14,7 +14,7 @@ const findCredentialsByEmail = async (email) => {
 // Hàm lấy thông tin an toàn (Không bao gồm trường mật khẩu)
 const findByEmail = async (email) => {
   const [rows] = await db.query(
-    'SELECT id, full_name, email, phone, avatar_url, role, status, created_at FROM users WHERE email = ?',
+    'SELECT id, full_name, email, phone, avatar_url, role, is_active, created_at FROM users WHERE email = ?',
     [email]
   );
   return rows[0] || null;
@@ -22,7 +22,7 @@ const findByEmail = async (email) => {
 
 const findById = async (id) => {
   const [rows] = await db.query(
-    'SELECT id, full_name, email, phone, avatar_url, role, status, created_at, updated_at FROM users WHERE id = ?',
+    'SELECT id, full_name, email, phone, avatar_url, role, is_active, created_at, updated_at FROM users WHERE id = ?',
     [id]
   );
   return rows[0] || null;
@@ -30,8 +30,8 @@ const findById = async (id) => {
 
 const create = async ({ full_name, email, password, phone }) => {
   const [result] = await db.query(
-    `INSERT INTO users (full_name, email, password, phone, role, status)
-     VALUES (?, ?, ?, ?, 'user', 'pending')`,
+    `INSERT INTO users (full_name, email, password, phone, role, is_active)
+     VALUES (?, ?, ?, ?, 'user', 1)`,
     [full_name, email, password, phone || null]
   );
   return result.insertId;
