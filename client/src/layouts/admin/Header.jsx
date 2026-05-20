@@ -1,18 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Menu, ChevronLeft, ChevronRight, Search, Bell, Moon, Sun } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import ProfileDropdown from "./ProfileDropdown";
+import { getAllBorrows } from "../../services/adminService";
 
 export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
   const { theme, toggleTheme } = useTheme();
   const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   
-  // Dữ liệu Notifications sẽ được gọi API thật ở đây (Tạm gán mảng rỗng để không lỗi UI)
+  // Lấy danh sách đang chờ duyệt làm thông báo
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const response = await getAllBorrows({ status: 'pending' });
+        if (response.success && Array.isArray(response.data)) {
+          setNotifications(response.data);
+        }
+      } catch (error) {
+        console.error("Lỗi tự động lấy thông báo:", error);
+      }
+    };
+    if (isAuthenticated) {
+      fetchPendingCount();
+      // Tự động làm mới mỗi 30 giây để cập nhật khi có độc giả mượn sách mới
+      const interval = setInterval(fetchPendingCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
 
   return (
     <header className="h-16 bg-white dark:bg-[#0d1526] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sticky top-0 z-40 transition-colors">
@@ -22,7 +42,7 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
           onClick={() => setCollapsed(!collapsed)}
           className="hidden md:flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
-          {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
 
         {/* Nút bật/tắt Sidebar (Mobile) */}
@@ -30,7 +50,7 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
           onClick={() => setMobileOpen(true)}
           className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
-          <Menu size={20} />
+          <Menu size={18} />
         </button>
 
         {/* Thanh tìm kiếm */}
@@ -66,8 +86,21 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 border-2 border-white dark:border-[#0d1526]"></span>
             )}
           </button>
+          {/* Popover xem nhanh số lượng yêu cầu mới */}
+          {showNotifications && notifications.length > 0 && (
+            <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-3">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Yêu cầu chờ duyệt</h4>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {notifications.map((notif) => (
+                  <div key={notif.id} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-indigo-500">{notif.user_name}</span> muốn mượn cuốn <span className="italic">"{notif.book_title}"</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-
+        
         <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
         {/* Khối tài khoản */}

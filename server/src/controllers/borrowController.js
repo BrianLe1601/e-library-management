@@ -15,8 +15,20 @@ const { success, error, paginated } = require('../utils/response');
 exports.createBorrow = async (req, res) => {
   try {
     const { book_id } = req.body;
-    const id = await borrowModel.create({ user_id: req.user.id, book_id });
-    return success(res, { borrow_id: id }, 'Gửi yêu cầu mượn sách lên hệ thống thành công, vui lòng chờ thủ thư phê duyệt!', 201);
+    // TỰ ĐỘNG TÍNH TOÁN HẠN TRẢ (Hôm nay + 14 ngày)
+    const today = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(today.getDate() + 14);
+    const formattedDueDate = dueDate.toISOString().split('T')[0]; // Định dạng chuẩn YYYY-MM-DD cho MySQL
+
+    // TRUYỀN THÊM due_date VÀO MODEL
+    const id = await borrowModel.create({ 
+      user_id: req.user.id, 
+      book_id, 
+      due_date: formattedDueDate
+    });
+
+    return success(res, { borrow_id: id }, 'Gửi yêu cầu mượn sách lên hệ thống thành công, vui lòng chờ phê duyệt!', 201);
   } catch (err) {
     console.error('[createBorrow Error]', err);
     return error(res, err.message || 'Lỗi hệ thống khi tạo yêu cầu mượn sách', err.statusCode || 500);

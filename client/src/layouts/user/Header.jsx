@@ -11,7 +11,11 @@ export default function Header() {
   const [notifications, setNotifications] = useState(mockNotifications);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // THAY THẾ BIẾN GIẢ BẰNG BIẾN THẬT TỪ HỆ THỐNG
+  // 1. BIẾN GIẢ LẬP TRẠNG THÁI ĐĂNG NHẬP (Bật true để hiện Profile, false để hiện nút Login)
+  // Sau này khi làm Backend, bạn sẽ lấy giá trị này từ AuthContext (ví dụ: const { isLoggedIn } = useAuth())
+  const [isLoggedIn, setIsLoggedIn] = useState(true); 
+  
+// THAY THẾ BIẾN GIẢ BẰNG BIẾN THẬT TỪ HỆ THỐNG
   const { isAuthenticated } = useAuth(); 
   const { theme, toggleTheme } = useTheme();
 
