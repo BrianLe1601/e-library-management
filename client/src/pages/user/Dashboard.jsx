@@ -106,8 +106,8 @@ export function DashboardPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Trạng thái</span>
-                  <span className={`text-xs font-semibold ${user?.is_active ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                    {user?.is_active ? 'Hoạt động' : 'Bị khóa'}
+                  <span className={`text-xs font-semibold ${user?.status === 'active' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                    {user?.status === 'active' ? 'Hoạt động' : 'Bị khóa'}
                   </span>
                 </div>
               </div>

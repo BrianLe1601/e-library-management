@@ -1,29 +1,28 @@
-import React from "react";
-import { Navigate, Outlet } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-export default function ProtectedRoute({ allowedRoles = [] }) {
-  const { user, isAuthenticated, isLoading } = useAuth();
+export default function ProtectedRoute({ allowedRoles }) {
+  const { user, isLoading, isAuthenticated } = useAuth();
 
-  // Đang trong quá trình thẩm định token từ bộ nhớ máy -> Hiển thị màn hình chờ mượt
+  // Khi đang đợi xác nhận Token từ Backend, hiện màn hình chờ để tránh giao diện giật lag
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-50">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#070d1b]">
+        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
       </div>
     );
   }
 
-  // 1. Nếu chưa đăng nhập -> Ép quay về trang Login
-  if (!isAuthenticated) {
+  // Trường hợp 1: Chưa đăng nhập hệ thống -> Đẩy về login
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 2. Đã đăng nhập nhưng Role hiện tại không nằm trong danh sách được cấp phép -> Đẩy về trang tương ứng
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
-    return <Navigate to={user?.role === "admin" || user?.role === "employee" ? "/admin" : "/"} replace />;
+  // Trường hợp 2: Đã đăng nhập nhưng quyền không khớp với danh sách được phép truy cập
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  // Hợp lệ -> Cho phép đi sâu vào các trang con bên trong
+  // Quyền hạn hợp lệ hoàn toàn -> Cho phép render Layout con bên trong
   return <Outlet />;
 }

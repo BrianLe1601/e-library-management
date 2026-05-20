@@ -67,7 +67,7 @@ const getTopBooks = async (limitN = 5) => {
 };
 
 // ── 4. Quản lý Danh sách Người dùng (Phân trang + Tìm kiếm nâng cao) ──
-const getUsers = async ({ role = '', is_active = '', search = '', page = 1, limit = 10 }) => {
+const getUsers = async ({ role = '', status = '', search = '', page = 1, limit = 10 }) => {
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
   const conditions = [];
   const params = [];
@@ -76,10 +76,12 @@ const getUsers = async ({ role = '', is_active = '', search = '', page = 1, limi
     conditions.push('u.role = ?');
     params.push(role);
   }
-  if (is_active !== '') {
-    conditions.push('u.is_active = ?');
-    params.push(Number(is_active));
+
+  if (status) {
+    conditions.push('u.status = ?');
+    params.push(status);
   }
+  
   if (search) {
     conditions.push('(u.full_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)');
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
@@ -91,7 +93,7 @@ const getUsers = async ({ role = '', is_active = '', search = '', page = 1, limi
 
   const [rows] = await db.query(`
     SELECT 
-      u.id, u.full_name, u.email, u.phone, u.avatar_url, u.role, u.is_active, u.created_at,
+      u.id, u.full_name, u.email, u.phone, u.avatar_url, u.role, u.status, u.created_at,
       COUNT(CASE WHEN b.status IN ('borrowing','renewed','overdue') THEN 1 END) AS current_borrowing_count
     FROM users u
     LEFT JOIN borrows b ON b.user_id = u.id
@@ -106,13 +108,13 @@ const getUsers = async ({ role = '', is_active = '', search = '', page = 1, limi
 
 // ── 5. Đóng/Mở khóa tài khoản người dùng ──
 const toggleUserStatus = async (id) => {
-  const [[user]] = await db.query('SELECT id, role, is_active FROM users WHERE id = ?', [id]);
-  if (!user) throw Object.assign(new Error('Người dùng không tồn tại trên hệ thống'), { statusCode: 404 });
-  if (user.role === 'admin') throw Object.assign(new Error('Hành động bị từ chối: Không thể khóa tài khoản của quản trị viên tối cao'), { statusCode: 403 });
+  const [[user]] = await db.query('SELECT id, role, status FROM users WHERE id = ?', [id]);
+  if (!user) throw Object.assign(new Error('Người dùng không tồn tại'), { statusCode: 404 });
+  if (user.role === 'admin') throw Object.assign(new Error('Không thể khóa tài khoản admin'), { statusCode: 403 });
   
-  const newStatus = user.is_active ? 0 : 1;
-  await db.query('UPDATE users SET is_active = ? WHERE id = ?', [newStatus, id]);
-  return { id, is_active: Boolean(newStatus) };
+  const newStatus = user.status === 'active' ? 'locked' : 'active';
+  await db.query('UPDATE users SET status = ? WHERE id = ?', [newStatus, id]);
+  return { id, status: newStatus };
 };
 
 // ── 6. Xóa tài khoản (Chuyển đổi sang giải pháp An toàn dữ liệu: Soft Delete) ──
@@ -131,7 +133,7 @@ const deleteUser = async (id) => {
   }
 
   // Thực hiện Soft Delete: Đánh dấu ngừng hoạt động vĩnh viễn và đổi tên email để giải phóng đăng ký nếu cần
-  await db.query(`UPDATE users SET is_active = 0, role = 'user' WHERE id = ?`, [id]);
+  await db.query(`UPDATE users SET status = 'locked', role = 'user' WHERE id = ?`, [id]);
   return true;
 };
 

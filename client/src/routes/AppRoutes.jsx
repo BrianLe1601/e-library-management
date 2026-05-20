@@ -11,6 +11,7 @@ import ProtectedRoute from "../components/ProtectedRoute";
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
+import OtpVerification from "../components/OTP-Verification";
 
 // Core / Book pages
 import HomePage from "../pages/core/HomePage";
@@ -27,8 +28,10 @@ import UserManagement from "../pages/admin/UserManagement";
 import BorrowingReturns from "../pages/admin/BorrowingReturns";
 import Reports from "../pages/admin/Reports";
 import NotificationsPage from "../pages/admin/NotificationsPage";
+import SettingsPage from "../pages/admin/SettingsPage";
 import NotFound from "../pages/admin/NotFound";
 
+// Context Providers
 import { ThemeProvider } from "../context/ThemeContext";
 import { AuthProvider } from "../context/AuthContext";
 
@@ -41,6 +44,7 @@ function AppRoutes() {
             {/* ── Tuyến công khai (Public) ── */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verify-otp" element={<OtpVerification />} />
 
             {/* PUBLIC / USER: Giao diện độc giả */}
             <Route element={<UserLayout />}>
@@ -54,15 +58,20 @@ function AppRoutes() {
               </Route>
             </Route>
 
-            {/* ── Phân hệ Quản trị tối cao (Chỉ dành cho admin và nhân viên thủ thư) ── */}
+            {/* --- PRIVATE ROUTES (Admin & Employee) --- */}
             <Route element={<ProtectedRoute allowedRoles={["admin", "employee"]} />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<Dashboard />} />
                 <Route path="/admin/books" element={<BookInventory />} />
-                <Route path="/admin/users" element={<UserManagement />} />
                 <Route path="/admin/borrowing" element={<BorrowingReturns />} />
                 <Route path="/admin/reports" element={<Reports />} />
                 <Route path="/admin/notifications" element={<NotificationsPage />} />
+                  
+                {/* --- PRIVATE ROUTES (Admin only) --- */}
+                <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                  <Route path="/admin/users" element={<UserManagement />} />
+                  <Route path="/admin/settings" element={<SettingsPage />} />
+                </Route>
               </Route>
             </Route>
 

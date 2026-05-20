@@ -11,7 +11,9 @@ export default function ProfileDropdown() {
   // Đóng dropdown khi click ra ngoài vùng hiển thị
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setOpen(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -21,6 +23,11 @@ export default function ProfileDropdown() {
 
   const initials = user.full_name ? user.full_name.substring(0, 2).toUpperCase() : 'AD';
   const shortName = user.full_name ? user.full_name.split(' ')[0] : 'Admin';
+
+  const handleLogout = () => {
+    setOpen(false);
+    logout();
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -69,7 +76,7 @@ export default function ProfileDropdown() {
 
           <div className="border-t border-slate-100 dark:border-slate-700/80 p-1.5">
             <button 
-              onClick={logout}
+              onClick={handleLogout}
               className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium rounded-xl
                          text-red-600 dark:text-red-400 
                          hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors text-left"
