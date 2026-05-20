@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Library, Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, Moon, Sun } from 'lucide-react';
+import { BookOpen, Eye, EyeOff, Mail, Lock, User, ArrowRight, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import authService from '../../services/authService';
@@ -51,11 +51,7 @@ export default function RegisterPage() {
 
   // Form Đăng ký tích hợp đầy đủ các trường khớp cơ sở dữ liệu (gồm cả trường phone)
   const [form, setForm] = useState({
-    full_name: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirm_password: ''
+    full_name: '', email: '', password: '', confirm_password: '', phone: '', role: 'user'
   });
 
   // Điều hướng bảo vệ: Không cho phép truy cập trang đăng ký khi đã đăng nhập
@@ -66,61 +62,53 @@ export default function RegisterPage() {
   }, [isLoading, isAuthenticated, navigate]);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    
-    // Xóa lỗi trường tương ứng khi người dùng bắt đầu sửa đổi
-    if (fieldErrors[e.target.name]) {
-      setFieldErrors({ ...fieldErrors, [e.target.name]: '' });
-    }
-    if (generalError) setGeneralError('');
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    setError('');
+    setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
+  };
+
+  const validate = () => {
+    const errs = {};
+    if (!form.full_name.trim())      errs.full_name = 'Please enter your full name';
+    if (!form.email.trim())          errs.email     = 'Please enter your email';
+    if (form.password.length < 8)   errs.password  = 'Password must be at least 8 characters';
+    if (!/[A-Z]/.test(form.password)) errs.password = 'Password must contain at least one uppercase letter';
+    if (!/[0-9]/.test(form.password)) errs.password = 'Password must contain at least one digit';
+    if (form.password !== form.confirm_password) errs.confirm_password = 'Password confirmation does not match';
+    return errs;
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setGeneralError('');
-    setFieldErrors({});
+  e.preventDefault();
+  const errs = validate();
+  if (Object.keys(errs).length) { setFieldErrors(errs); return; }
 
-    // Client-side Validation cơ bản
-    if (form.password !== form.confirm_password) {
-      setFieldErrors({ confirm_password: 'Mật khẩu xác nhận không khớp!' });
-      return;
-    }
+  setLoading(true);
+  setError('');
+  try {
+    // Gọi API thông qua authService hiện tại của bạn
+    const response = await authService.register({
+      full_name: form.full_name,
+      email: form.email,
+      password: form.password,
+      phone: form.phone || undefined,
+      role: 'user' // Luôn đăng ký với role user, không cho phép chọn role khi đăng ký để tránh lỗ hổng bảo mật
+    });
 
-    try {
-      setLoading(true);
-      
-      // Chuẩn bị dữ liệu gửi lên Backend khớp schema authRoutes
-      const registerData = {
-        full_name: form.full_name,
+    // Chuyển hướng sang trang OTP và truyền Email cũng như mã OTP debug nếu có
+    navigate('/verify-otp', {
+      state: {
         email: form.email,
-        password: form.password,
-        phone: form.phone || undefined // Nếu không nhập, bỏ qua để nhận giá trị mặc định NULL
-      };
-
-      await authService.register(registerData);
-      
-      // Đăng ký thành công -> Chuyển hướng sang trang đăng nhập kèm thông báo
-      alert('Đăng ký tài khoản thành công! Bạn có thể đăng nhập ngay bây giờ.');
-      navigate('/login');
-    } catch (err) {
-      console.error('[Register Error]', err);
-
-      // Xử lý lỗi validate chi tiết theo cấu trúc `{ field, message }` của Backend
-      if (err.errors && Array.isArray(err.errors)) {
-        const errorsMap = {};
-        err.errors.forEach(errObj => {
-          errorsMap[errObj.field] = errObj.message;
-        });
-        setFieldErrors(errorsMap);
-        setGeneralError(err.message || 'Dữ liệu nhập vào chưa hợp lệ. Vui lòng kiểm tra lại.');
-      } else {
-        // Lỗi email trùng lặp (409) hoặc các lỗi hệ thống khác
-        setGeneralError(err.message || 'Có lỗi xảy ra trong quá trình đăng ký.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+        debugOtp: response.data?.debugOtp,
+      },
+    });
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Đăng ký không thành công. Vui lòng thử lại.';
+    setError(msg);
+  } finally {
+    setLoading(false);
+  }
+}
 
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
@@ -256,24 +244,18 @@ export default function RegisterPage() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Đang tạo tài khoản...
+                  Creating account...
                 </span>
               ) : (
-                <>
-                  <ArrowRight size={15} />Đăng ký tài khoản
-                </>
+                <><ArrowRight size={15} /> Create Account</>
               )}
             </button>
           </form>
 
-          <p className="text-center text-slate-400 dark:text-slate-500 text-xs mt-6">
-            Đã có tài khoản?{' '}
-            <button
-              type="button"
-              onClick={() => navigate('/login')}
-              className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
-            >
-              Đăng nhập tại đây
+          <p className="text-center text-slate-400 text-xs mt-6">
+            Already have an account?{' '}
+            <button onClick={() => navigate('/login')} className="text-indigo-400 hover:text-indigo-300">
+              Sign in
             </button>
           </p>
         </div>

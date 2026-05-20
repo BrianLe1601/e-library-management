@@ -71,9 +71,9 @@ exports.exportReport = async (req, res) => {
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
 exports.getUsers = async (req, res) => {
   try {
-    const { role = '', is_active = '', search = '', page = 1, limit = 10 } = req.query;
-    const { rows, total } = await reportModel.getUsers({ role, is_active, search, page, limit });
-    return paginated(res, rows, total, Number(page), Number(limit));
+    const { role, status, search, page = 1, limit = 20 } = req.query;
+    const { rows, total } = await reportModel.getUsers({ role, status, search, page, limit });
+    return paginated(res, rows, total, page, limit);
   } catch (err) {
     console.error('[Admin getUsers Error]', err);
     return error(res, 'Không thể truy xuất danh sách thành viên', 500);
@@ -84,7 +84,7 @@ exports.getUsers = async (req, res) => {
 exports.toggleUserStatus = async (req, res) => {
   try {
     const result = await reportModel.toggleUserStatus(req.params.id);
-    const msg = result.is_active ? 'Đã mở khóa quyền hoạt động tài khoản thành công.' : 'Đã thực hiện đóng khóa tài khoản người dùng.';
+    const msg = result.status === 'active' ? 'Đã mở khóa tài khoản' : 'Đã khóa tài khoản';
     return success(res, result, msg);
   } catch (err) {
     console.error('[Admin toggleUserStatus Error]', err);
