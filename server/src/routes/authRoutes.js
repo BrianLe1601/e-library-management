@@ -6,13 +6,13 @@
  * ╚══════════════════════════════════════════════════════╝
  */
 
-const express    = require('express');
-const router     = express.Router();
-const { body }   = require('express-validator');
+const express  = require('express');
+const router   = express.Router();
+const { body } = require('express-validator');
 
-const { authenticate }            = require('../middlewares/authMiddleware');
-const { validate }                = require('../middlewares/validateMiddleware');
-const authController              = require('../controllers/authController');
+const { authenticate } = require('../middlewares/authMiddleware');
+const { validate }     = require('../middlewares/validateMiddleware');
+const authController   = require('../controllers/authController');
 
 // ── Validation rules ──────────────────────────────────────────────────────────
 const registerRules = [
@@ -47,6 +47,7 @@ const updateProfileRules = [
 // ── Public routes ─────────────────────────────────────────────────────────────
 router.post('/auth/register',         registerRules,       validate, authController.register);
 router.post('/auth/login',            loginRules,          validate, authController.login);
+router.post('/auth/verify-otp',       authController.verifyOtp);
 
 // ── Protected routes (yêu cầu JWT) ───────────────────────────────────────────
 router.get ('/users/profile',         authenticate, authController.getProfile);

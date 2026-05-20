@@ -1,87 +1,86 @@
 import React, { useState } from "react";
-import {
-  Menu,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Bell,
-  Moon,
-  Sun,
-} from "lucide-react";
-import { useTheme } from "../../components/ThemeContext";
+import { Link } from "react-router-dom";
+import { Menu, ChevronLeft, ChevronRight, Search, Bell, Moon, Sun } from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import ProfileDropdown from "./ProfileDropdown";
-import { NotificationPopover, mockNotifications } from "../../components/NotificationPopover";
 
 export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
-  const [notifications, setNotifications] = useState(mockNotifications);
-  const [showNotifications, setShowNotifications] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { isAuthenticated } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Dữ liệu Notifications sẽ được gọi API thật ở đây (Tạm gán mảng rỗng để không lỗi UI)
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   return (
-    <header className="h-14 bg-white dark:bg-[#0f1629] border-b border-slate-200 dark:border-slate-800 flex items-center px-4 gap-3 shrink-0 top-0 z-50 h-16">
-      {/* Mobile menu */}
-      <button
-        className="md:hidden text-slate-400 hover:text-slate-100"
-        onClick={() => setMobileOpen(true)}
-      >
-        <Menu size={20} />
-      </button>
-
-      {/* Collapse toggle */}
-      <button
-        className="hidden md:flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-        onClick={() => setCollapsed((p) => !p)}
-      >
-        {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-      </button>
-
-      <div className="ml-auto flex items-center gap-6">
-        {/* Theme Toggle */}
+    <header className="h-16 bg-white dark:bg-[#0d1526] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sticky top-0 z-40 transition-colors">
+      <div className="flex items-center gap-4 flex-1">
+        {/* Nút bật/tắt Sidebar (Desktop) */}
         <button
-          onClick={toggleTheme}
-          className="flex items-center justify-center w-8 h-8 rounded-lg 
-             text-slate-500 dark:text-slate-400 
-             hover:text-indigo-500 dark:hover:text-indigo-400 
-             hover:bg-slate-100 dark:hover:bg-slate-800 
-             transition-colors duration-200 ease-in-out 
-             focus:outline-none 
-             hover:scale-105"
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden md:flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
-          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         </button>
 
-        {/* Notifications */}
+        {/* Nút bật/tắt Sidebar (Mobile) */}
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <Menu size={20} />
+        </button>
+
+        {/* Thanh tìm kiếm */}
+        <div className="hidden sm:flex items-center relative max-w-md w-full">
+          <Search size={16} className="absolute left-3 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Tìm kiếm sách, tác giả hoặc độc giả..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0 ml-4">
+        {/* Nút Đổi giao diện Sáng/Tối */}
+        <button
+          onClick={toggleTheme}
+          className="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
+        {/* Nút Thông báo */}
         <div className="relative">
           <button
-            type="button"
-            onClick={() => setShowNotifications((prev) => !prev)}
-            className="relative flex items-center justify-center w-8 h-8 rounded-lg 
-               text-slate-500 dark:text-slate-400 
-               hover:text-indigo-500 dark:hover:text-indigo-400 
-               hover:bg-slate-100 dark:hover:bg-slate-800 
-               transition-colors duration-200 ease-in-out 
-               focus:outline-none
-               hover:scale-105"
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
           >
-            <Bell size={20} />
-            {notifications.some((n) => !n.read) && (
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            <Bell size={18} />
+            {notifications.length > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 border-2 border-white dark:border-[#0d1526]"></span>
             )}
           </button>
-          {showNotifications && (
-            <NotificationPopover
-              notifications={notifications}
-              onClose={() => setShowNotifications(false)}
-              onMarkAllRead={() => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))}
-              viewAllPath="/admin/notifications"
-            />
-          )}
         </div>
 
-        {/* Avatar */}
-        <div className="">
+        <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+        {/* Khối tài khoản */}
+        {isAuthenticated ? (
           <ProfileDropdown />
-        </div>
+        ) : (
+          <Link
+            to="/login"
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-600/20"
+          >
+            Đăng nhập
+          </Link>
+        )}
       </div>
     </header>
   );
