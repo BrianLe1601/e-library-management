@@ -30,6 +30,8 @@ const bookService = {
   /** Tất cả nhà xuất bản (kèm book_count) — cho FilterSidebar */
   getPublishers: () => api.get("/books/publishers"),
 
+  /** Thống kê công khai cho trang chủ (không cần đăng nhập) */
+  getPublicStats: () => api.get("/books/stats"),
   
   // ── Admin ─────────────────────────────────────────────────────────────────
   /** Thêm mới sách */

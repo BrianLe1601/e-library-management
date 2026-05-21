@@ -227,3 +227,128 @@ INSERT INTO borrows (user_id, book_id, handled_by, borrow_date, due_date, status
 INSERT INTO reviews (user_id, book_id, rating, comment) VALUES
 (4, 1, 5, 'Rất hay'), (5, 1, 4, 'Kết buồn'), (6, 2, 5, 'Tuyệt vời'), 
 (4, 4, 5, 'Bổ ích'), (5, 5, 4, 'Sâu sắc'), (6, 6, 5, 'Kinh điển');
+
+-- ============================================================
+-- THÊM CATEGORY
+-- ============================================================
+
+INSERT INTO categories (name) VALUES
+('Công nghệ thông tin'),
+('Toán học'),
+('Lịch sử'),
+('Triết học');
+
+-- ============================================================
+-- THÊM AUTHORS
+-- ============================================================
+
+INSERT INTO authors (name,bio) VALUES
+('Thomas H. Cormen','Algorithms'),
+('Robert C. Martin','Clean Code'),
+('Stephen Hawking','Physics'),
+('James Stewart','Calculus'),
+('Stuart Russell','Artificial Intelligence'),
+('Yuval Noah Harari','History'),
+('J.K. Rowling','Literature');
+
+-- ============================================================
+-- THÊM PUBLISHERS
+-- ============================================================
+
+INSERT INTO publishers (name,country) VALUES
+('MIT Press','USA'),
+('Oxford University Press','UK'),
+('Pearson','UK'),
+('Cambridge University Press','UK');
+
+-- ============================================================
+-- THÊM BOOKS
+-- ============================================================
+
+INSERT INTO books
+(title,author_id,publisher_id,isbn,publish_year,cover_url,total_copies,available_copies)
+VALUES
+
+('Clean Code',6,6,'ISBN-013',2008,'https://placehold.co/300x450',15,12),
+
+('Introduction to Algorithms',5,4,'ISBN-014',2022,'https://placehold.co/300x450',10,7),
+
+('Artificial Intelligence Modern Approach',9,6,'ISBN-015',2021,'https://placehold.co/300x450',8,6),
+
+('A Brief History of Time',7,5,'ISBN-016',2018,'https://placehold.co/300x450',5,2),
+
+('Calculus',8,7,'ISBN-017',2020,'https://placehold.co/300x450',12,11),
+
+('Sapiens',10,5,'ISBN-018',2019,'https://placehold.co/300x450',9,5),
+
+('Harry Potter',11,6,'ISBN-019',2017,'https://placehold.co/300x450',20,18),
+
+('Clean Architecture',6,6,'ISBN-020',2020,'https://placehold.co/300x450',10,9),
+
+('The Universe In A Nutshell',7,5,'ISBN-021',2015,'https://placehold.co/300x450',7,5),
+
+('Deep Work',3,6,'ISBN-022',2021,'https://placehold.co/300x450',6,4),
+
+('Atomic Habits',3,7,'ISBN-023',2022,'https://placehold.co/300x450',12,10),
+
+('Thinking Fast And Slow',3,6,'ISBN-024',2019,'https://placehold.co/300x450',14,8);
+
+-- ============================================================
+-- MAP CATEGORY
+-- ============================================================
+
+INSERT INTO book_categories VALUES
+(13,6),
+(14,6),
+(15,6),
+(16,3),
+(17,7),
+(18,8),
+(19,2),
+(20,6),
+(21,3),
+(22,5),
+(23,5),
+(24,5);
+
+-- ============================================================
+-- REVIEW (ĐỂ TEST TOP RATED)
+-- ============================================================
+
+INSERT INTO reviews
+(user_id,book_id,rating,comment)
+VALUES
+
+(4,13,5,'Excellent'),
+(5,13,5,'Very good'),
+
+(4,14,5,'Classic'),
+(5,14,5,'Must read'),
+
+(4,15,4,'Useful'),
+
+(4,16,5,'Amazing'),
+
+(5,17,5,'Best calculus'),
+
+(6,18,4,'Good'),
+
+(4,19,5,'Legend'),
+
+(5,20,5,'Excellent'),
+
+(6,21,4,'Interesting');
+
+-- ============================================================
+-- BORROW
+-- ============================================================
+
+INSERT INTO borrows
+(user_id,book_id,handled_by,due_date,status)
+VALUES
+
+(4,13,2,'2026-06-10','borrowing'),
+(5,14,3,'2026-06-12','borrowing'),
+(6,15,2,'2026-06-14','borrowing'),
+(4,18,2,'2026-06-16','returned'),
+(5,20,3,'2026-06-18','renewed');
