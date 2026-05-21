@@ -13,6 +13,15 @@ const MAX_RENEWALS        = 2;
 const FINE_PER_DAY        = 1000; // 1,000 VND/ngày
 const MAX_FINE            = 50000; // tối đa 50,000 VND
 
+const markOverdue = async () => {
+  await db.query(`
+    UPDATE borrows
+    SET status = 'overdue'
+    WHERE status IN ('borrowing', 'renewed')
+      AND due_date < CURRENT_DATE
+  `);
+};
+
 // ── Tạo yêu cầu mượn ─────────────────────────────────────────────────────────
 const create = async ({ user_id, book_id, handled_by = null }) => {
   const conn = await db.getConnection();
@@ -43,7 +52,7 @@ const create = async ({ user_id, book_id, handled_by = null }) => {
 
     const [result] = await conn.query(
       `INSERT INTO borrows (user_id, book_id, handled_by, due_date, status)
-       VALUES (?, ?, ?, ?, 'borrowing')`,
+      VALUES (?, ?, ?, ?, 'pending')`,
       [user_id, book_id, handled_by, dueDateStr]
     );
 
@@ -65,6 +74,7 @@ const create = async ({ user_id, book_id, handled_by = null }) => {
 // ── Lấy chi tiết 1 phiếu mượn theo id ────────────────────────────────────────
 // [BỔ SUNG] Controller cần hàm này để kiểm tra quyền trước khi trả/gia hạn
 const findById = async (id) => {
+  await markOverdue();
   const [rows] = await db.query(
     `SELECT b.*,
             bk.title    AS book_title,
@@ -138,9 +148,8 @@ const extendBorrow = async (borrowId, renewedBy = null) => {
     await conn.beginTransaction();
 
     const [[borrow]] = await conn.query(
-      `SELECT * FROM borrows
-       WHERE id = ? AND status IN ('borrowing','renewed')
-       FOR UPDATE`,
+      `SELECT * FROM borrows WHERE id = ? AND status IN ('borrowing','renewed')
+      FOR UPDATE`,
       [borrowId]
     );
     if (!borrow)
@@ -195,6 +204,7 @@ const extendBorrow = async (borrowId, renewedBy = null) => {
 
 // ── Sách đang mượn của user ───────────────────────────────────────────────────
 const findActiveByUser = async (userId) => {
+  await markOverdue();
   const [rows] = await db.query(
     `SELECT b.id, b.due_date, b.borrow_date, b.status, b.renewed_count,
             bk.title, bk.cover_url, a.name AS author
@@ -210,6 +220,7 @@ const findActiveByUser = async (userId) => {
 
 // ── Lịch sử mượn trả của user ────────────────────────────────────────────────
 const findHistoryByUser = async (userId, { page = 1, limit = 10 }) => {
+  await markOverdue();
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
   const [[{ total }]] = await db.query(
     'SELECT COUNT(*) AS total FROM borrows WHERE user_id = ?',
@@ -233,6 +244,7 @@ const findHistoryByUser = async (userId, { page = 1, limit = 10 }) => {
 // ── Admin/Employee: toàn bộ lượt mượn ────────────────────────────────────────
 // [BỔ SUNG] Thêm filter theo user_id
 const findAll = async ({ page = 1, limit = 20, status = '', user_id = '' }) => {
+  await markOverdue();
   const offset     = (Math.max(1, Number(page)) - 1) * Number(limit);
   const conditions = [];
   const params     = [];
@@ -267,6 +279,7 @@ const findAll = async ({ page = 1, limit = 20, status = '', user_id = '' }) => {
 
 // ── Admin/Employee: danh sách quá hạn ────────────────────────────────────────
 const findOverdue = async () => {
+  await markOverdue();
   const [rows] = await db.query(
     `SELECT b.id, b.due_date, b.borrow_date,
             u.full_name, u.email,
@@ -289,9 +302,55 @@ const updateStatus = async (borrowId, status, handledBy) => {
   );
 };
 
+const approveBorrow = async (borrowId, handledBy) => {
+  const [[borrow]] = await db.query(
+    `SELECT * FROM borrows WHERE id = ? AND status = 'pending'`,
+    [borrowId]
+  );
+  if (!borrow)
+    throw Object.assign(new Error('Borrow request not found or already processed'), { statusCode: 404 });
+
+  await db.query(
+    `UPDATE borrows SET status = 'borrowing', handled_by = ? WHERE id = ?`,
+    [handledBy, borrowId]
+  );
+};
+
+const rejectBorrow = async (borrowId, handledBy) => {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[borrow]] = await conn.query(
+      `SELECT * FROM borrows WHERE id = ? AND status = 'pending' FOR UPDATE`,
+      [borrowId]
+    );
+    if (!borrow)
+      throw Object.assign(new Error('Borrow request not found'), { statusCode: 404 });
+
+    await conn.query(
+      `UPDATE borrows SET status = 'cancelled', handled_by = ? WHERE id = ?`,
+      [handledBy, borrowId]
+    );
+
+    // Hoàn lại available_copies vì lúc pending đã giảm rồi
+    await conn.query(
+      'UPDATE books SET available_copies = available_copies + 1 WHERE id = ?',
+      [borrow.book_id]
+    );
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+};
+
 module.exports = {
   create,
-  findById,       // [BỔ SUNG]
+  findById,
   returnBook,
   extendBorrow,
   findActiveByUser,
@@ -299,4 +358,7 @@ module.exports = {
   findAll,
   findOverdue,
   updateStatus,
+  approveBorrow,
+  rejectBorrow,
+  markOverdue,
 };

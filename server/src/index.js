@@ -38,7 +38,7 @@ app.get('/', (_req, res) =>
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api', authRoutes);          // /api/auth/*  &  /api/users/*
 app.use('/api/books', bookRoutes);    // /api/books/*
-app.use('/api/borrow', borrowRoutes); // /api/borrow/*
+app.use('/api/borrows', borrowRoutes); // /api/borrows/*
 app.use('/api/admin', adminRoutes);   // /api/admin/*
 
 // ── Error handlers (phải đặt CUỐI) ───────────────────────────────────────────

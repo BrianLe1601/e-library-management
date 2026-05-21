@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import bookService from "../../services/bookService";
 import { StarRating } from "../../components/StarRating";
+import borrowService from '../../services/borrowService'
+import { useNavigate } from 'react-router-dom';
 // import BookCard from "../../components/BookCard"; // (Bạn có thể dùng nếu muốn đổi RelatedBooks sang dạng Component chuẩn)
 
 export default function BookDetail() {
@@ -31,6 +33,9 @@ export default function BookDetail() {
   const [borrowSuccess, setBorrowSuccess] = useState(false);
   const [extensionSent, setExtensionSent] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+
+  const [borrowLoading, setBorrowLoading] = useState(false)
+  const [borrowError,   setBorrowError]   = useState(null)
 
   // 2. Fetch dữ liệu mỗi khi ID trên thanh URL thay đổi
   useEffect(() => {
@@ -92,6 +97,36 @@ export default function BookDetail() {
   // Xử lý các phép toán UI dựa trên dữ liệu thật
   const availabilityPercentage = book.totalCopies > 0 ? (book.availableCopies / book.totalCopies) * 100 : 0;
   const isAvailable = book.availableCopies > 0;
+
+  const handleBorrow = async () => {
+    // Kiểm tra đã đăng nhập chưa
+    const token = localStorage.getItem('token')
+    if (!token) {
+      navigate('/login')
+      return
+    }
+
+    setBorrowLoading(true)
+    setBorrowError(null)
+
+    try {
+      await borrowService.borrowBook(book.id)
+      setBorrowSuccess(true)  // hiện thông báo thành công
+    } catch (err) {
+      const msg = err.response?.data?.message
+      // Map lỗi từ backend sang message thân thiện
+      if (msg?.includes('đang mượn') || msg?.includes('already'))
+        setBorrowError('You are already borrowing this book.')
+      else if (msg?.includes('không còn') || msg?.includes('unavailable'))
+        setBorrowError('No copies available at the moment.')
+      else if (err.response?.status === 401)
+        navigate('/login')
+      else
+        setBorrowError(msg)
+    } finally {
+      setBorrowLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -257,24 +292,34 @@ export default function BookDetail() {
             <div className="flex flex-col sm:flex-row gap-3">
               {isAvailable ? (
                 <button
-                  onClick={() => setBorrowSuccess(true)}
-                  className={`flex-1 sm:flex-none px-8 py-3.5 rounded-xl text-sm transition-all shadow-md ${
-                    borrowSuccess
-                      ? "bg-green-600 text-white cursor-not-allowed"
-                      : "bg-blue-800 hover:bg-blue-900 active:scale-95 text-white shadow-blue-900/30"
-                  }`}
-                  style={{ fontWeight: 700 }}
-                  disabled={borrowSuccess}
-                >
-                  {borrowSuccess ? "✓ Borrowed Successfully!" : "Borrow Now"}
-                </button>
+                    onClick={handleBorrow}
+                    disabled={borrowSuccess || borrowLoading}
+                    className={`flex-1 sm:flex-none px-8 py-3.5 rounded-xl text-sm transition-all shadow-md ${
+                      borrowSuccess
+                        ? 'bg-green-600 text-white cursor-not-allowed'
+                        : borrowLoading
+                        ? 'bg-blue-400 text-white cursor-not-allowed'
+                        : 'bg-blue-800 hover:bg-blue-900 active:scale-95 text-white shadow-blue-900/30'
+                    }`}
+                    style={{ fontWeight: 700 }}
+                  >
+                    {borrowSuccess ? (
+                      '✓ Request Sent!'
+                    ) : borrowLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Processing...
+                      </span>
+                    ) : (
+                      'Borrow Now'
+                    )}
+                  </button>
               ) : (
                 <button className="flex-1 sm:flex-none px-8 py-3.5 rounded-xl text-sm bg-gray-300 dark:bg-slate-700 text-gray-500 dark:text-gray-500 cursor-not-allowed" disabled style={{ fontWeight: 700 }}>
                   Not Available
                 </button>
               )}
 
-              <button
+              {/* <button
                 onClick={() => setExtensionSent(true)}
                 className={`text-sm transition-colors px-4 py-2 rounded-xl border ${
                   extensionSent
@@ -283,13 +328,23 @@ export default function BookDetail() {
                 }`}
               >
                 {extensionSent ? "✓ Extension Requested" : "Request Extension"}
-              </button>
+              </button> */}
             </div>
 
+            {/* Thành công */}
             {borrowSuccess && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-xl border border-green-200 dark:border-green-800">
+              <div className="mt-3 flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-200 dark:border-blue-800">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                Due date is 14 days from today. Please return or renew before the due date.
+                Your borrow request has been sent! Please wait for admin approval.
+                The book will be delivered to you once confirmed.
+              </div>
+            )}
+
+            {/* Lỗi */}
+            {borrowError && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-xl border border-red-200 dark:border-red-800">
+                <XCircle className="w-4 h-4 shrink-0" />
+                {borrowError}
               </div>
             )}
           </div>
