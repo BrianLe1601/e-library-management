@@ -51,12 +51,11 @@ export default function BookListingPage() {
       setLoading(true);
       try {
         const apiParams = {
-          search: searchQuery,
-          // Backend param is "category" (singular), value is comma-separated IDs
-          category: filters.categories.join(","),
-          author: filters.authors.join(","),
-          publisher: filters.publishers.join(","),
-          availability: filters.availability,
+          search: searchQuery || undefined,
+          category: filters.categories.length ? filters.categories.join(",") : undefined,
+          author: filters.authors.length ? filters.authors.join(",") : undefined,
+          publisher: filters.publishers.length ? filters.publishers.join(",") : undefined,
+          availability: filters.availability || 'all',
           sort: sortBy,
           page: currentPage,
           limit: BOOKS_PER_PAGE,

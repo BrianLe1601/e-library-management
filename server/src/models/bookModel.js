@@ -9,7 +9,7 @@
 const db = require('../config/db');
 
 // ── Danh sách sách (search, category, pagination) ─────────────────────────────
-const findAll = async ({ search = '', category = '', author = '', publisher = '', sort = 'latest', page = 1, limit = 12 }) => {
+const findAll = async ({ search = '', category = '', author = '', publisher = '', availability = 'all', sort = 'latest', page = 1, limit = 12 }) => {
   const conditions = [];
   const params = [];
 
@@ -46,6 +46,13 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     }
   }
 
+  // 5. Lọc theo tình trạng sách
+  if (availability === 'in-stock') {
+    conditions.push('b.available_copies > 0');
+  } else if (availability === 'out-of-stock') {
+    conditions.push('b.available_copies = 0');
+  }
+
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // Tính toán phân trang
@@ -56,7 +63,6 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     SELECT COUNT(DISTINCT b.id) AS total
     FROM books b
     JOIN authors a ON a.id = b.author_id
-    LEFT JOIN book_categories bc ON bc.book_id = b.id
     ${where}
   `;
   const [[{ total }]] = await db.query(countSql, params);
@@ -76,12 +82,12 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
       b.cover_url AS coverUrl, b.total_copies AS totalCopies, 
       b.available_copies AS availableCopies,
       a.name AS author, p.name AS publisher,
+      (SELECT c.name FROM categories c JOIN book_categories bc ON bc.category_id = c.id WHERE bc.book_id = b.id LIMIT 1) AS category,
       COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating,
       (SELECT COUNT(*) FROM reviews WHERE book_id = b.id) AS reviewCount
     FROM books b
     JOIN authors a ON a.id = b.author_id
     LEFT JOIN publishers p ON p.id = b.publisher_id
-    LEFT JOIN book_categories bc ON bc.book_id = b.id
     ${where}
     GROUP BY b.id
     ${orderBy}
@@ -243,30 +249,30 @@ const setCategories = async (bookId, categoryIds = []) => {
 
 // ── Dashboard Statistics ─────────────────────────────────────
 const getDashboardStats = async () => {
-  // Tổng số sách
+  // Tổng số bản sao hiện có của toàn bộ sách
   const [[books]] = await db.query(`
-    SELECT COUNT(*) AS totalBooks
+    SELECT COALESCE(SUM(total_copies), 0) AS totalBooks
     FROM books
   `);
 
-  // Thành viên đang hoạt động
+  // Thành viên có role = 'user' và status = 'active'
   const [[members]] = await db.query(`
     SELECT COUNT(*) AS activeMembers
     FROM users
-    WHERE role = 'member'
+    WHERE role = 'user' AND status = 'active'
   `);
 
-  // Sách đang được mượn
+  // Số lượt mượn đang diễn ra (status = 'borrowing')
   const [[borrowed]] = await db.query(`
     SELECT COUNT(*) AS checkedOutBooks
     FROM borrows
-    WHERE status = 'borrowed'
+    WHERE status = 'borrowing'
   `);
 
   return {
-    totalBooks: books.totalBooks || 0,
-    activeMembers: members.activeMembers || 0,
-    checkedOutBooks: borrowed.checkedOutBooks || 0
+    totalBooks: Number(books.totalBooks) || 0,
+    activeMembers: Number(members.activeMembers) || 0,
+    checkedOutBooks: Number(borrowed.checkedOutBooks) || 0
   };
 };
 

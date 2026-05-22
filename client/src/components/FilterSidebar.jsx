@@ -211,7 +211,7 @@ export default function FilterSidebar({ filters, onChange }) {
   return (
     <>
       {/* Mobile Filter Toggle */}
-      <div className="lg:hidden mb-4">
+      <div className="md:hidden mb-4">
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
           className="flex items-center gap-2 px-4 py-2.5 bg-blue-700 text-white rounded-xl text-sm hover:bg-blue-800 transition-colors"
@@ -224,7 +224,7 @@ export default function FilterSidebar({ filters, onChange }) {
       </div>
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block w-64 shrink-0">{sidebarContent}</div>
+      <div className="hidden md:block w-64 shrink-0">{sidebarContent}</div>
     </>
   );
 }
