@@ -358,6 +358,182 @@ export const notifications: Notification[] = [
   { id: "notif6", message: "Reminder: Library will be closed on May 12 for scheduled maintenance.", type: "info", date: "May 3, 2026", read: true },
 ];
 
+export interface CurrentlyBorrowed {
+  id: string;
+  title: string;
+  author: string;
+  category: string;
+  coverUrl: string;
+  borrowDate: string; // YYYY-MM-DD
+  dueDate: string;    // YYYY-MM-DD
+  renewalCount: number;
+  maxRenewals: number;
+}
+
+// Today's date anchor: 2026-05-21
+export const currentlyBorrowed: CurrentlyBorrowed[] = [
+  {
+    id: "cb1",
+    title: "Python Crash Course",
+    author: "Eric Matthes",
+    category: "IT",
+    coverUrl: PROGRAMMING_IMG,
+    borrowDate: "2026-05-08",
+    dueDate: "2026-05-22",
+    renewalCount: 1,
+    maxRenewals: 2,
+  },
+  {
+    id: "cb2",
+    title: "Thinking, Fast and Slow",
+    author: "Daniel Kahneman",
+    category: "Science",
+    coverUrl: SCIENCE_IMG,
+    borrowDate: "2026-05-12",
+    dueDate: "2026-06-05",
+    renewalCount: 0,
+    maxRenewals: 2,
+  },
+  {
+    id: "cb3",
+    title: "Artificial Intelligence: A Modern Approach",
+    author: "Stuart Russell",
+    category: "IT",
+    coverUrl: AI_IMG,
+    borrowDate: "2026-04-25",
+    dueDate: "2026-05-09",
+    renewalCount: 2,
+    maxRenewals: 2,
+  },
+  {
+    id: "cb4",
+    title: "Linear Algebra Done Right",
+    author: "Sheldon Axler",
+    category: "Mathematics",
+    coverUrl: MATH_IMG,
+    borrowDate: "2026-05-01",
+    dueDate: "2026-05-28",
+    renewalCount: 0,
+    maxRenewals: 2,
+  },
+];
+
+export interface SavedBook {
+  id: string;
+  bookId: string;
+  title: string;
+  author: string;
+  category: string;
+  coverUrl: string;
+  rating: number;
+  availableCopies: number;
+  totalCopies: number;
+  expectedBackDate?: string; // shown when availableCopies === 0
+  savedDate: string; // YYYY-MM-DD
+}
+
+export const savedBooks: SavedBook[] = [
+  {
+    id: "sv1",
+    bookId: "3",
+    title: "The Great Gatsby",
+    author: "F. Scott Fitzgerald",
+    category: "Literature",
+    coverUrl: LITERATURE_IMG,
+    rating: 4.2,
+    availableCopies: 5,
+    totalCopies: 6,
+    savedDate: "2026-05-18",
+  },
+  {
+    id: "sv2",
+    bookId: "13",
+    title: "Crime and Punishment",
+    author: "Fyodor Dostoevsky",
+    category: "Literature",
+    coverUrl: LITERATURE_IMG,
+    rating: 4.5,
+    availableCopies: 0,
+    totalCopies: 4,
+    expectedBackDate: "2026-06-03",
+    savedDate: "2026-05-15",
+  },
+  {
+    id: "sv3",
+    bookId: "7",
+    title: "Calculus: Early Transcendentals",
+    author: "James Stewart",
+    category: "Mathematics",
+    coverUrl: MATH_IMG,
+    rating: 4.4,
+    availableCopies: 6,
+    totalCopies: 8,
+    savedDate: "2026-05-12",
+  },
+  {
+    id: "sv4",
+    bookId: "9",
+    title: "Philosophy of Mind",
+    author: "Jaegwon Kim",
+    category: "Philosophy",
+    coverUrl: PHILOSOPHY_IMG,
+    rating: 4.1,
+    availableCopies: 0,
+    totalCopies: 3,
+    expectedBackDate: "2026-05-28",
+    savedDate: "2026-05-10",
+  },
+  {
+    id: "sv5",
+    bookId: "16",
+    title: "Quantum Mechanics",
+    author: "David J. Griffiths",
+    category: "Science",
+    coverUrl: SCIENCE_IMG,
+    rating: 4.8,
+    availableCopies: 2,
+    totalCopies: 4,
+    savedDate: "2026-05-05",
+  },
+  {
+    id: "sv6",
+    bookId: "15",
+    title: "The Republic",
+    author: "Plato",
+    category: "Philosophy",
+    coverUrl: PHILOSOPHY_IMG,
+    rating: 4.4,
+    availableCopies: 2,
+    totalCopies: 3,
+    savedDate: "2026-04-28",
+  },
+  {
+    id: "sv7",
+    bookId: "4",
+    title: "To Kill a Mockingbird",
+    author: "Harper Lee",
+    category: "Literature",
+    coverUrl: LITERATURE_IMG,
+    rating: 4.7,
+    availableCopies: 1,
+    totalCopies: 5,
+    savedDate: "2026-04-20",
+  },
+  {
+    id: "sv8",
+    bookId: "1",
+    title: "Introduction to Algorithms",
+    author: "Thomas H. Cormen",
+    category: "IT",
+    coverUrl: PROGRAMMING_IMG,
+    rating: 4.8,
+    availableCopies: 0,
+    totalCopies: 5,
+    expectedBackDate: "2026-06-10",
+    savedDate: "2026-04-14",
+  },
+];
+
 export const categories = ["Literature", "Science", "IT", "Mathematics", "Philosophy", "History", "Economics", "Psychology"];
 export const publishers = ["MIT Press", "Oxford University Press", "Pearson", "NXB Tre", "Cambridge University Press", "Springer", "No Starch Press", "Scribner"];
 export const authors = ["Thomas H. Cormen", "Robert C. Martin", "Stuart Russell", "Stephen Hawking", "James Stewart", "Eric Matthes", "Fyodor Dostoevsky", "Plato"];
