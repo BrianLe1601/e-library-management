@@ -4,7 +4,7 @@ import { ArrowRight, BookOpen, Users, Clock, Award, Star, Flame, Sparkles, Tag }
 import HeroCarousel from "../../components/HeroCarousel";
 import BookCard from "../../components/BookCard";
 import bookService from "../../services/bookService";
-
+import { getStats } from "../../services/adminService";
 
 function BookSkeleton() {
   return (
@@ -24,55 +24,43 @@ export default function HomePage() {
   const [newest, setNewest] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryBooks, setCategoryBooks] = useState([]);
-
-  const [systemStats, setSystemStats] = useState({
-    totalBooks: 0,
-    activeMembers: 0,   // ← đổi từ totalUsers
-    checkedOutBooks: 0, // ← đổi từ activeBorrows
-  });
+  const [systemStats, setSystemStats] = useState({ totalBooks: 0, totalUsers: 0, activeBorrows: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // 1. Fetch all primary landing page components simultaneously
         const [featuredRes, topRatedRes, newestRes, categoriesRes, statsRes] = await Promise.all([
-          bookService.getFeatured(10).catch(() => ({ data: { success: false } })),
-          bookService.getTopRated(10).catch(() => ({ data: { success: false } })),
-          bookService.getNewest(10).catch(() => ({ data: { success: false } })),
+          bookService.getFeatured(6).catch(() => ({ data: { success: false } })),
+          bookService.getTopRated(6).catch(() => ({ data: { success: false } })),
+          bookService.getNewest(6).catch(() => ({ data: { success: false } })),
           bookService.getCategories().catch(() => ({ data: { success: false } })),
-
-          
-          bookService.getPublicStats().catch(() => ({ data: { success: false } })),
+          getStats().catch(() => ({ data: { success: false } }))
         ]);
 
+        // Map responses based on the established axis server structure (.data.data)
         if (featuredRes.data?.success) setFeatured(featuredRes.data.data || []);
         if (topRatedRes.data?.success) setTopRated(topRatedRes.data.data || []);
         if (newestRes.data?.success) setNewest(newestRes.data.data || []);
-
-        
-        if (statsRes.data?.success) {
-          setSystemStats(statsRes.data.data || {
-            totalBooks: 0,
-            activeMembers: 0,
-            checkedOutBooks: 0,
-          });
-        }
+        if (statsRes.data?.success) setSystemStats(statsRes.data.data || { totalBooks: 0, totalUsers: 0, activeBorrows: 0 });
 
         if (categoriesRes.data?.success) {
           const allCats = categoriesRes.data.data || [];
-          setCategories(allCats.slice(0, 8));
+          setCategories(allCats.slice(0, 8)); // Top 8 genres grid for design consistency
 
+          // 2. Discover the first non-empty category to map the dynamic spotlight footer
           const firstCat = allCats.find(c => c.book_count > 0);
           if (firstCat) {
-            const catBooksRes = await bookService.getBooks({ category: firstCat.id, limit: 10 }).catch(() => ({ data: { success: false } }));
+            const catBooksRes = await bookService.getBooks({ category: firstCat.id, limit: 6 }).catch(() => ({ data: { success: false } }));
             if (catBooksRes.data?.success) {
               setCategoryBooks(catBooksRes.data.data || []);
             }
           }
         }
       } catch (err) {
-        console.error('HomePage fetch error:', err);
+        console.error('HomePage structural payload fetch error:', err);
       } finally {
         setLoading(false);
       }
@@ -80,11 +68,12 @@ export default function HomePage() {
     fetchData();
   }, []);
 
+  // Structural dynamic dashboard indicators compiled from internal metrics
   const dynamicStats = [
-    { icon: BookOpen, label: "Total Books Available", value: loading ? "..." : (systemStats.totalBooks     || 0).toLocaleString() },
-    { icon: Users,    label: "Active Members",        value: loading ? "..." : (systemStats.activeMembers  || 0).toLocaleString() },
-    { icon: Clock,    label: "Books Checked Out",     value: loading ? "..." : (systemStats.checkedOutBooks || 0).toLocaleString() },
-    { icon: Award,    label: "Featured Titles",       value: loading ? "..." : (featured.length            || 0).toString() },
+    { icon: BookOpen, label: "Total Books Available", value: loading ? "..." : (systemStats.totalBooks || 0).toLocaleString() },
+    { icon: Users,    label: "Active Members",       value: loading ? "..." : (systemStats.totalUsers || 0).toLocaleString() },
+    { icon: Clock,    label: "Books Checked Out",    value: loading ? "..." : (systemStats.activeBorrows || 0).toLocaleString() },
+    { icon: Award,    label: "Featured Titles",      value: loading ? "..." : (featured.length || 0).toString() },
   ];
 
   return (
@@ -217,6 +206,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Interface Boundary Rule Line */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-6">
         <div className="border-t border-gray-200 dark:border-slate-700" />
       </div>
