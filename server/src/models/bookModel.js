@@ -124,17 +124,62 @@ const findById = async (id) => {
 // ── Sách nổi bật (được mượn nhiều nhất, còn sách) ────────────────────────────
 const findFeatured = async (limit = 8) => {
   const [rows] = await db.query(
-    `SELECT b.id, b.title, b.cover_url, b.available_copies,
-            a.name AS author,
-            COUNT(br.id) AS borrow_count,
-            COALESCE(AVG(r.rating), 0) AS avg_rating
+    `SELECT 
+       b.id, b.title,
+       b.cover_url        AS coverUrl,
+       b.available_copies AS availableCopies,
+       a.name             AS author,
+       COUNT(br.id)       AS borrow_count,
+       COALESCE(AVG(r.rating), 0) AS rating
      FROM books b
      JOIN authors a ON a.id = b.author_id
      LEFT JOIN borrows br ON br.book_id = b.id
      LEFT JOIN reviews r  ON r.book_id  = b.id AND r.is_visible = 1
      WHERE b.available_copies > 0
      GROUP BY b.id
-     ORDER BY borrow_count DESC, avg_rating DESC
+     ORDER BY borrow_count DESC, rating DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+  return rows;
+};
+// ── THÊM findTopRated ─────────────────────────────────────────────────────────
+const findTopRated = async (limit = 10) => {
+  const [rows] = await db.query(
+    `SELECT
+       b.id, b.title,
+       b.cover_url        AS coverUrl,
+       b.available_copies AS availableCopies,
+       a.name             AS author,
+       COALESCE(AVG(r.rating), 0)      AS rating,
+       COUNT(DISTINCT r.id)            AS reviewCount
+     FROM books b
+     JOIN authors a ON a.id = b.author_id
+     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
+     GROUP BY b.id
+     HAVING rating > 0
+     ORDER BY rating DESC, reviewCount DESC
+     LIMIT ?`,
+    [Number(limit)]
+  );
+  return rows;
+};
+
+// ── THÊM findNewest ───────────────────────────────────────────────────────────
+const findNewest = async (limit = 10) => {
+  const [rows] = await db.query(
+    `SELECT
+       b.id, b.title,
+       b.cover_url        AS coverUrl,
+       b.available_copies AS availableCopies,
+       a.name             AS author,
+       COALESCE(AVG(r.rating), 0) AS rating,
+       b.created_at
+     FROM books b
+     JOIN authors a ON a.id = b.author_id
+     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
+     GROUP BY b.id
+     ORDER BY b.created_at DESC
      LIMIT ?`,
     [Number(limit)]
   );
@@ -196,4 +241,33 @@ const setCategories = async (bookId, categoryIds = []) => {
   await db.query('INSERT INTO book_categories (book_id, category_id) VALUES ?', [values]);
 };
 
-module.exports = { findAll, findById, findFeatured, findAllCategories, create, update, remove, setCategories };
+// ── Dashboard Statistics ─────────────────────────────────────
+const getDashboardStats = async () => {
+  // Tổng số sách
+  const [[books]] = await db.query(`
+    SELECT COUNT(*) AS totalBooks
+    FROM books
+  `);
+
+  // Thành viên đang hoạt động
+  const [[members]] = await db.query(`
+    SELECT COUNT(*) AS activeMembers
+    FROM users
+    WHERE role = 'member'
+  `);
+
+  // Sách đang được mượn
+  const [[borrowed]] = await db.query(`
+    SELECT COUNT(*) AS checkedOutBooks
+    FROM borrows
+    WHERE status = 'borrowed'
+  `);
+
+  return {
+    totalBooks: books.totalBooks || 0,
+    activeMembers: members.activeMembers || 0,
+    checkedOutBooks: borrowed.checkedOutBooks || 0
+  };
+};
+
+module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats };
