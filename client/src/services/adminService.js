@@ -122,10 +122,18 @@ export const toggleUserStatus = (userId, isActive) =>
   API.patch(`/admin/users/${userId}/status`, { is_active: isActive });
 
 /**
- * Xóa tài khoản user
- * @param {number} userId
+ * Cập nhật vai trò (role) của người dùng
+ * @param {number|string} userId
+ * @param {string} role — "admin" | "employee" | "user"
  */
-export const deleteUser = (userId) =>
-  API.delete(`/admin/users/${userId}`);
+export const updateUserRole = (userId, role) =>
+  API.put(`/admin/users/${userId}/role`, { role });
+
+/**
+ * Thêm người dùng mới trực tiếp (Chỉ Admin)
+ * @param {object} data - { full_name, email, password, phone, role }
+ */
+export const addUser = (data) =>
+  API.post("/admin/users", data);
 
 export default API;
