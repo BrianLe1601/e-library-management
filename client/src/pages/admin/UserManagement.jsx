@@ -1,108 +1,8 @@
-import React, { useState } from "react";
-import {
-  Search,
-  Lock,
-  Unlock,
-  ShieldCheck,
-  ShieldOff,
-  UserPlus,
-  MoreVertical,
-  Mail,
-  Hash,
-} from "lucide-react";
-
-const initialUsers = [
-  {
-    id: "USR-001",
-    name: "Alice Johnson",
-    email: "alice@email.com",
-    role: "admin",
-    status: "active",
-    joined: "2024-01-15",
-    borrows: 12,
-  },
-  {
-    id: "USR-002",
-    name: "Bob Martinez",
-    email: "bob@email.com",
-    role: "user",
-    status: "active",
-    joined: "2024-02-20",
-    borrows: 7,
-  },
-  {
-    id: "USR-003",
-    name: "Chloe Davis",
-    email: "chloe@email.com",
-    role: "user",
-    status: "locked",
-    joined: "2024-03-05",
-    borrows: 3,
-  },
-  {
-    id: "USR-004",
-    name: "David Kim",
-    email: "david@email.com",
-    role: "user",
-    status: "active",
-    joined: "2024-03-18",
-    borrows: 21,
-  },
-  {
-    id: "USR-005",
-    name: "Emma Wilson",
-    email: "emma@email.com",
-    role: "admin",
-    status: "active",
-    joined: "2024-04-02",
-    borrows: 5,
-  },
-  {
-    id: "USR-006",
-    name: "Frank Lee",
-    email: "frank@email.com",
-    role: "user",
-    status: "locked",
-    joined: "2024-04-11",
-    borrows: 0,
-  },
-  {
-    id: "USR-007",
-    name: "Grace Nguyen",
-    email: "grace@email.com",
-    role: "user",
-    status: "active",
-    joined: "2024-05-22",
-    borrows: 9,
-  },
-  {
-    id: "USR-008",
-    name: "Henry Brown",
-    email: "henry@email.com",
-    role: "user",
-    status: "active",
-    joined: "2024-06-01",
-    borrows: 14,
-  },
-  {
-    id: "USR-009",
-    name: "Iris Chen",
-    email: "iris@email.com",
-    role: "admin",
-    status: "active",
-    joined: "2024-06-14",
-    borrows: 2,
-  },
-  {
-    id: "USR-010",
-    name: "Jack Smith",
-    email: "jack@email.com",
-    role: "user",
-    status: "active",
-    joined: "2024-07-03",
-    borrows: 18,
-  },
-];
+import React, { useState, useEffect } from "react";
+import { Search,Lock,Unlock,ShieldCheck,ShieldOff,UserPlus,
+  Mail,X,Eye,EyeOff,User } from "lucide-react";
+import { getUsers, toggleUserStatus, updateUserRole, addUser } from "../../services/adminService";
+import InputField from "../../components/InputField";
 
 const avatarColors = [
   "from-indigo-500 to-purple-600",
@@ -113,69 +13,187 @@ const avatarColors = [
 ];
 
 export default function UserManagement() {
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
 
-  const filtered = users.filter((u) => {
-    const matchSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.id.toLowerCase().includes(search.toLowerCase());
-    const matchRole =
-      filterRole === "All" || u.role === filterRole.toLowerCase();
-    const matchStatus =
-      filterStatus === "All" || u.status === filterStatus.toLowerCase();
-    return matchSearch && matchRole && matchStatus;
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [formData, setFormData] = useState({
+    full_name: "", email: "", password: "", confirm_password: "", phone: "", role: "user"
   });
 
-  const handleChangeRole = (user) => {
-    const currentUser =
-      JSON.parse(localStorage.getItem("user") || "null") || {
-        role: "admin",
-        id: null,
-      };
-
-    // Logic: Chỉ Admin/Employee mới được chỉnh. Nếu không có người dùng đăng nhập,
-    // ta sẽ giả định quyền admin cho mục đích demo / local testing.
-    if (currentUser.role !== "admin" && currentUser.role !== "employee") {
-      return;
-    }
-
-    // Không cho phép tự thay đổi quyền của chính mình trong quản lý người dùng.
-    if (currentUser.id && currentUser.id === user.id) {
-      window.alert("Bạn không thể thay đổi quyền của chính mình.");
-      return;
-    }
-
-    const newRole = user.role === "admin" ? "user" : "admin";
-
-    const confirmChange = window.confirm(
-      `Bạn có chắc chắn muốn thay đổi quyền của ${user.name} từ ${user.role.toUpperCase()} thành ${newRole.toUpperCase()} không?`,
-    );
-
-    if (confirmChange) {
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, role: newRole } : u)),
-      );
-      // Sau này tại đây bạn sẽ gọi API: axios.put(`/api/admin/users/${user.id}/role`, { role: newRole })
+  const fetchUsersData = async () => {
+    try {
+      setLoading(true);
+      const response = await getUsers();
+      console.log("Fetched users:", response.data);
+      const serverData = response.data.data;
+      console.log("Server data:", serverData);
+      if(Array.isArray(serverData)){
+        setUsers(serverData);
+      } else{
+        setUsers([]);
+      }
+    } catch (err) {
+      console.error("Error fetching users:", err);
+      setError("Failed to load users. Please try again later.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleLock = (id) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id
-          ? { ...u, status: u.status === "locked" ? "active" : "locked" }
-          : u,
-      ),
+  useEffect(() => {
+    fetchUsersData();
+  },[]);
+
+  useEffect(() =>{
+    const searchLower = search.toLowerCase();
+    const result = users.filter((u) => {
+      const matchSearch = 
+        (u.full_name || "").toLowerCase().includes(searchLower) ||
+        (u.email || "").toLowerCase().includes(searchLower) ||
+        String(u.id || "").toLowerCase().includes(searchLower);
+      
+      const matchRole = filterRole === "All" || (u.role || "").toLowerCase() === filterRole.toLowerCase();
+      const targetStatus = filterStatus === "Locked" ? "banned" : filterStatus.toLowerCase();
+      const matchStatus = filterStatus === "All" || (u.status || "").toLowerCase() === targetStatus;
+      
+      return matchSearch && matchRole && matchStatus;
+    });
+
+    setFilteredUsers(result);
+  }, [search, filterRole, filterStatus, users]);
+
+  const handleChangeRole = async (user, newRole) => {
+    const currentUser = JSON.parse(localStorage.getItem("user") || "null") || { role: "admin", id: null };
+    if (currentUser.role !== "admin") return window.alert("Only admins can change roles.");
+    if (currentUser.id && currentUser.id === user.id) return window.alert("You cannot change your own role.");
+
+    if (newRole === "admin") {
+      const currentAdmins = users.filter(u => u.role === "admin" && u.id !== user.id).length;
+      if (currentAdmins >= 1) {
+        window.alert("The system only allows a maximum of 1 active Admin!");
+        return;
+      }
+    }
+
+    if (newRole === "employee") {
+      const currentEmployees = users.filter(u => u.role === "employee" && u.id !== user.id).length;
+      if (currentEmployees >= 2) {
+        window.alert("The system only allows a maximum of 2 active Employees!");
+        return;
+      }
+    }
+
+    const confirmChange = window.confirm(
+      `Are you sure you want to change the role of ${user.full_name || "user"} to ${newRole.toUpperCase()}?`
     );
+
+    if(!confirmChange) return;
+
+    try{
+      const response = await updateUserRole(user.id, newRole);
+      if(response.data && response.data.success){
+        setUsers((prev) =>
+          prev.map((u) => (u.id === user.id ? { ...u, role: newRole } : u)),
+        );
+      } else{
+        window.alert(response.data.message || "Failed to update user role. Please try again."); 
+      }
+    } catch (err) {
+      console.error("Error updating user role:", err);
+
+      // Đọc thông điệp lỗi chi tiết trả về từ Backend thông qua Axios (nếu có)
+      const serverErrorMessage = error.response?.data?.message || "Cannot connect to server. Please try again later.";
+      window.alert(`Error: ${serverErrorMessage}`);
+    }
+  };
+
+  const toggleLock = async (userId) => {
+    try {
+      await toggleUserStatus(userId);
+
+      setUsers(prevUsers => prevUsers.map(user => {
+        if (user.id === userId){
+          const nextStatus = user.status === "active" ? "banned" : "active";
+          return { ...user, status: nextStatus };
+        }
+        return user;
+      }));
+    } catch (err) {
+      console.error("Error toggling user lock status:", err);
+    }
+  };
+
+  // ─── XỬ LÝ SUBMIT MODAL ADD USER ────────────────────────────────
+  const handleFormChange = (e) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
+  };
+
+  const validateForm = () => {
+    const errs = {};
+    if (!formData.full_name.trim())      errs.full_name = 'Please enter your full name';
+    if (!formData.email.trim())          errs.email     = 'Please enter your email';
+    if (formData.password.length < 8)   errs.password  = 'Password must be at least 8 characters';
+    if (!/[A-Z]/.test(formData.password)) errs.password = 'Password must contain at least one uppercase letter';
+    if (!/[0-9]/.test(formData.password)) errs.password = 'Password must contain at least one digit';
+    if (formData.password !== formData.confirm_password) errs.confirm_password = 'Password confirmation does not match';
+    return errs;
+  };
+  
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    
+    const errs = validateForm();
+    if (Object.keys(errs).length > 0) { 
+      setFieldErrors(errs); 
+      return; 
+    }
+
+    if (formData.role === "admin" && users.filter(u => u.role === "admin").length >= 1) {
+      return alert("System has reached the limit of 1 Admin!");
+    }
+    if (formData.role === "employee" && users.filter(u => u.role === "employee").length >= 2) {
+      return alert("System has reached the limit of 2 Employees!");
+    }
+
+    try {
+      setIsSubmitting(true);
+      // Loại bỏ trường confirm_password trước khi gửi lên API
+      const { confirm_password, ...submitData } = formData;
+      const response = await addUser(submitData);
+      
+      if (response.data && response.data.success) {
+        alert("User added successfully!");
+        setIsAddModalOpen(false); 
+        setFormData({ full_name: "", email: "", password: "", confirm_password: "", phone: "", role: "user" }); 
+        fetchUsersData(); 
+      }
+    } catch (error) {
+      alert(`Error: ${error.response?.data?.message || "Cannot add user. Please try again later."}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const activeCount = users.filter((u) => u.status === "active").length;
   const adminCount = users.filter((u) => u.role === "admin").length;
-  const lockedCount = users.filter((u) => u.status === "locked").length;
+  const employeeCount = users.filter((u) => u.role === "employee").length;
+  const lockedCount = users.filter((u) => u.status === "banned").length;
+
+  if (loading) {return <div className="text-center p-10 text-slate-400">Loading users...</div>}
+  if (error) {return <div className="text-center p-10 text-red-500">{error}</div>}
 
   return (
     <div className="p-6 space-y-5">
@@ -187,53 +205,43 @@ export default function UserManagement() {
             {users.length} registered users
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm transition-colors shrink-0">
+        <button
+          onClick={() => {
+            setFieldErrors({});
+            setIsAddModalOpen(true)}}
+          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm transition-colors shrink-0">
           <UserPlus size={16} /> Add User
         </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-            Active Users
-          </p>
-          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">
-            {activeCount}
-          </p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Active Users</p>
+          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">{activeCount}</p>
           <div className="mt-2 h-1 rounded-full bg-slate-100 dark:bg-slate-700">
-            <div
-              className="h-1 rounded-full bg-emerald-500"
-              style={{ width: `${(activeCount / users.length) * 100}%` }}
-            />
+            <div className="h-1 rounded-full bg-emerald-500" style={{ width: `${(activeCount / Math.max(users.length, 1)) * 100}%` }} />
           </div>
         </div>
         <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-            Admins
-          </p>
-          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">
-            {adminCount}
-          </p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Admins</p>
+          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">{adminCount}/1</p>
           <div className="mt-2 h-1 rounded-full bg-slate-100 dark:bg-slate-700">
-            <div
-              className="h-1 rounded-full bg-indigo-500"
-              style={{ width: `${(adminCount / users.length) * 100}%` }}
-            />
+            <div className="h-1 rounded-full bg-indigo-500" style={{ width: `${(adminCount / 1) * 100}%` }} />
           </div>
         </div>
         <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-            Locked
-          </p>
-          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">
-            {lockedCount}
-          </p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Employees</p>
+          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">{employeeCount}/2</p>
           <div className="mt-2 h-1 rounded-full bg-slate-100 dark:bg-slate-700">
-            <div
-              className="h-1 rounded-full bg-red-500"
-              style={{ width: `${(lockedCount / users.length) * 100}%` }}
-            />
+            <div className="h-1 rounded-full bg-blue-500" style={{ width: `${(employeeCount / 2) * 100}%` }} />
+          </div>
+        </div>
+        <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+          <p className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Locked</p>
+          <p className="text-slate-900 dark:text-white text-2xl mt-1 font-semibold">{lockedCount}</p>
+          <div className="mt-2 h-1 rounded-full bg-slate-100 dark:bg-slate-700">
+            <div className="h-1 rounded-full bg-red-500" style={{ width: `${(lockedCount / Math.max(users.length, 1)) * 100}%` }} />
           </div>
         </div>
       </div>
@@ -254,7 +262,7 @@ export default function UserManagement() {
           />
         </div>
         <div className="flex gap-2">
-          {["All", "Admin", "User"].map((r) => (
+          {["All", "Admin", "Employee", "User"].map((r) => (
             <button
               key={r}
               onClick={() => setFilterRole(r)}
@@ -290,59 +298,43 @@ export default function UserManagement() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  User
-                </th>
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  User ID
-                </th>
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  Email
-                </th>
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  Role
-                </th>
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  Status
-                </th>
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  Borrows
-                </th>
-                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">
-                  Actions
-                </th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">User</th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">User ID</th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">Email</th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">Role</th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">Status</th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">Borrows</th>
+                <th className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user, i) => (
+              {filteredUsers.map((user, i) => (
                 <tr
                   key={user.id}
-                  className={`border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${user.status === "locked" ? "opacity-70" : ""}`}
+                  className={`border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${user.status === "banned" ? "opacity-70" : ""}`}
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColors[i % avatarColors.length]} flex items-center justify-center text-white text-xs font-semibold shrink-0`}
                       >
-                        {user.name
+                        {user.full_name
                           .split(" ")
                           .map((n) => n[0])
                           .join("")}
                       </div>
                       <div>
                         <p className="text-slate-800 dark:text-slate-100 text-sm font-medium">
-                          {user.name}
+                          {user.full_name}
                         </p>
                         <p className="text-slate-400 text-xs">
-                          Joined {user.joined}
+                          {user.created_at ? `Joined ${new Date(user.created_at).toLocaleDateString("vi-VN")}` : ""}
                         </p>
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="font-mono text-xs text-indigo-400">
-                      {user.id}
-                    </span>
+                    <span className="font-mono text-xs text-indigo-400">{user.id}</span>
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-sm">
@@ -351,23 +343,21 @@ export default function UserManagement() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => handleChangeRole(user)}
-                      // Logic: Nếu không phải admin thì không cho bấm (cursor-not-allowed)
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all ${
+                    <select
+                      value={user.role || "user"}
+                      onChange={(e) => handleChangeRole(user, e.target.value)}
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold outline-none cursor-pointer border ${
                         user.role === "admin"
-                          ? "bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-purple-500/30"
+                          ? "bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-400"
+                          : user.role === "employee"
+                          ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400"
+                          : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
                       }`}
-                      title="Click to change role"
                     >
-                      {user.role === "admin" ? (
-                        <ShieldCheck size={11} />
-                      ) : (
-                        <ShieldOff size={11} />
-                      )}
-                      {user.role === "admin" ? "Admin" : "User"}
-                    </button>
+                      <option value="admin">Admin</option>
+                      <option value="employee">Employee</option>
+                      <option value="user">User</option>
+                    </select>
                   </td>
                   <td className="px-5 py-3.5">
                     <span
@@ -385,57 +375,83 @@ export default function UserManagement() {
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="text-slate-600 dark:text-slate-300 text-sm">
-                      {user.borrows}
+                      {user.total_borrows || 0}
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
                     <button
                       onClick={() => toggleLock(user.id)}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                        user.status === "locked"
+                        user.status === "banned"
                           ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                           : "bg-red-500/10 text-red-400 hover:bg-red-500/20"
                       }`}
                     >
-                      {user.status === "locked" ? (
-                        <Unlock size={12} />
-                      ) : (
-                        <Lock size={12} />
-                      )}
-                      {user.status === "locked" ? "Unlock" : "Lock"}
+                      {user.status === "banned" ? <Unlock size={12} /> : <Lock size={12} />}
+                      {user.status === "banned" ? "Unlock" : "Lock"}
                     </button>
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="text-center py-12 text-slate-400 text-sm"
-                  >
-                    No users found matching your search
-                  </td>
-                </tr>
+              {filteredUsers.length === 0 && (
+                <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No users found matching your search</td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <p className="text-xs text-slate-400">
-            Showing {filtered.length} of {users.length} users
+            Showing {filteredUsers.length} of {users.length} users
           </p>
-          <div className="flex gap-1">
-            {[1, 2, 3].map((p) => (
-              <button
-                key={p}
-                className={`w-7 h-7 rounded-lg text-xs ${p === 1 ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
+      {/* ─── MODAL ADD USER ───────────────────────────────────── */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAddModalOpen(false)} />
+          <div className="relative bg-white dark:bg-[#111827] w-full max-w-md rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-6 overflow-hidden">
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New User</h2>
+              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSubmit} className="space-y-4">
+              <InputField name="full_name" label="Full Name *" placeholder="Ex: John Doe" icon={User} value={formData.full_name} onChange={handleFormChange} fieldErrors={fieldErrors} />
+              <InputField name="email" label="Email *" placeholder="email@example.com" icon={Mail} type="email" value={formData.email} onChange={handleFormChange} fieldErrors={fieldErrors} />
+
+              <InputField 
+                name="password" label="Initial Password *" placeholder="At least 8 characters, 1 uppercase, 1 number" icon={Lock} type="password" 
+                value={formData.password} onChange={handleFormChange} fieldErrors={fieldErrors} showPass={showPass} setShowPass={setShowPass} 
+              />
+              
+              <InputField 
+                name="confirm_password" label="Confirm Password *" placeholder="Re-enter password" icon={Lock} type="password" 
+                value={formData.confirm_password} onChange={handleFormChange} fieldErrors={fieldErrors} showPass={showConfirmPass} setShowPass={setShowConfirmPass} 
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <InputField name="phone" label="Phone Number" placeholder="09xxxx..." value={formData.phone} onChange={handleFormChange} fieldErrors={fieldErrors} />
+                
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Role</label>
+                  <select value={formData.role} onChange={(e) => setFormData({...formData, role: e.target.value})}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 cursor-pointer">
+                    <option value="user">User</option>
+                    <option value="employee">Employee</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" disabled={isSubmitting} className="w-full py-2.5 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50">
+                {isSubmitting ? "Processing..." : "Create Account"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

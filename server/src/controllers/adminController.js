@@ -20,7 +20,9 @@
  */
 
 const reportModel  = require('../models/reportModel');
+const userModel    = require('../models/userModel');
 const borrowCtrl   = require('./borrowController');
+const bcrypt = require('bcrypt');
 const { success, error, paginated } = require('../utils/response');
 
 // ── GET /api/admin/stats ──────────────────────────────────────────────────────
@@ -87,7 +89,7 @@ exports.exportReport = async (req, res) => {
 exports.getUsers = async (req, res) => {
   try {
     const { role, status, search, page = 1, limit = 20 } = req.query;
-    const { rows, total } = await reportModel.getUsers({ role, status, search, page, limit });
+    const { rows, total } = await userModel.getUsers({ role, status, search, page, limit });
     return paginated(res, rows, total, page, limit);
   } catch (err) {
     console.error('[getUsers]', err);
@@ -98,8 +100,8 @@ exports.getUsers = async (req, res) => {
 // ── PATCH /api/admin/users/:id/status ────────────────────────────────────────
 exports.toggleUserStatus = async (req, res) => {
   try {
-    const result = await reportModel.toggleUserStatus(req.params.id);
-    const msg = result.status === 'active' ? 'Đã mở khóa tài khoản' : 'Đã khóa tài khoản';
+    const result = await userModel.toggleUserStatus(req.params.id);
+    const msg = result.status === 'active' ? 'User account unlocked successfully' : 'User account locked successfully';
     return success(res, result, msg);
   } catch (err) {
     console.error('[toggleUserStatus]', err);
@@ -110,13 +112,71 @@ exports.toggleUserStatus = async (req, res) => {
 // ── DELETE /api/admin/users/:id ───────────────────────────────────────────────
 exports.deleteUser = async (req, res) => {
   try {
-    await reportModel.deleteUser(req.params.id);
-    return success(res, null, 'Xóa tài khoản thành công');
+    await userModel.deleteUser(req.params.id);
+    return success(res, null, 'User deleted successfully');
   } catch (err) {
     if (err.code === 'ER_ROW_IS_REFERENCED_2')
-      return error(res, 'Không thể xóa: tồn tại dữ liệu liên quan', 409);
+      return error(res, 'Cannot delete: related data exists', 409);
     console.error('[deleteUser]', err);
     return error(res, err.message, err.statusCode || 500);
+  }
+};
+
+// ── PUT /api/admin/users/:id/role ───────────────────────────────────────────
+exports.updateUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+    const id = req.params.id;
+
+    const validRoles = ['user', 'employee', 'admin'];
+    if (!validRoles.includes(role)) {
+      return error(res, 'Role is invalid', 400);
+    }
+
+    const isUpdated = await userModel.updateUserRole(id, role);
+    if (!isUpdated) {
+      return error(res, 'User not found', 404);
+    }
+    return success(res, { id: id, role }, 'Role updated successfully');
+  } catch (err) {
+    console.error('[updateUserRole] Error:', err);
+    return error(res, 'Internal server error', 500);
+  }
+};
+
+// ── POST /api/admin/users ───────────────────────────────────────────────
+exports.createUser = async (req, res) => {
+  try {
+    const { full_name, email, password, phone, role } = req.body;
+
+    // 1. Kiểm tra role hợp lệ (bảo mật thêm 1 lớp)
+    const validRoles = ['user', 'employee', 'admin'];
+    if (!validRoles.includes(role)) {
+      return error(res, 'Role is invalid', 400);
+    }
+
+    // 2. Mã hóa mật khẩu do Admin nhập vào
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 3. Đẩy xuống Model để lưu vào Database
+    const newUserId = await userModel.createUserByAdmin({
+      full_name,
+      email,
+      password: hashedPassword,
+      phone,
+      role
+    });
+
+    return success(res, { id: newUserId }, 'User created successfully', 201);
+    
+  } catch (err) {
+    // Bắt lỗi trùng Email (Mã lỗi của MySQL khi vi phạm UNIQUE constraint)
+    if (err.code === 'ER_DUP_ENTRY') {
+      return error(res, 'Email already exists', 409);
+    }
+    
+    console.error('[createUser]', err);
+    return error(res, 'Internal server error', 500);
   }
 };
 

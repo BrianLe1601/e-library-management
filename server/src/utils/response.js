@@ -21,17 +21,21 @@ const error = (res, message = 'Lỗi server', statusCode = 500, errors = null) =
   return res.status(statusCode).json(body);
 };
 
-const paginated = (res, data, total, page, limit, message = 'Thành công') =>
-  res.json({
+const paginated = (res, data, total, page, limit, message = 'Thành công') => {
+  const safePage = Number(page) || 1;
+  const safeLimit = Number(limit) > 0 ? Number(limit) : 10;
+
+  return res.json({
     success: true,
     message,
     data,
     meta: {
       total,
-      page:       Number(page),
-      limit:      Number(limit),
-      totalPages: Math.ceil(total / limit),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
     },
   });
+};
 
 module.exports = { success, error, paginated };
