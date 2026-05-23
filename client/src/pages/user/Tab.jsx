@@ -10,12 +10,16 @@ import { BookMarked, Bell, Settings, ChevronRight, Loader2 } from "lucide-react"
 import { useAuth } from "../../context/AuthContext";
 
 // ── Sub-tabs ──────────────────────────────────────────────────────────────────
-import { BorrowingTab }    from "./BorrowingTab";
+import { DashboardTab }    from "./DashboardTab";
+import { BorrowedTab } from "./BorrowedTab";
+import { SavedBooksTab }   from "./SavedBooksTab";
 import { NotificationsTab } from "./NotificationsTab";
 import { SettingsTab }     from "./SettingsTab";
 
 const TABS = [
-  { id: "borrowing",      label: "Lịch sử mượn",   icon: BookMarked },
+  { id: "dashboard",      label: "Bảng điều khiển",   icon: BookMarked },
+  { id: "borrowed",        label: "Đang mượn",        icon: BookMarked },
+  { id: "saved",          label: "Sách đã lưu",     icon: BookMarked },
   { id: "notifications",  label: "Thông báo",       icon: Bell       },
   { id: "settings",       label: "Cài đặt",         icon: Settings   },
 ];
@@ -24,7 +28,7 @@ export function DashboardPage() {
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(
-    TABS.map(t => t.id).includes(tabParam) ? tabParam : "borrowing"
+    TABS.map(t => t.id).includes(tabParam) ? tabParam : "dashboard"
   );
   const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
@@ -116,7 +120,9 @@ export function DashboardPage() {
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {activeTab === "borrowing"     && <BorrowingTab />}
+            {activeTab === "dashboard"     && <DashboardTab />}
+            {activeTab === "borrowed" && <BorrowedTab />}
+            {activeTab === "saved" && <SavedBooksTab />}
             {activeTab === "notifications" && <NotificationsTab onUnreadChange={setUnreadCount} />}
             {activeTab === "settings"      && <SettingsTab />}
           </div>

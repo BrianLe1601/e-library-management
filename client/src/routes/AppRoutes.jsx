@@ -19,7 +19,7 @@ import BooksPage from "../pages/book/BooksPage";
 import BookDetail from "../pages/book/BookDetail";
 
 // User pages
-import { DashboardPage as UserDashboard } from "../pages/user/Dashboard";
+import { DashboardPage as UserDashboard } from "../pages/user/Tab";
 
 // Admin pages
 import Dashboard from "../pages/admin/Dashboard";

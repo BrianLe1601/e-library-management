@@ -30,7 +30,7 @@ function daysLeft(dueDateStr) {
   return Math.ceil((dueDate - today) / 86400000);
 }
 
-export function BorrowingTab() {
+export function DashboardTab() {
   const [borrows, setBorrows]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [page, setPage]         = useState(1);
