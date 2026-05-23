@@ -15,7 +15,7 @@ const { body }   = require('express-validator');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const { validate }                = require('../middlewares/validateMiddleware');
 const bookController              = require('../controllers/bookController');
- 
+
 // Validation rules (Admin)
 const bookRules = [
   body('title').trim().notEmpty().withMessage('Tên sách không được để trống'),
@@ -34,7 +34,7 @@ router.get('/authors',     bookController.getAuthors);      // [MỚI] cho Filte
 router.get('/publishers',  bookController.getPublishers);   // [MỚI] cho FilterSidebar
 router.get('/',            bookController.getBooks);
 router.get('/:id(\\d+)',   bookController.getBookById);
- 
+router.get('/stats',       bookController.dashboardStats);
 // Admin-only routes
 router.post  ('/',             authenticate, authorize('admin'), bookRules, validate, bookController.createBook);
 router.put   ('/:id(\\d+)',    authenticate, authorize('admin'), bookRules, validate, bookController.updateBook);
