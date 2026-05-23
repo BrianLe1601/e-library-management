@@ -146,7 +146,19 @@ export default function BookCard({ book, variant = "trending" }) {
             <AvailabilityBadge availableCopies={book.availableCopies} />
           </div>
         </div>
+      )}
+    </div>
+    <div className="p-4 flex-1 flex flex-col">
+      <h3 className="text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors mb-1">
+        {book.title}
+      </h3>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{book.author}</p>
+      <div className="mt-auto">
+        <StarRating rating={book.rating} size="sm" showValue />
       </div>
-    </Link>
+    </div>
+  </div>
+</Link>
+
   );
 }

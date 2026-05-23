@@ -130,62 +130,17 @@ const findById = async (id) => {
 // ── Sách nổi bật (được mượn nhiều nhất, còn sách) ────────────────────────────
 const findFeatured = async (limit = 8) => {
   const [rows] = await db.query(
-    `SELECT 
-       b.id, b.title,
-       b.cover_url        AS coverUrl,
-       b.available_copies AS availableCopies,
-       a.name             AS author,
-       COUNT(br.id)       AS borrow_count,
-       COALESCE(AVG(r.rating), 0) AS rating
+    `SELECT b.id, b.title, b.cover_url, b.available_copies,
+            a.name AS author,
+            COUNT(br.id) AS borrow_count,
+            COALESCE(AVG(r.rating), 0) AS avg_rating
      FROM books b
      JOIN authors a ON a.id = b.author_id
      LEFT JOIN borrows br ON br.book_id = b.id
      LEFT JOIN reviews r  ON r.book_id  = b.id AND r.is_visible = 1
      WHERE b.available_copies > 0
      GROUP BY b.id
-     ORDER BY borrow_count DESC, rating DESC
-     LIMIT ?`,
-    [Number(limit)]
-  );
-  return rows;
-};
-// ── THÊM findTopRated ─────────────────────────────────────────────────────────
-const findTopRated = async (limit = 10) => {
-  const [rows] = await db.query(
-    `SELECT
-       b.id, b.title,
-       b.cover_url        AS coverUrl,
-       b.available_copies AS availableCopies,
-       a.name             AS author,
-       COALESCE(AVG(r.rating), 0)      AS rating,
-       COUNT(DISTINCT r.id)            AS reviewCount
-     FROM books b
-     JOIN authors a ON a.id = b.author_id
-     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
-     GROUP BY b.id
-     HAVING rating > 0
-     ORDER BY rating DESC, reviewCount DESC
-     LIMIT ?`,
-    [Number(limit)]
-  );
-  return rows;
-};
-
-// ── THÊM findNewest ───────────────────────────────────────────────────────────
-const findNewest = async (limit = 10) => {
-  const [rows] = await db.query(
-    `SELECT
-       b.id, b.title,
-       b.cover_url        AS coverUrl,
-       b.available_copies AS availableCopies,
-       a.name             AS author,
-       COALESCE(AVG(r.rating), 0) AS rating,
-       b.created_at
-     FROM books b
-     JOIN authors a ON a.id = b.author_id
-     LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
-     GROUP BY b.id
-     ORDER BY b.created_at DESC
+     ORDER BY borrow_count DESC, avg_rating DESC
      LIMIT ?`,
     [Number(limit)]
   );

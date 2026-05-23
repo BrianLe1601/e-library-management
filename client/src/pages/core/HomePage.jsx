@@ -108,14 +108,16 @@ export default function HomePage() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // 1. Fetch all primary landing page components simultaneously
         const [featuredRes, topRatedRes, newestRes, categoriesRes, statsRes] = await Promise.all([
-          bookService.getFeatured(10).catch(() => ({ data: { success: false } })),
-          bookService.getTopRated(10).catch(() => ({ data: { success: false } })),
-          bookService.getNewest(10).catch(() => ({ data: { success: false } })),
+          bookService.getFeatured(6).catch(() => ({ data: { success: false } })),
+          bookService.getTopRated(6).catch(() => ({ data: { success: false } })),
+          bookService.getNewest(6).catch(() => ({ data: { success: false } })),
           bookService.getCategories().catch(() => ({ data: { success: false } })),
           bookService.getPublicStats().catch(() => ({ data: { success: false } })),
         ]);
 
+        // Map responses based on the established axis server structure (.data.data)
         if (featuredRes.data?.success) setFeatured(featuredRes.data.data || []);
         if (topRatedRes.data?.success) setTopRated(topRatedRes.data.data || []);
         if (newestRes.data?.success) setNewest(newestRes.data.data || []);
@@ -139,6 +141,7 @@ export default function HomePage() {
     fetchData();
   }, []);
 
+  // Structural dynamic dashboard indicators compiled from internal metrics
   const dynamicStats = [
     { icon: BookOpen, label: "Total Books", value: loading ? "…" : (systemStats.totalBooks || 0).toLocaleString() },
     { icon: Users, label: "Active Members", value: loading ? "…" : (systemStats.activeMembers || 0).toLocaleString() },

@@ -1,8 +1,8 @@
+import { useState } from "react";
 import { ChevronDown, ChevronUp, Filter } from "lucide-react";
-import { useState, useEffect } from "react";
-import bookService from "../services/bookService";
+import { categories, authors, publishers } from "../pages/data/mockData";
 
-function FilterSection({ title, items, selectedIds, onToggle, maxVisible = 6 }) {
+function FilterSection({ title, items, selected, onToggle, maxVisible = 6 }) {
   const [expanded, setExpanded] = useState(false);
   const [sectionOpen, setSectionOpen] = useState(true);
   const visible = expanded ? items : items.slice(0, maxVisible);
@@ -19,16 +19,16 @@ function FilterSection({ title, items, selectedIds, onToggle, maxVisible = 6 }) 
       {sectionOpen && (
         <div className="space-y-2">
           {visible.map((item) => (
-            <label key={item.id} className="flex items-center gap-2.5 cursor-pointer group">
+            <label key={item} className="flex items-center gap-2.5 cursor-pointer group">
               <div
                 onClick={() => onToggle(item)}
                 className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${
-                  selectedIds.includes(item.id)
+                  selected.includes(item)
                     ? "bg-blue-700 border-blue-700"
                     : "border-gray-300 dark:border-slate-500 hover:border-blue-500"
                 }`}
               >
-                {selectedIds.includes(item.id) && (
+                {selected.includes(item) && (
                   <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10">
                     <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                   </svg>
@@ -37,15 +37,12 @@ function FilterSection({ title, items, selectedIds, onToggle, maxVisible = 6 }) 
               <span
                 onClick={() => onToggle(item)}
                 className={`text-sm transition-colors ${
-                  selectedIds.includes(item.id)
+                  selected.includes(item)
                     ? "text-blue-700 dark:text-blue-400"
                     : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200"
                 }`}
               >
-                {item.name}
-                {item.book_count !== undefined && (
-                  <span className="ml-1 text-gray-400 dark:text-gray-500 text-xs">({item.book_count})</span>
-                )}
+                {item}
               </span>
             </label>
           ))}
@@ -66,55 +63,24 @@ function FilterSection({ title, items, selectedIds, onToggle, maxVisible = 6 }) 
 export default function FilterSidebar({ filters, onChange }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Store objects {id, name, book_count}
-  const [categories, setCategories] = useState([]);
-  const [authors, setAuthors] = useState([]);
-  const [publishers, setPublishers] = useState([]);
-
-  useEffect(() => {
-    const fetchFilters = async () => {
-      try {
-        const [catRes, authRes, pubRes] = await Promise.all([
-          bookService.getCategories(),
-          bookService.getAuthors(),
-          bookService.getPublishers(),
-        ]);
-
-        if (catRes.data?.success) {
-          setCategories(catRes.data.data);
-        }
-        if (authRes.data?.success) {
-          setAuthors(authRes.data.data);
-        }
-        if (pubRes.data?.success) {
-          setPublishers(pubRes.data.data);
-        }
-      } catch (err) {
-        console.error("FilterSidebar fetch error:", err);
-      }
-    };
-
-    fetchFilters();
-  }, []);
-
-  const toggleCategory = (item) => {
-    const updated = filters.categories.includes(item.id)
-      ? filters.categories.filter((id) => id !== item.id)
-      : [...filters.categories, item.id];
+  const toggleCategory = (cat) => {
+    const updated = filters.categories.includes(cat)
+      ? filters.categories.filter((c) => c !== cat)
+      : [...filters.categories, cat];
     onChange({ ...filters, categories: updated });
   };
 
-  const toggleAuthor = (item) => {
-    const updated = filters.authors.includes(item.id)
-      ? filters.authors.filter((id) => id !== item.id)
-      : [...filters.authors, item.id];
+  const toggleAuthor = (author) => {
+    const updated = filters.authors.includes(author)
+      ? filters.authors.filter((a) => a !== author)
+      : [...filters.authors, author];
     onChange({ ...filters, authors: updated });
   };
 
-  const togglePublisher = (item) => {
-    const updated = filters.publishers.includes(item.id)
-      ? filters.publishers.filter((id) => id !== item.id)
-      : [...filters.publishers, item.id];
+  const togglePublisher = (pub) => {
+    const updated = filters.publishers.includes(pub)
+      ? filters.publishers.filter((p) => p !== pub)
+      : [...filters.publishers, pub];
     onChange({ ...filters, publishers: updated });
   };
 
@@ -148,7 +114,7 @@ export default function FilterSidebar({ filters, onChange }) {
       <FilterSection
         title="Category"
         items={categories}
-        selectedIds={filters.categories}
+        selected={filters.categories}
         onToggle={toggleCategory}
         maxVisible={8}
       />
@@ -156,7 +122,7 @@ export default function FilterSidebar({ filters, onChange }) {
       <FilterSection
         title="Author"
         items={authors}
-        selectedIds={filters.authors}
+        selected={filters.authors}
         onToggle={toggleAuthor}
         maxVisible={5}
       />
@@ -164,7 +130,7 @@ export default function FilterSidebar({ filters, onChange }) {
       <FilterSection
         title="Publisher"
         items={publishers}
-        selectedIds={filters.publishers}
+        selected={filters.publishers}
         onToggle={togglePublisher}
         maxVisible={5}
       />

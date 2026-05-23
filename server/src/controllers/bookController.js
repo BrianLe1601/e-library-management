@@ -232,22 +232,3 @@ exports.deleteBook = async (req, res) => {
     return error(res, 'Lỗi hệ thống khi thực hiện xóa sách', 500);
   }
 };
-
-
-exports.dashboardStats = async (req, res) => {
-  try {
-    const stats = await bookModel.getDashboardStats();
-
-    res.json({
-      success: true,
-      data: stats
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Server Error'
-    });
-  }
-};
