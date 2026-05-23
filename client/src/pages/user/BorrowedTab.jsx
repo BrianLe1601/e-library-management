@@ -8,27 +8,61 @@ import {
   AlertTriangle,
   CheckCircle,
   Filter,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  Layers,
 } from "lucide-react";
-import { currentlyBorrowed } from "../data/mockData";
+import { currentlyBorrowed, historyRecords } from "../data/mockData";
+
+// ─── shared helpers ──────────────────────────────────────────────────────────
 
 const TODAY = new Date("2026-05-21");
+const PAGE_SIZE = 5;
 
 function parseDateLocal(str) {
   const [y, m, d] = str.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
-
 function diffDays(a, b) {
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }
-
-function formatDate(str) {
+function fmtDate(str) {
   return parseDateLocal(str).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
+
+const CATEGORY_COLORS = {
+  IT: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+  Science:
+    "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
+  Mathematics:
+    "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300",
+  Literature:
+    "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+  Philosophy:
+    "bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300",
+};
+
+function CategoryPill({ category }) {
+  const cls =
+    CATEGORY_COLORS[category] ??
+    "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
+  return (
+    <span
+      className={`inline-block px-2 py-0.5 rounded-full text-xs ${cls}`}
+      style={{ fontWeight: 600 }}
+    >
+      {category}
+    </span>
+  );
+}
+
+// ─── Active Loans view ───────────────────────────────────────────────────────
 
 function getStatus(book) {
   const borrow = parseDateLocal(book.borrowDate);
@@ -47,7 +81,6 @@ function getStatus(book) {
       barColor: "bg-red-500",
     };
   }
-
   const pctLeft = 1 - progress / 100;
   const barColor =
     pctLeft <= 0.2
@@ -55,33 +88,7 @@ function getStatus(book) {
       : pctLeft <= 0.35
         ? "bg-amber-400"
         : "bg-indigo-500";
-
   return { label: "On Time", daysOverdue: 0, daysLeft, progress, barColor };
-}
-
-function CategoryBadge({ category }) {
-  const colorMap = {
-    IT: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
-    Science:
-      "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300",
-    Mathematics:
-      "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300",
-    Literature:
-      "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
-    Philosophy:
-      "bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300",
-  };
-  const cls =
-    colorMap[category] ||
-    "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${cls}`}
-      style={{ fontWeight: 600 }}
-    >
-      {category}
-    </span>
-  );
 }
 
 function StatusBadge({ status }) {
@@ -108,45 +115,22 @@ function StatusBadge({ status }) {
   );
 }
 
-function BookCoverPlaceholder({ coverUrl, title }) {
-  return (
-    <div
-      className="w-16 h-22 rounded-lg overflow-hidden shrink-0 shadow-sm bg-slate-200 dark:bg-slate-700"
-      style={{ minHeight: 88 }}
-    >
-      <img
-        src={coverUrl}
-        alt={title}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          e.currentTarget.style.display = "none";
-        }}
-      />
-    </div>
-  );
-}
-
 function RenewalButton({ book, status, onRenew }) {
   const maxedOut = book.renewalCount >= book.maxRenewals;
   const overdue = status.label === "Overdue";
   const disabled = overdue || maxedOut;
-
-  const title = overdue
-    ? "Cannot renew overdue books"
-    : maxedOut
-      ? "Maximum renewals reached"
-      : `Renew (${book.renewalCount}/${book.maxRenewals} used)`;
-
   return (
     <button
       onClick={() => !disabled && onRenew(book.id)}
       disabled={disabled}
-      title={title}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-        disabled
-          ? "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-600 cursor-not-allowed bg-slate-50 dark:bg-slate-800/50"
-          : "border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 bg-white dark:bg-transparent"
-      }`}
+      title={
+        overdue
+          ? "Cannot renew overdue books"
+          : maxedOut
+            ? "Maximum renewals reached"
+            : `Renew (${book.renewalCount}/${book.maxRenewals} used)`
+      }
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-colors ${disabled ? "border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-600 cursor-not-allowed bg-slate-50 dark:bg-slate-800/50" : "border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 bg-white dark:bg-transparent"}`}
       style={{ fontWeight: 500 }}
     >
       <RefreshCw size={12} />
@@ -155,18 +139,7 @@ function RenewalButton({ book, status, onRenew }) {
   );
 }
 
-function ProgressBar({ progress, barColor }) {
-  return (
-    <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-        style={{ width: `${progress}%` }}
-      />
-    </div>
-  );
-}
-
-export function BorrowedTab() {
+function ActiveLoansView() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [renewedIds, setRenewedIds] = useState(new Set());
@@ -180,64 +153,61 @@ export function BorrowedTab() {
     }, 900);
   };
 
-  const enriched = useMemo(() => {
-    return currentlyBorrowed.map((b) => ({
-      ...b,
-      renewalCount: renewedIds.has(b.id) ? b.renewalCount + 1 : b.renewalCount,
-      status: getStatus(b),
-    }));
-  }, [renewedIds]);
+  const enriched = useMemo(
+    () =>
+      currentlyBorrowed.map((b) => ({
+        ...b,
+        renewalCount: renewedIds.has(b.id)
+          ? b.renewalCount + 1
+          : b.renewalCount,
+        status: getStatus(b),
+      })),
+    [renewedIds],
+  );
 
-  const filtered = useMemo(() => {
-    return enriched.filter((b) => {
-      const matchesSearch =
-        search.trim() === "" ||
-        b.title.toLowerCase().includes(search.toLowerCase()) ||
-        b.author.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus =
-        statusFilter === "All" || b.status.label === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [enriched, search, statusFilter]);
+  const filtered = useMemo(
+    () =>
+      enriched.filter((b) => {
+        const q = search.trim().toLowerCase();
+        const matchSearch =
+          !q ||
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q);
+        const matchStatus =
+          statusFilter === "All" || b.status.label === statusFilter;
+        return matchSearch && matchStatus;
+      }),
+    [enriched, search, statusFilter],
+  );
 
-  const totalCount = currentlyBorrowed.length;
   const overdueCount = enriched.filter(
     (b) => b.status.label === "Overdue",
   ).length;
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-slate-900 dark:text-slate-100">
-              My Borrowed Books
-            </h2>
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
-              style={{ fontWeight: 600 }}
-            >
-              <BookOpen size={14} />
-              {totalCount} {totalCount === 1 ? "Book" : "Books"}
-            </span>
-            {overdueCount > 0 && (
-              <span
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400"
-                style={{ fontWeight: 600 }}
-              >
-                <AlertTriangle size={13} />
-                {overdueCount} Overdue
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Track your active loans and manage renewals.
-          </p>
-        </div>
+      {/* Summary badges */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <span
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
+          style={{ fontWeight: 600 }}
+        >
+          <BookOpen size={14} />
+          {currentlyBorrowed.length} Active{" "}
+          {currentlyBorrowed.length === 1 ? "Loan" : "Loans"}
+        </span>
+        {overdueCount > 0 && (
+          <span
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400"
+            style={{ fontWeight: 600 }}
+          >
+            <AlertTriangle size={13} />
+            {overdueCount} Overdue
+          </span>
+        )}
       </div>
 
-      {/* Filter Bar */}
+      {/* Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search
@@ -269,7 +239,7 @@ export function BorrowedTab() {
         </div>
       </div>
 
-      {/* Book Cards Grid */}
+      {/* Cards */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
           <BookOpen
@@ -288,20 +258,21 @@ export function BorrowedTab() {
             return (
               <div
                 key={book.id}
-                className={`bg-white dark:bg-slate-800 rounded-2xl border transition-shadow hover:shadow-md ${
-                  book.status.label === "Overdue"
-                    ? "border-red-200 dark:border-red-900/60"
-                    : "border-slate-200 dark:border-slate-700"
-                }`}
+                className={`bg-white dark:bg-slate-800 rounded-2xl border transition-shadow hover:shadow-md ${book.status.label === "Overdue" ? "border-red-200 dark:border-red-900/60" : "border-slate-200 dark:border-slate-700"}`}
               >
                 <div className="p-5">
                   <div className="flex gap-4">
                     {/* Cover */}
-                    <BookCoverPlaceholder
-                      coverUrl={book.coverUrl}
-                      title={book.title}
-                    />
-
+                    <div
+                      className="w-16 rounded-lg overflow-hidden shrink-0 shadow-sm bg-slate-200 dark:bg-slate-700"
+                      style={{ minHeight: 88 }}
+                    >
+                      <img
+                        src={book.coverUrl}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                     {/* Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-start justify-between gap-2 mb-1">
@@ -318,47 +289,37 @@ export function BorrowedTab() {
                         </div>
                         <StatusBadge status={book.status} />
                       </div>
-
                       <div className="mt-2 mb-1">
-                        <CategoryBadge category={book.category} />
+                        <CategoryPill category={book.category} />
                       </div>
-
-                      {/* Dates */}
                       <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-xs text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1.5">
                           <Calendar size={12} className="text-slate-400" />
                           Borrowed:{" "}
                           <span
-                            className="text-slate-700 dark:text-slate-300"
+                            className="text-slate-700 dark:text-slate-300 ml-0.5"
                             style={{ fontWeight: 500 }}
                           >
-                            {formatDate(book.borrowDate)}
+                            {fmtDate(book.borrowDate)}
                           </span>
                         </span>
                         <span
-                          className={`flex items-center gap-1.5 ${
-                            book.status.label === "Overdue"
-                              ? "text-red-500 dark:text-red-400"
-                              : book.status.daysLeft <= 3
-                                ? "text-orange-500 dark:text-orange-400"
-                                : ""
-                          }`}
+                          className={`flex items-center gap-1.5 ${book.status.label === "Overdue" ? "text-red-500 dark:text-red-400" : book.status.daysLeft <= 3 ? "text-orange-500 dark:text-orange-400" : ""}`}
                         >
                           <Clock size={12} />
                           Due:{" "}
-                          <span style={{ fontWeight: 500 }}>
-                            {formatDate(book.dueDate)}
+                          <span className="ml-0.5" style={{ fontWeight: 500 }}>
+                            {fmtDate(book.dueDate)}
                           </span>
                         </span>
                         <span className="flex items-center gap-1.5">
                           <RefreshCw size={12} className="text-slate-400" />
                           Renewals:{" "}
-                          <span style={{ fontWeight: 500 }}>
+                          <span className="ml-0.5" style={{ fontWeight: 500 }}>
                             {book.renewalCount}/{book.maxRenewals}
                           </span>
                         </span>
                       </div>
-
                       {/* Progress bar */}
                       <div className="mt-3 mb-3">
                         <div className="flex justify-between text-xs text-slate-400 dark:text-slate-500 mb-1">
@@ -369,12 +330,13 @@ export function BorrowedTab() {
                           </span>
                           <span>{book.status.progress}%</span>
                         </div>
-                        <ProgressBar
-                          progress={book.status.progress}
-                          barColor={book.status.barColor}
-                        />
+                        <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${book.status.barColor}`}
+                            style={{ width: `${book.status.progress}%` }}
+                          />
+                        </div>
                       </div>
-
                       {/* Action */}
                       <div className="flex items-center gap-3">
                         {isRenewing ? (
@@ -435,6 +397,445 @@ export function BorrowedTab() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── History view ─────────────────────────────────────────────────────────────
+
+function StarRatingInput({ rating, onChange }) {
+  const [hovered, setHovered] = useState(null);
+  const display = hovered ?? rating ?? 0;
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          onClick={() => onChange(n)}
+          onMouseEnter={() => setHovered(n)}
+          onMouseLeave={() => setHovered(null)}
+          className="focus:outline-none"
+          aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
+        >
+          <Star
+            size={13}
+            className={`transition-colors ${
+              n <= display
+                ? "text-amber-400 fill-amber-400"
+                : "text-slate-300 dark:text-slate-600"
+            }`}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ConditionBadge({ record }) {
+  if (record.condition === "on-time") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 whitespace-nowrap"
+        style={{ fontWeight: 600 }}
+      >
+        <CheckCircle size={10} />
+        Returned on time
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex flex-col items-start px-2.5 py-1 rounded-xl text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400"
+      style={{ fontWeight: 600 }}
+    >
+      <span className="flex items-center gap-1">
+        <AlertTriangle size={10} />
+        Returned late
+      </span>
+      {record.finePaid > 0 && (
+        <span
+          className="mt-0.5 text-red-500 dark:text-red-400"
+          style={{ fontWeight: 500 }}
+        >
+          Fine ${record.finePaid.toFixed(2)} paid
+        </span>
+      )}
+    </span>
+  );
+}
+
+function HistoryView() {
+  const [page, setPage] = useState(1);
+  const [ratings, setRatings] = useState(() => {
+    const init = {};
+    historyRecords.forEach((r) => {
+      if (r.userRating) init[r.id] = r.userRating;
+    });
+    return init;
+  });
+  const [ratingTarget, setRatingTarget] = useState(null);
+
+  const total = historyRecords.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const slice = historyRecords.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const start = (page - 1) * PAGE_SIZE + 1;
+  const end = Math.min(page * PAGE_SIZE, total);
+
+  return (
+    <div>
+      {/* Desktop table */}
+      <div className="hidden md:block bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
+              {["Book", "Borrowed", "Returned", "Status", "Your Rating"].map(
+                (h) => (
+                  <th
+                    key={h}
+                    className="text-left px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider"
+                    style={{ fontWeight: 600 }}
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+            {slice.map((record) => {
+              const currentRating = ratings[record.id];
+              const isRating = ratingTarget === record.id;
+              return (
+                <tr
+                  key={record.id}
+                  className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                >
+                  {/* Book */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-14 rounded-lg overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-700 shadow-sm">
+                        <img
+                          src={record.coverUrl}
+                          alt={record.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <p
+                          className="text-sm text-slate-900 dark:text-slate-100 leading-snug"
+                          style={{ fontWeight: 600 }}
+                        >
+                          {record.title}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {record.author}
+                        </p>
+                        <div className="mt-1">
+                          <CategoryPill category={record.category} />
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  {/* Borrowed */}
+                  <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    {fmtDate(record.borrowDate)}
+                  </td>
+                  {/* Returned */}
+                  <td className="px-5 py-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    {fmtDate(record.returnedDate)}
+                  </td>
+                  {/* Status */}
+                  <td className="px-5 py-4">
+                    <ConditionBadge record={record} />
+                  </td>
+                  {/* Rating */}
+                  <td className="px-5 py-4">
+                    {isRating ? (
+                      <div className="flex flex-col gap-1">
+                        <StarRatingInput
+                          rating={currentRating}
+                          onChange={(r) => {
+                            setRatings((prev) => ({ ...prev, [record.id]: r }));
+                            setRatingTarget(null);
+                          }}
+                        />
+                        <button
+                          onClick={() => setRatingTarget(null)}
+                          className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : currentRating ? (
+                      <button
+                        onClick={() => setRatingTarget(record.id)}
+                        className="flex items-center gap-1 group"
+                      >
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star
+                            key={n}
+                            size={13}
+                            className={
+                              n <= currentRating
+                                ? "text-amber-400 fill-amber-400"
+                                : "text-slate-200 dark:text-slate-700"
+                            }
+                          />
+                        ))}
+                        <span className="ml-1 text-xs text-slate-400 group-hover:text-indigo-500 transition-colors">
+                          Edit
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setRatingTarget(record.id)}
+                        className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
+                        style={{ fontWeight: 500 }}
+                      >
+                        <Star size={12} />
+                        Rate Book
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {slice.map((record) => {
+          const currentRating = ratings[record.id];
+          const isRating = ratingTarget === record.id;
+          return (
+            <div
+              key={record.id}
+              className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4"
+            >
+              <div className="flex gap-3 mb-3">
+                <div className="w-10 h-14 rounded-lg overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-700 shadow-sm">
+                  <img
+                    src={record.coverUrl}
+                    alt={record.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <p
+                    className="text-sm text-slate-900 dark:text-slate-100"
+                    style={{ fontWeight: 600 }}
+                  >
+                    {record.title}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {record.author}
+                  </p>
+                  <div className="mt-1">
+                    <CategoryPill category={record.category} />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400 mb-3">
+                <div>
+                  <p
+                    className="uppercase tracking-wider mb-0.5"
+                    style={{ fontWeight: 600, fontSize: "0.65rem" }}
+                  >
+                    Borrowed
+                  </p>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    {fmtDate(record.borrowDate)}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    className="uppercase tracking-wider mb-0.5"
+                    style={{ fontWeight: 600, fontSize: "0.65rem" }}
+                  >
+                    Returned
+                  </p>
+                  <p className="text-slate-700 dark:text-slate-300">
+                    {fmtDate(record.returnedDate)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <ConditionBadge record={record} />
+                {isRating ? (
+                  <div className="flex items-center gap-2">
+                    <StarRatingInput
+                      rating={currentRating}
+                      onChange={(r) => {
+                        setRatings((prev) => ({ ...prev, [record.id]: r }));
+                        setRatingTarget(null);
+                      }}
+                    />
+                    <button
+                      onClick={() => setRatingTarget(null)}
+                      className="text-xs text-slate-400"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : currentRating ? (
+                  <button
+                    onClick={() => setRatingTarget(record.id)}
+                    className="flex items-center gap-1"
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Star
+                        key={n}
+                        size={12}
+                        className={
+                          n <= currentRating
+                            ? "text-amber-400 fill-amber-400"
+                            : "text-slate-200 dark:text-slate-700"
+                        }
+                      />
+                    ))}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setRatingTarget(record.id)}
+                    className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400"
+                    style={{ fontWeight: 500 }}
+                  >
+                    <Star size={12} />
+                    Rate Book
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Pagination */}
+      <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Showing{" "}
+          <span
+            className="text-slate-700 dark:text-slate-300"
+            style={{ fontWeight: 600 }}
+          >
+            {start}–{end}
+          </span>{" "}
+          of{" "}
+          <span
+            className="text-slate-700 dark:text-slate-300"
+            style={{ fontWeight: 600 }}
+          >
+            {total}
+          </span>{" "}
+          books
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={14} />
+            Previous
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+            <button
+              key={n}
+              onClick={() => setPage(n)}
+              className={`w-8 h-8 rounded-lg text-sm transition-colors ${n === page ? "bg-indigo-600 text-white" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"}`}
+              style={{ fontWeight: n === page ? 600 : 400 }}
+            >
+              {n}
+            </button>
+          ))}
+
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Next
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Root export ──────────────────────────────────────────────────────────────
+
+export function BorrowedTab() {
+  const [subTab, setSubTab] = useState("active");
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-slate-900 dark:text-slate-100">
+          My Borrowed Books
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          Manage your active loans and view your borrowing history.
+        </p>
+      </div>
+
+      {/* Sub-tab toggle */}
+      <div className="flex items-center gap-1 mb-6 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit border border-slate-200 dark:border-slate-700">
+        <button
+          onClick={() => setSubTab("active")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
+            subTab === "active"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+          }`}
+          style={{ fontWeight: subTab === "active" ? 600 : 400 }}
+        >
+          <Layers size={14} />
+          Active Loans
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-xs ${
+              subTab === "active"
+                ? "bg-white/20 text-white"
+                : "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
+            }`}
+            style={{ fontWeight: 600 }}
+          >
+            {currentlyBorrowed.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setSubTab("history")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all ${
+            subTab === "history"
+              ? "bg-indigo-600 text-white shadow-sm"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+          }`}
+          style={{ fontWeight: subTab === "history" ? 600 : 400 }}
+        >
+          <History size={14} />
+          History
+          <span
+            className={`px-1.5 py-0.5 rounded-full text-xs ${
+              subTab === "history"
+                ? "bg-white/20 text-white"
+                : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+            }`}
+            style={{ fontWeight: 600 }}
+          >
+            {historyRecords.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Content */}
+      {subTab === "active" && <ActiveLoansView />}
+      {subTab === "history" && <HistoryView />}
     </div>
   );
 }

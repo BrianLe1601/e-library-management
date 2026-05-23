@@ -340,6 +340,38 @@ export const reviews: Review[] = [
   { id: "r2b", bookId: "1", userName: "James Wilson", userInitials: "JW", rating: 4, comment: "Dense but rewarding. Takes time to work through but the depth of coverage is unmatched.", date: "March 15, 2026" },
 ];
 
+export interface HistoryRecord {
+  id: string;
+  title: string;
+  author: string;
+  category: string;
+  coverUrl: string;
+  borrowDate: string;   // YYYY-MM-DD
+  dueDate: string;      // YYYY-MM-DD
+  returnedDate: string; // YYYY-MM-DD
+  condition: "on-time" | "late";
+  finePaid: number;
+  userRating?: number;  // 1-5, undefined = not yet rated
+}
+
+export const historyRecords: HistoryRecord[] = [
+  { id: "h1",  title: "The Great Gatsby",                       author: "F. Scott Fitzgerald",   category: "Literature",   coverUrl: LITERATURE_IMG,   borrowDate: "2025-09-01", dueDate: "2025-09-15", returnedDate: "2025-09-14", condition: "on-time", finePaid: 0,    userRating: 4 },
+  { id: "h2",  title: "Crime and Punishment",                   author: "Fyodor Dostoevsky",     category: "Literature",   coverUrl: LITERATURE_IMG,   borrowDate: "2025-09-20", dueDate: "2025-10-04", returnedDate: "2025-10-06", condition: "late",    finePaid: 0.50, userRating: 5 },
+  { id: "h3",  title: "Calculus: Early Transcendentals",        author: "James Stewart",         category: "Mathematics",  coverUrl: MATH_IMG,         borrowDate: "2025-10-10", dueDate: "2025-10-24", returnedDate: "2025-10-23", condition: "on-time", finePaid: 0 },
+  { id: "h4",  title: "Introduction to Algorithms",             author: "Thomas H. Cormen",      category: "IT",           coverUrl: PROGRAMMING_IMG,  borrowDate: "2025-10-28", dueDate: "2025-11-11", returnedDate: "2025-11-11", condition: "on-time", finePaid: 0,    userRating: 5 },
+  { id: "h5",  title: "Clean Code",                             author: "Robert C. Martin",      category: "IT",           coverUrl: AI_IMG,           borrowDate: "2025-11-15", dueDate: "2025-11-29", returnedDate: "2025-12-01", condition: "late",    finePaid: 1.00, userRating: 4 },
+  { id: "h6",  title: "The Republic",                           author: "Plato",                 category: "Philosophy",   coverUrl: PHILOSOPHY_IMG,   borrowDate: "2025-12-05", dueDate: "2025-12-19", returnedDate: "2025-12-19", condition: "on-time", finePaid: 0,    userRating: 4 },
+  { id: "h7",  title: "A Brief History of Time",                author: "Stephen Hawking",       category: "Science",      coverUrl: SCIENCE_IMG,      borrowDate: "2026-01-10", dueDate: "2026-01-24", returnedDate: "2026-01-22", condition: "on-time", finePaid: 0,    userRating: 5 },
+  { id: "h8",  title: "Philosophy of Mind",                     author: "Jaegwon Kim",           category: "Philosophy",   coverUrl: PHILOSOPHY_IMG,   borrowDate: "2026-02-01", dueDate: "2026-02-15", returnedDate: "2026-02-20", condition: "late",    finePaid: 2.50 },
+  { id: "h9",  title: "To Kill a Mockingbird",                  author: "Harper Lee",            category: "Literature",   coverUrl: LITERATURE_IMG,   borrowDate: "2026-02-25", dueDate: "2026-03-11", returnedDate: "2026-03-11", condition: "on-time", finePaid: 0,    userRating: 4 },
+  { id: "h10", title: "Python Crash Course",                    author: "Eric Matthes",          category: "IT",           coverUrl: PROGRAMMING_IMG,  borrowDate: "2026-03-15", dueDate: "2026-03-29", returnedDate: "2026-03-28", condition: "on-time", finePaid: 0 },
+  { id: "h11", title: "Data Structures and Algorithms",         author: "Michael T. Goodrich",   category: "IT",           coverUrl: PROGRAMMING_IMG,  borrowDate: "2026-04-01", dueDate: "2026-04-15", returnedDate: "2026-04-15", condition: "on-time", finePaid: 0,    userRating: 4 },
+  { id: "h12", title: "Artificial Intelligence: A Modern Approach", author: "Stuart Russell",   category: "IT",           coverUrl: AI_IMG,           borrowDate: "2026-04-25", dueDate: "2026-05-09", returnedDate: "2026-05-11", condition: "late",    finePaid: 2.50 },
+  { id: "h13", title: "Quantum Mechanics",                      author: "David J. Griffiths",    category: "Science",      coverUrl: SCIENCE_IMG,      borrowDate: "2026-01-05", dueDate: "2026-01-19", returnedDate: "2026-01-19", condition: "on-time", finePaid: 0,    userRating: 5 },
+  { id: "h14", title: "The Origin of Species",                  author: "Charles Darwin",        category: "Science",      coverUrl: MATH_IMG,         borrowDate: "2025-11-01", dueDate: "2025-11-15", returnedDate: "2025-11-18", condition: "late",    finePaid: 1.50 },
+  { id: "h15", title: "Linear Algebra Done Right",              author: "Sheldon Axler",         category: "Mathematics",  coverUrl: MATH_IMG,         borrowDate: "2025-08-10", dueDate: "2025-08-24", returnedDate: "2025-08-24", condition: "on-time", finePaid: 0,    userRating: 4 },
+];
+
 export const borrowHistory: BorrowRecord[] = [
   { id: "b1", bookTitle: "Introduction to Algorithms", borrowDate: "2026-04-01", dueDate: "2026-04-15", status: "Returned", fineAmount: 0 },
   { id: "b2", bookTitle: "Clean Code", borrowDate: "2026-04-10", dueDate: "2026-04-24", status: "Returned", fineAmount: 0 },
