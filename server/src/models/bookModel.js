@@ -128,7 +128,7 @@ const findById = async (id) => {
 };
 
 // ── Sách nổi bật (được mượn nhiều nhất, còn sách) ────────────────────────────
-const findFeatured = async (limit = 8) => {
+const findFeatured = async (limit = 10) => {
   const [rows] = await db.query(
     `SELECT 
        b.id, b.title,
