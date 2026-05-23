@@ -3,9 +3,13 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { Settings, LogOut, BookLock } from "lucide-react";
 import { navItems } from "./navItems";
 import Profile from "./Profile";
-
+import { useAuth } from "../../context/AuthContext";
 export default function SidebarContent({ collapsed, setMobileOpen }) {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -76,11 +80,12 @@ export default function SidebarContent({ collapsed, setMobileOpen }) {
           {!collapsed && <span className="text-sm">Settings</span>}
         </button>
         <button
-          onClick={() => navigate("/login")}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-400 hover:bg-red-500/10 transition-all ${collapsed ? "justify-center" : ""}`}
+          onClick={handleLogout}
+          className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium
+                                 text-red-600 dark:text-red-400 
+                                 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left`}
         >
-          <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span className="text-sm">Logout</span>}
+          <LogOut className="w-4 h-4" />{" "}{collapsed ? "Logout" : "Logout"}
         </button>
 
         {/* User Profile */}
