@@ -34,67 +34,34 @@ function BookSkeleton() {
 export function BookRow({ books, loading, emptyMessage }) {
   const rowRef = useRef(null);
 
-  // States cho tính năng kéo cuộn (Drag to Scroll)
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-
-  // State cho tính năng tự động trượt (Auto-play)
+  // Chỉ giữ lại state để theo dõi xem chuột có đang hover vào hàng sách hay không
   const [isHovered, setIsHovered] = useState(false);
 
   const scroll = (dir) => {
-    // Cuộn mượt khi bấm nút
     rowRef.current?.scrollBy({ left: dir * 300, behavior: "smooth" });
   };
 
   // --- Logic Tự động trượt (Auto-play) ---
   useEffect(() => {
-    // Nếu đang load, không có sách hoặc người dùng đang tương tác (hover/kéo) thì KHÔNG tự động chạy
-    if (loading || !books || books.length === 0 || isHovered || isDragging)
-      return;
+    // Nếu đang load, không có sách hoặc người dùng đang di chuột vào vùng này thì dừng auto-play
+    if (loading || !books || books.length === 0 || isHovered) return;
 
     const autoScrollInterval = setInterval(() => {
       if (rowRef.current) {
         const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
 
-        // Kiểm tra nếu đã cuộn gần hết hàng (dung sai 10px)
+        // Nếu cuộn gần đến cuối hàng, tự động quay về đầu
         if (scrollLeft + clientWidth >= scrollWidth - 10) {
-          // Quay lại từ đầu
           rowRef.current.scrollTo({ left: 0, behavior: "smooth" });
         } else {
-          // Cuộn tiếp sang phải 220px (khoảng bằng kích thước 1 card sách + gap)
+          // Cuộn tiếp sang phải 220px
           rowRef.current.scrollBy({ left: 220, behavior: "smooth" });
         }
       }
-    }, 3500); // Tự động trượt sau mỗi 3.5 giây
+    }, 3500);
 
-    // Clear interval khi component unmount hoặc khi các dependency thay đổi
     return () => clearInterval(autoScrollInterval);
-  }, [loading, books, isHovered, isDragging]);
-
-  // --- Xử lý sự kiện kéo chuột (Drag) ---
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    setStartX(e.pageX - rowRef.current.offsetLeft);
-    setScrollLeft(rowRef.current.scrollLeft);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-    setIsHovered(false); // huỷ hover khi chuột rời hẳn vùng container
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const x = e.pageX - rowRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5;
-    rowRef.current.scrollLeft = scrollLeft - walk;
-  };
+  }, [loading, books, isHovered]);
 
   const items = loading
     ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
@@ -114,12 +81,10 @@ export function BookRow({ books, loading, emptyMessage }) {
         ];
 
   return (
-    // Đặt sự kiện onMouseEnter và onMouseLeave ở thẻ bọc ngoài cùng
-    // để khi rê chuột vào Nút mũi tên hoặc Card sách thì tiến trình tự động trượt đều dừng lại
     <div
       className="relative group/row"
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Left arrow */}
       <button
@@ -130,17 +95,10 @@ export function BookRow({ books, loading, emptyMessage }) {
         <ChevronLeft className="w-5 h-5" />
       </button>
 
-      {/* Scrollable track */}
+      {/* Scrollable track - Đã lược bỏ hoàn toàn các sự kiện Drag chuột */}
       <div
         ref={rowRef}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseMove={handleMouseMove}
-        className={`flex gap-5 overflow-x-auto py-4 px-2 select-none transition-colors ${
-          isDragging
-            ? "cursor-grabbing [&_*]:pointer-events-none"
-            : "cursor-grab"
-        }`}
+        className="flex gap-5 overflow-x-auto py-4 px-2 select-none transition-colors"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         <style>{`

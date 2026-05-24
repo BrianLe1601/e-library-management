@@ -41,6 +41,29 @@ export default function OtpVerification() {
     }
   };
 
+  // ----- THÊM HÀM XỬ LÝ SỰ KIỆN PASTE (CTRL + V) -----
+  const handlePaste = (e) => {
+    e.preventDefault();
+    // Lấy dữ liệu từ clipboard
+    const pastedData = e.clipboardData.getData("text");
+    
+    // Chỉ lấy các ký tự là số và giới hạn độ dài tối đa là 6
+    const numbers = pastedData.replace(/\D/g, "").slice(0, 6);
+    
+    if (numbers) {
+      const newOtp = [...otp];
+      // Rải đều từng số vào mảng newOtp
+      for (let i = 0; i < 6; i++) {
+        newOtp[i] = numbers[i] || "";
+      }
+      setOtp(newOtp);
+      
+      // Tự động nhảy con trỏ chuột đến ô chưa có số, hoặc ô cuối cùng nếu đã điền full 6 số
+      const focusIndex = numbers.length < 6 ? numbers.length : 5;
+      inputRefs.current[focusIndex]?.focus();
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const otpCode = otp.join("");
@@ -92,6 +115,7 @@ export default function OtpVerification() {
                 value={digit}
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
+                onPaste={handlePaste} // <--- GẮN HÀM PASTE VÀO ĐÂY
                 className="h-11 w-11 rounded-xl border text-center text-base font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 transition-all"
               />
             ))}

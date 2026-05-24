@@ -12,7 +12,6 @@ import ProtectedRoute from "../components/ProtectedRoute";
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
-import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage";
 import OtpVerification from "../components/OTP-Verification";
 
 // Core / Book pages
@@ -48,7 +47,6 @@ function AppRoutes() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
             </Route>
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/verify-otp" element={<OtpVerification />} />
 
             {/* PUBLIC / USER: Giao diện độc giả */}

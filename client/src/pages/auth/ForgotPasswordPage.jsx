@@ -1,181 +1,131 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Mail, BookOpen, ArrowLeft, CheckCircle, Sun, Moon } from "lucide-react"; // Đã thêm Sun, Moon
-import { useTheme } from "../../context/ThemeContext";
+import { Mail, BookOpen, CheckCircle, X } from "lucide-react";
 
-export default function ForgotPasswordPage() {
-  const { theme, toggleTheme } = useTheme();
+export default function ForgotPasswordModal({ isOpen, onClose }) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Đã thêm tham số 'e' vào hàm
+  // Nếu không mở modal thì không render gì cả
+  if (!isOpen) return null;
+
   function handleSubmit(e) {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
+    
+    // Giả lập gọi API
     setTimeout(() => {
       setLoading(false);
       setSubmitted(true);
     }, 1200);
   }
 
+  // Hàm reset trạng thái và đóng Modal
+  const handleCloseModal = () => {
+    onClose();
+    // Đợi hiệu ứng đóng xong (tùy chọn) rồi reset form
+    setTimeout(() => {
+      setSubmitted(false);
+      setEmail("");
+    }, 300);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 py-12 relative">
-      {/* Nút bật tắt Dark Mode */}
-      <button
-        onClick={toggleTheme}
-        className="absolute top-6 right-6 p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+    // Lớp phủ nền mờ đằng sau (Backdrop)
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+      onClick={handleCloseModal} // Bấm ra ngoài để đóng
+    >
+      {/* Khối Modal chính */}
+      <div 
+        className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-8 transform transition-all"
+        onClick={(e) => e.stopPropagation()} // Ngăn chặn sự kiện click lan ra ngoài backdrop
       >
-        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-      </button>
-
-      <div className="w-full max-w-md relative z-10">
-        <div
-          className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 px-8 py-10"
-          style={{ borderRadius: "12px" }}
+        {/* Nút X để đóng */}
+        <button
+          onClick={handleCloseModal}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
         >
-          {/* Logo */}
-          <div className="flex justify-center mb-8">
-            <div
-              className="bg-indigo-600 flex items-center justify-center"
-              style={{ width: 52, height: 52, borderRadius: 12 }}
-            >
-              <BookOpen className="text-white" size={26} strokeWidth={2} />
-            </div>
+          <X size={20} />
+        </button>
+
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-indigo-600 flex items-center justify-center w-12 h-12 rounded-xl shadow-md shadow-indigo-500/20">
+            <BookOpen className="text-white" size={24} strokeWidth={2} />
           </div>
-
-          {submitted ? (
-            /* Success state */
-            <div className="text-center">
-              <div className="flex justify-center mb-4">
-                <CheckCircle
-                  className="text-indigo-600 dark:text-indigo-400"
-                  size={48}
-                  strokeWidth={1.5}
-                />
-              </div>
-              <h1
-                className="text-slate-900 dark:text-white mb-3 font-bold"
-                style={{ fontSize: "1.5rem" }}
-              >
-                Check your inbox
-              </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8">
-                We've sent password reset instructions to{" "}
-                <span
-                  className="text-slate-700 dark:text-slate-300"
-                  style={{ fontWeight: 600 }}
-                >
-                  {email}
-                </span>
-                . Please check your spam folder if you don't see it within a few
-                minutes.
-              </p>
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-sm hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
-                style={{ fontWeight: 500 }}
-              >
-                <ArrowLeft size={15} />
-                Back to login
-              </Link>
-            </div>
-          ) : (
-            /* Form state */
-            <>
-              <h1
-                className="text-slate-900 dark:text-white text-center mb-2 font-bold"
-                style={{ fontSize: "1.5rem" }}
-              >
-                Forgot your password?
-              </h1>
-              <p className="text-slate-500 dark:text-slate-400 text-sm text-center leading-relaxed mb-8">
-                Enter your email address and we will send you instructions to
-                reset your password.
-              </p>
-
-              <form onSubmit={handleSubmit} noValidate>
-                {/* Email field */}
-                <div className="mb-6">
-                  <label
-                    htmlFor="email"
-                    className="block text-sm text-slate-700 dark:text-slate-300 mb-2"
-                    style={{ fontWeight: 500 }}
-                  >
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none"
-                      size={17}
-                      strokeWidth={1.8}
-                    />
-                    <input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-500 focus:border-transparent transition"
-                      style={{ borderRadius: "8px" }}
-                    />
-                  </div>
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={loading || !email}
-                  className="w-full py-2.5 px-4 text-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors"
-                  style={{ borderRadius: "8px", fontWeight: 600 }}
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="animate-spin h-4 w-4 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8v8H4z"
-                        />
-                      </svg>
-                      Sending…
-                    </span>
-                  ) : (
-                    "Send Reset Link"
-                  )}
-                </button>
-              </form>
-
-              {/* Back to login */}
-              <div className="mt-8 text-center">
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
-                  style={{ fontWeight: 500 }}
-                >
-                  <ArrowLeft size={14} />
-                  Back to login
-                </Link>
-              </div>
-            </>
-          )}
         </div>
+
+        {submitted ? (
+          /* Trạng thái thành công */
+          <div className="text-center animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="text-indigo-500 dark:text-indigo-400" size={48} strokeWidth={1.5} />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+              Check your inbox
+            </h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-6">
+              We've sent password reset instructions to{" "}
+              <span className="font-semibold text-slate-700 dark:text-slate-300">{email}</span>. 
+              Please check your spam folder if you don't see it.
+            </p>
+            <button
+              onClick={handleCloseModal}
+              className="w-full py-2.5 px-4 text-sm font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-xl transition-colors"
+            >
+              Back to Login
+            </button>
+          </div>
+        ) : (
+          /* Trạng thái Form */
+          <div className="animate-in fade-in zoom-in duration-300">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white text-center mb-2">
+              Forgot password?
+            </h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-6">
+              Enter your email address and we will send you instructions to reset your password.
+            </p>
+
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 size-5" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full pl-10 pr-4 py-2.5 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-shadow outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !email}
+                className="w-full py-2.5 px-4 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Sending...
+                  </span>
+                ) : (
+                  "Send Reset Link"
+                )}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
