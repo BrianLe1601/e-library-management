@@ -102,7 +102,7 @@ export default function ProfileDropdown({ variant = "user" }) {
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 
                              ${menuItemHoverStyles} transition-colors`}
                 >
-                  <User className="w-4 h-4" /> Hồ sơ cá nhân
+                  <User className="w-4 h-4" /> Profile Settings
                 </Link>
               </>
             ) : (
@@ -116,7 +116,7 @@ export default function ProfileDropdown({ variant = "user" }) {
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 
                                ${menuItemHoverStyles} transition-colors`}
                   >
-                    <LayoutDashboard className="w-4 h-4" /> Quản Trị Hệ Thống
+                    <LayoutDashboard className="w-4 h-4" /> Dashboard Admin
                   </Link>
                 ) : null}
 
@@ -126,7 +126,7 @@ export default function ProfileDropdown({ variant = "user" }) {
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 
                              ${menuItemHoverStyles} transition-colors`}
                 >
-                  <LayoutDashboard className="w-4 h-4" /> Bảng Điều Khiển
+                  <LayoutDashboard className="w-4 h-4" /> Dashboard 
                 </Link>
 
                 <Link
@@ -135,7 +135,7 @@ export default function ProfileDropdown({ variant = "user" }) {
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 
                              ${menuItemHoverStyles} transition-colors`}
                 >
-                  <BookMarked className="w-4 h-4" /> Sách Đang Mượn
+                  <BookMarked className="w-4 h-4" /> Books Borrowing
                 </Link>
 
                 <Link
@@ -144,7 +144,7 @@ export default function ProfileDropdown({ variant = "user" }) {
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 
                              ${menuItemHoverStyles} transition-colors`}
                 >
-                  <User className="w-4 h-4" /> Cài Đặt Hồ Sơ
+                  <User className="w-4 h-4" /> Profile Settings
                 </Link>
               </>
             )}
@@ -158,7 +158,7 @@ export default function ProfileDropdown({ variant = "user" }) {
                          text-red-600 dark:text-red-400 
                          hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left`}
             >
-              <LogOut className="w-4 h-4" /> {variant === "admin" ? "Đăng xuất" : "Đăng Xuất"}
+              <LogOut className="w-4 h-4" /> {variant === "admin" ? "Logout" : "Logout"}
             </button>
           </div>
         </div>
