@@ -1,66 +1,262 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BookOpen, Users, Clock, Award, Star, Flame, Sparkles, Tag } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Users,
+  Clock,
+  Award,
+  Star,
+  Flame,
+  Sparkles,
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import HeroCarousel from "../../components/HeroCarousel";
 import BookCard from "../../components/BookCard";
 import bookService from "../../services/bookService";
-import { getStats } from "../../services/adminService";
 
+/* ─── Skeleton ─────────────────────────────────────────────────────────────── */
 function BookSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden animate-pulse">
-      <div className="h-48 bg-gray-200 dark:bg-slate-700" />
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 overflow-hidden animate-pulse flex flex-col">
+      <div className="w-full aspect-[3/4] bg-gray-200 dark:bg-slate-700" />
       <div className="p-3 space-y-2">
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-3/4" />
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-4/5" />
         <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/2" />
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/3 mt-1" />
       </div>
     </div>
   );
 }
 
+export function BookRow({ books, loading, emptyMessage }) {
+  const rowRef = useRef(null);
+
+  // States cho tính năng kéo cuộn (Drag to Scroll)
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  // State cho tính năng tự động trượt (Auto-play)
+  const [isHovered, setIsHovered] = useState(false);
+
+  const scroll = (dir) => {
+    // Cuộn mượt khi bấm nút
+    rowRef.current?.scrollBy({ left: dir * 300, behavior: "smooth" });
+  };
+
+  // --- Logic Tự động trượt (Auto-play) ---
+  useEffect(() => {
+    // Nếu đang load, không có sách hoặc người dùng đang tương tác (hover/kéo) thì KHÔNG tự động chạy
+    if (loading || !books || books.length === 0 || isHovered || isDragging)
+      return;
+
+    const autoScrollInterval = setInterval(() => {
+      if (rowRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
+
+        // Kiểm tra nếu đã cuộn gần hết hàng (dung sai 10px)
+        if (scrollLeft + clientWidth >= scrollWidth - 10) {
+          // Quay lại từ đầu
+          rowRef.current.scrollTo({ left: 0, behavior: "smooth" });
+        } else {
+          // Cuộn tiếp sang phải 220px (khoảng bằng kích thước 1 card sách + gap)
+          rowRef.current.scrollBy({ left: 220, behavior: "smooth" });
+        }
+      }
+    }, 3500); // Tự động trượt sau mỗi 3.5 giây
+
+    // Clear interval khi component unmount hoặc khi các dependency thay đổi
+    return () => clearInterval(autoScrollInterval);
+  }, [loading, books, isHovered, isDragging]);
+
+  // --- Xử lý sự kiện kéo chuột (Drag) ---
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setStartX(e.pageX - rowRef.current.offsetLeft);
+    setScrollLeft(rowRef.current.scrollLeft);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+    setIsHovered(false); // huỷ hover khi chuột rời hẳn vùng container
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const x = e.pageX - rowRef.current.offsetLeft;
+    const walk = (x - startX) * 1.5;
+    rowRef.current.scrollLeft = scrollLeft - walk;
+  };
+
+  const items = loading
+    ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
+    : books.length > 0
+      ? books.map((book) => (
+          <div key={book.id} className="w-[170px] sm:w-[185px] flex-shrink-0">
+            <BookCard book={book} variant="trending" />
+          </div>
+        ))
+      : [
+          <p
+            key="empty"
+            className="col-span-6 text-center text-gray-400 py-8 text-sm w-full"
+          >
+            {emptyMessage}
+          </p>,
+        ];
+
+  return (
+    // Đặt sự kiện onMouseEnter và onMouseLeave ở thẻ bọc ngoài cùng
+    // để khi rê chuột vào Nút mũi tên hoặc Card sách thì tiến trình tự động trượt đều dừng lại
+    <div
+      className="relative group/row"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Left arrow */}
+      <button
+        onClick={() => scroll(-1)}
+        className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90 border border-gray-200 dark:border-slate-600 shadow-lg rounded-full w-10 h-10 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-700 hover:scale-110 transition-all opacity-0 group-hover/row:opacity-100 focus:outline-none"
+        aria-label="Scroll left"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+
+      {/* Scrollable track */}
+      <div
+        ref={rowRef}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        className={`flex gap-5 overflow-x-auto py-4 px-2 select-none transition-colors ${
+          isDragging
+            ? "cursor-grabbing [&_*]:pointer-events-none"
+            : "cursor-grab"
+        }`}
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        <style>{`
+          div::-webkit-scrollbar { display: none; }
+        `}</style>
+        {items}
+      </div>
+
+      {/* Right arrow */}
+      <button
+        onClick={() => scroll(1)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 backdrop-blur-sm dark:bg-slate-800/90 border border-gray-200 dark:border-slate-600 shadow-lg rounded-full w-10 h-10 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-700 hover:scale-110 transition-all opacity-0 group-hover/row:opacity-100 focus:outline-none"
+        aria-label="Scroll right"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
+}
+
+/* ─── Section Header ───────────────────────────────────────────────────────── */
+function SectionHeader({
+  accentColor,
+  badge,
+  badgeIcon: Icon,
+  title,
+  viewAllLink,
+}) {
+  return (
+    <div className="flex items-end justify-between mb-6">
+      <div>
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className={`w-1 h-6 rounded-full ${accentColor}`} />
+          <span
+            className={`text-sm font-semibold flex items-center gap-1.5 ${badge}`}
+          >
+            {Icon && <Icon className="w-4 h-4" />} {badge}
+          </span>
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+          {title}
+        </h2>
+      </div>
+      <Link
+        to={viewAllLink}
+        className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium"
+      >
+        View All <ArrowRight className="w-4 h-4" />
+      </Link>
+    </div>
+  );
+}
+
+/* ─── Main Page ────────────────────────────────────────────────────────────── */
 export default function HomePage() {
   const [featured, setFeatured] = useState([]);
   const [topRated, setTopRated] = useState([]);
   const [newest, setNewest] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryBooks, setCategoryBooks] = useState([]);
-  const [systemStats, setSystemStats] = useState({ totalBooks: 0, totalUsers: 0, activeBorrows: 0 });
+  const [systemStats, setSystemStats] = useState({
+    totalBooks: 0,
+    activeMembers: 0,
+    checkedOutBooks: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 1. Fetch all primary landing page components simultaneously
-        const [featuredRes, topRatedRes, newestRes, categoriesRes, statsRes] = await Promise.all([
-          bookService.getFeatured(6).catch(() => ({ data: { success: false } })),
-          bookService.getTopRated(6).catch(() => ({ data: { success: false } })),
-          bookService.getNewest(6).catch(() => ({ data: { success: false } })),
-          bookService.getCategories().catch(() => ({ data: { success: false } })),
-          getStats().catch(() => ({ data: { success: false } }))
-        ]);
+        const [featuredRes, topRatedRes, newestRes, categoriesRes, statsRes] =
+          await Promise.all([
+            bookService
+              .getFeatured(10)
+              .catch(() => ({ data: { success: false } })),
+            bookService
+              .getTopRated(10)
+              .catch(() => ({ data: { success: false } })),
+            bookService
+              .getNewest(10)
+              .catch(() => ({ data: { success: false } })),
+            bookService
+              .getCategories()
+              .catch(() => ({ data: { success: false } })),
+            bookService
+              .getPublicStats()
+              .catch(() => ({ data: { success: false } })),
+          ]);
 
-        // Map responses based on the established axis server structure (.data.data)
         if (featuredRes.data?.success) setFeatured(featuredRes.data.data || []);
         if (topRatedRes.data?.success) setTopRated(topRatedRes.data.data || []);
         if (newestRes.data?.success) setNewest(newestRes.data.data || []);
-        if (statsRes.data?.success) setSystemStats(statsRes.data.data || { totalBooks: 0, totalUsers: 0, activeBorrows: 0 });
+        if (statsRes.data?.success)
+          setSystemStats(
+            statsRes.data.data || {
+              totalBooks: 0,
+              activeMembers: 0,
+              checkedOutBooks: 0,
+            },
+          );
 
         if (categoriesRes.data?.success) {
           const allCats = categoriesRes.data.data || [];
-          setCategories(allCats.slice(0, 8)); // Top 8 genres grid for design consistency
-
-          // 2. Discover the first non-empty category to map the dynamic spotlight footer
-          const firstCat = allCats.find(c => c.book_count > 0);
+          setCategories(allCats.slice(0, 8));
+          const firstCat = allCats.find((c) => c.book_count > 0);
           if (firstCat) {
-            const catBooksRes = await bookService.getBooks({ category: firstCat.id, limit: 6 }).catch(() => ({ data: { success: false } }));
-            if (catBooksRes.data?.success) {
+            const catBooksRes = await bookService
+              .getBooks({ category: firstCat.id, limit: 10 })
+              .catch(() => ({ data: { success: false } }));
+            if (catBooksRes.data?.success)
               setCategoryBooks(catBooksRes.data.data || []);
-            }
           }
         }
       } catch (err) {
-        console.error('HomePage structural payload fetch error:', err);
+        console.error("HomePage fetch error:", err);
       } finally {
         setLoading(false);
       }
@@ -68,41 +264,62 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // Structural dynamic dashboard indicators compiled from internal metrics
   const dynamicStats = [
-    { icon: BookOpen, label: "Total Books Available", value: loading ? "..." : (systemStats.totalBooks || 0).toLocaleString() },
-    { icon: Users,    label: "Active Members",       value: loading ? "..." : (systemStats.totalUsers || 0).toLocaleString() },
-    { icon: Clock,    label: "Books Checked Out",    value: loading ? "..." : (systemStats.activeBorrows || 0).toLocaleString() },
-    { icon: Award,    label: "Featured Titles",      value: loading ? "..." : (featured.length || 0).toString() },
+    {
+      icon: BookOpen,
+      label: "Total Available Books",
+      value: loading ? "…" : (systemStats.totalBooks || 0).toLocaleString(),
+    },
+    {
+      icon: Users,
+      label: "Active Members",
+      value: loading ? "…" : (systemStats.activeMembers || 0).toLocaleString(),
+    },
+    {
+      icon: Clock,
+      label: "Books Checked Out",
+      value: loading
+        ? "…"
+        : (systemStats.checkedOutBooks || 0).toLocaleString(),
+    },
   ];
+
+  const spotlightCat = categories.find((c) => c.book_count > 0);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
-      {/* Hero Interactive Banner */}
+      {/* Hero */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <HeroCarousel />
       </section>
 
-      {/* 1. SECTION: SYSTEM METRICS (DYNAMIC STATS) */}
-      <section className="bg-blue-900 dark:bg-slate-950 py-8">
+      {/* Stats bar */}
+      <section className="bg-blue-900 dark:bg-slate-950 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
             {dynamicStats.map((stat) => (
-              <div key={stat.label} className="flex flex-col items-center text-center">
-                <div className="bg-blue-800/50 dark:bg-blue-900/50 p-3 rounded-xl mb-3">
+              <div
+                key={stat.label}
+                className="flex flex-col items-center text-center gap-2"
+              >
+                <div className="bg-blue-800/60 p-2.5 rounded-xl flex-shrink-0">
                   <stat.icon className="w-5 h-5 text-blue-300" />
                 </div>
-                <p className="text-2xl text-white font-bold">{stat.value}</p>
-                <p className="text-sm text-blue-200 mt-0.5">{stat.label}</p>
+                <div>
+                  <p className="text-xl font-bold text-white leading-none">
+                    {stat.value}
+                  </p>
+                  <p className="text-xs text-blue-300 mt-1.5">{stat.label}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 2. SECTION: GENRES & CATEGORIES GRID */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="flex items-center gap-2 mb-6">
+      {/* Categories */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+        <div className="flex items-center gap-2 mb-5">
           <div className="w-1 h-6 bg-indigo-600 rounded-full" />
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Tag className="w-5 h-5 text-indigo-500" /> Explore Categories
@@ -110,12 +327,17 @@ export default function HomePage() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {loading
-            ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 bg-gray-200 dark:bg-slate-800 rounded-xl animate-pulse" />)
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-14 bg-gray-200 dark:bg-slate-800 rounded-xl animate-pulse"
+                />
+              ))
             : categories.map((cat) => (
                 <Link
                   key={cat.id}
                   to={`/books?category=${cat.id}`}
-                  className="flex flex-col items-center justify-center p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700/60 rounded-xl hover:shadow-md hover:border-indigo-500 dark:hover:border-indigo-400 transition-all text-center group"
+                  className="flex flex-col items-center justify-center p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700/60 rounded-xl hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 transition-all text-center group"
                 >
                   <span className="text-sm font-medium text-gray-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
                     {cat.name}
@@ -128,126 +350,154 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 3. SECTION: FEATURED BOOKS */}
+      {/* ── Featured Books ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-end justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <div className="w-1 h-6 bg-blue-700 rounded-full" />
-              <span className="text-sm text-blue-700 dark:text-blue-400 font-semibold flex items-center gap-1">
+              <div className="w-1 h-6 bg-blue-600 rounded-full" />
+              <span className="text-sm text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4" /> Editor's Picks
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Featured Books</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              Featured Books
+            </h2>
           </div>
-          <Link to="/books?filter=featured" className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 transition-colors font-medium">
+          <Link
+            to="/books?filter=featured"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium"
+          >
             View All <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {loading
-            ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
-            : featured.length > 0
-              ? featured.map((book) => <BookCard key={book.id} book={book} variant="trending" />)
-              : <p className="col-span-6 text-center text-gray-400 py-8 text-sm">No featured books found</p>
-          }
-        </div>
+        <BookRow
+          books={featured}
+          loading={loading}
+          emptyMessage="No featured books found"
+        />
       </section>
 
-      {/* 4. SECTION: TRENDING & TOP RATED */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+      {/* ── Trending — Top Rated ── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-end justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <div className="w-1 h-6 bg-amber-500 rounded-full" />
-              <span className="text-sm text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                <Star className="w-4 h-4 fill-current" /> Most Popular Demands
+              <span className="text-sm text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+                <Star className="w-4 h-4 fill-current" /> Most Popular
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Trending — Top Rated</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              Trending — Top Rated
+            </h2>
           </div>
-          <Link to="/books?sort=rating" className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400 hover:text-amber-800 transition-colors font-medium">
+          <Link
+            to="/books?sort=rating"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors font-medium"
+          >
             View All <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {loading
-            ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
-            : topRated.length > 0
-              ? topRated.map((book) => <BookCard key={book.id} book={book} variant="trending" />)
-              : <p className="col-span-6 text-center text-gray-400 py-8 text-sm">No highly-rated titles available</p>
-          }
-        </div>
+        <BookRow
+          books={topRated}
+          loading={loading}
+          emptyMessage="No highly-rated titles available"
+        />
       </section>
 
-      {/* 5. SECTION: NEWEST ACQUISITIONS */}
+      {/* ── Newest Books ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-end justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <div className="w-1 h-6 bg-rose-500 rounded-full" />
-              <span className="text-sm text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
-                <Flame className="w-4 h-4" /> Just Added to Catalog
+              <span className="text-sm text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5">
+                <Flame className="w-4 h-4" /> Just Added
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Newest Books</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              Newest Books
+            </h2>
           </div>
-          <Link to="/books?sort=newest" className="flex items-center gap-1.5 text-sm text-rose-600 dark:text-rose-400 hover:text-rose-800 transition-colors font-medium">
+          <Link
+            to="/books?sort=newest"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors font-medium"
+          >
             View All <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {loading
-            ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
-            : newest.length > 0
-              ? newest.map((book) => <BookCard key={book.id} book={book} variant="trending" />)
-              : <p className="col-span-6 text-center text-gray-400 py-8 text-sm">No newly added titles found</p>
-          }
-        </div>
+        <BookRow
+          books={newest}
+          loading={loading}
+          emptyMessage="No newly added titles found"
+        />
       </section>
 
-      {/* Interface Boundary Rule Line */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="border-t border-gray-200 dark:border-slate-700" />
       </div>
 
-      {/* 6. SECTION: DYNAMIC DISCOVERY CORNER BY GENRE */}
+      {/* ── Discover More (category spotlight) ── */}
       {!loading && categoryBooks.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
           <div className="flex items-end justify-between mb-6">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-1 h-6 bg-emerald-600 rounded-full" />
+                <div className="w-1 h-6 bg-emerald-500 rounded-full" />
                 <span className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold">
-                  Spotlight Category: {categories.find(c => c.book_count > 0)?.name || 'Genre Collections'}
+                  Spotlight: {spotlightCat?.name || "Genre Collections"}
                 </span>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Discover More</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Discover More
+              </h2>
             </div>
-            <Link to={`/books?category=${categories.find(c => c.book_count > 0)?.id}`} className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:text-blue-900 transition-colors font-medium">
+            <Link
+              to={`/books?category=${spotlightCat?.id}`}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors font-medium"
+            >
               View All <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categoryBooks.map((book) => <BookCard key={book.id} book={book} variant="trending" />)}
+          {/* Grid layout for Discover More */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {categoryBooks.map((book) => (
+              <BookCard key={book.id} book={book} variant="trending" />
+            ))}
           </div>
         </section>
       )}
 
-      {/* CTA Conversion Banner */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
+      {/* CTA Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-14 pt-4">
         <div className="bg-gradient-to-r from-blue-800 to-blue-900 dark:from-blue-950 dark:to-slate-900 rounded-2xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
-            <h2 className="text-white text-2xl md:text-3xl font-bold mb-2">Explore the Entire Library</h2>
+            <h2 className="text-white text-2xl md:text-3xl font-bold mb-2">
+              Explore the Entire Library
+            </h2>
             <p className="text-blue-200 text-sm md:text-base max-w-md">
-              Access thousands of diverse titles — Literature, Science, Technology, Philosophy, and much more.
+              Access thousands of diverse titles — Literature, Science,
+              Technology, Philosophy, and much more.
             </p>
           </div>
           <div className="flex gap-3 shrink-0">
-            <Link to="/books" className="px-6 py-3 bg-white text-blue-900 rounded-xl text-sm hover:bg-blue-50 transition-colors font-semibold">
+            <Link
+              to="/books"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="px-6 py-3 bg-white text-blue-900 rounded-xl text-sm hover:bg-blue-50 transition-colors font-semibold"
+            >
               Browse Catalog
             </Link>
-            <Link to="/dashboard" className="px-6 py-3 bg-blue-700/50 text-white border border-blue-500 rounded-xl text-sm hover:bg-blue-700 transition-colors font-medium">
+            <Link
+              to="/dashboard"
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="px-6 py-3 bg-blue-700/50 text-white border border-blue-500 rounded-xl text-sm hover:bg-blue-700 transition-colors font-medium"
+            >
               My Dashboard
             </Link>
           </div>

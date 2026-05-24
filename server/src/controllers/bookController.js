@@ -24,10 +24,10 @@ const { success, error, paginated } = require('../utils/response');
 // GET /api/books
 exports.getBooks = async (req, res) => {
   try {
-    const { search = '', category = '', author = '', publisher = '', sort = 'latest', page = 1, limit = 9 } = req.query;
+    const { search = '', category = '', author = '', publisher = '', availability = 'all', sort = 'latest', page = 1, limit = 9 } = req.query;
     
     const { rows, total } = await bookModel.findAll({ 
-      search, category, author, publisher, sort, 
+      search, category, author, publisher, availability, sort, 
       page: Number(page), limit: Number(limit) 
     });
     
@@ -230,5 +230,24 @@ exports.deleteBook = async (req, res) => {
     }
     console.error('[deleteBook]', err);
     return error(res, 'Lỗi hệ thống khi thực hiện xóa sách', 500);
+  }
+};
+
+
+exports.dashboardStats = async (req, res) => {
+  try {
+    const stats = await bookModel.getDashboardStats();
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
   }
 };
