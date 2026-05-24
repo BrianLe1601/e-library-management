@@ -170,3 +170,55 @@ exports.rejectBorrow = async (req, res) => {
     return error(res);
   }
 };
+
+exports.requestReturn = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Borrow record not found', 404);
+
+    // Chỉ user sở hữu phiếu mới được request return
+    if (req.user.role === 'user' && borrow.user_id !== req.user.id)
+      return error(res, 'Access denied', 403);
+
+    if (!['borrowing','renewed','overdue'].includes(borrow.status))
+      return error(res, 'This borrow cannot be returned at this stage', 400);
+
+    await borrowModel.updateStatus(req.params.id, 'returning', req.user.id);
+    return success(res, null, 'Return request sent. Awaiting admin confirmation.');
+  } catch (err) {
+    console.error('[requestReturn]', err);
+    return error(res);
+  }
+};
+
+// PATCH /api/borrows/lost/:id — Admin/Employee đánh dấu mất sách
+exports.markLost = async (req, res) => {
+  try {
+    const borrow = await BorrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Borrow record not found', 404);
+
+    if (borrow.status === 'returned' || borrow.status === 'lost')
+      return error(res, 'Book is already returned or marked as lost', 400);
+
+    await BorrowModel.markLost(req.params.id, req.user.id);
+    return success(res, null, 'Book marked as lost. Copy count updated.');
+  } catch (err) {
+    console.error('[markLost]', err);
+    return error(res);
+  }
+};
+
+// GET /api/borrows/:id — chi tiết phiếu mượn
+exports.getBorrowById = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Borrow record not found', 404);
+    return success(res, borrow);
+  } catch (err) {
+    console.error('[getBorrowById]', err);
+    return error(res);
+  }
+};

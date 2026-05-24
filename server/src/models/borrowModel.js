@@ -100,7 +100,7 @@ const returnBook = async (borrowId, handledBy = null) => {
 
     const [[borrow]] = await conn.query(
       `SELECT * FROM borrows
-       WHERE id = ? AND status IN ('borrowing','renewed','overdue')
+       WHERE id = ? AND status IN ('borrowing','renewed','overdue','returning')
        FOR UPDATE`,
       [borrowId]
     );
@@ -205,16 +205,16 @@ const extendBorrow = async (borrowId, renewedBy = null) => {
 // ── Sách đang mượn của user ───────────────────────────────────────────────────
 const findActiveByUser = async (userId) => {
   await markOverdue();
-  const [rows] = await db.query(
-    `SELECT b.id, b.due_date, b.borrow_date, b.status, b.renewed_count,
-            bk.title, bk.cover_url, a.name AS author
-     FROM borrows b
-     JOIN books bk ON bk.id = b.book_id
-     JOIN authors a ON a.id  = bk.author_id
-     WHERE b.user_id = ? AND b.status IN ('borrowing','renewed','overdue')
-     ORDER BY b.due_date ASC`,
-    [userId]
-  );
+  const [rows] = await db.query(`
+    SELECT b.id, b.book_id,  -- ← phải có b.book_id
+       b.due_date, b.borrow_date, b.status, b.renewed_count,
+       bk.title, bk.cover_url, a.name AS author
+      FROM borrows b
+      JOIN books bk ON bk.id = b.book_id
+      JOIN authors a ON a.id  = bk.author_id
+      WHERE b.user_id = ? AND b.status IN ('pending','borrowing','renewed','overdue')
+      ORDER BY b.due_date ASC
+  `, [userId]);
   return rows;
 };
 
@@ -348,6 +348,51 @@ const rejectBorrow = async (borrowId, handledBy) => {
   }
 };
 
+const markLost = async (borrowId, handledBy) => {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[borrow]] = await conn.query(
+      'SELECT * FROM borrows WHERE id = ? FOR UPDATE', [borrowId]
+    );
+    if (!borrow) throw Object.assign(new Error('Not found'), { statusCode: 404 });
+
+    await conn.query(
+      `UPDATE borrows SET status = 'lost', handled_by = ? WHERE id = ?`,
+      [handledBy, borrowId]
+    );
+
+    // Hoàn lại available_copies vì sách không còn
+    await conn.query(
+      'UPDATE books SET available_copies = available_copies + 1 WHERE id = ?',
+      [borrow.book_id]
+    );
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+};
+
+// const requestReturn = async (borrowId) => {
+//   const [[borrow]] = await db.query(
+//     `SELECT * FROM borrows
+//       WHERE id = ? AND status IN ('borrowing','renewed')
+//       FOR UPDATE`,
+//     [borrowId]
+//   );
+//   if (!borrow)    throw Object.assign(new Error('Không tìm thấy lượt mượn hợp lệ'), { statusCode: 404 });
+
+//   await db.query(
+//     `UPDATE borrows SET status = 'returning' WHERE id = ?`,
+//     [borrowId]
+//   );
+// };
+
 module.exports = {
   create,
   findById,
@@ -361,4 +406,5 @@ module.exports = {
   approveBorrow,
   rejectBorrow,
   markOverdue,
+  markLost,
 };
