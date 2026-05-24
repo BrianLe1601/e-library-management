@@ -33,41 +33,103 @@ function BookSkeleton() {
 
 export function BookRow({ books, loading, emptyMessage }) {
   const rowRef = useRef(null);
-
-  // Chỉ giữ lại state để theo dõi xem chuột có đang hover vào hàng sách hay không
   const [isHovered, setIsHovered] = useState(false);
 
-  const scroll = (dir) => {
+  // Toàn bộ drag state trong 1 ref duy nhất — không gây re-render
+  const drag = useRef({ active: false, moved: false, startX: 0, scrollLeft: 0 });
+
+  // Ngưỡng 6px: dưới mức này vẫn là click
+  const THRESHOLD = 6;
+
+  const scroll = (dir) =>
     rowRef.current?.scrollBy({ left: dir * 300, behavior: "smooth" });
-  };
 
-  // --- Logic Tự động trượt (Auto-play) ---
+  // ── Auto-scroll ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Nếu đang load, không có sách hoặc người dùng đang di chuột vào vùng này thì dừng auto-play
     if (loading || !books || books.length === 0 || isHovered) return;
-
-    const autoScrollInterval = setInterval(() => {
-      if (rowRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
-
-        // Nếu cuộn gần đến cuối hàng, tự động quay về đầu
-        if (scrollLeft + clientWidth >= scrollWidth - 10) {
-          rowRef.current.scrollTo({ left: 0, behavior: "smooth" });
-        } else {
-          // Cuộn tiếp sang phải 220px
-          rowRef.current.scrollBy({ left: 220, behavior: "smooth" });
-        }
-      }
+    const id = setInterval(() => {
+      if (!rowRef.current) return;
+      const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
+      if (scrollLeft + clientWidth >= scrollWidth - 10)
+        rowRef.current.scrollTo({ left: 0, behavior: "smooth" });
+      else
+        rowRef.current.scrollBy({ left: 220, behavior: "smooth" });
     }, 3500);
-
-    return () => clearInterval(autoScrollInterval);
+    return () => clearInterval(id);
   }, [loading, books, isHovered]);
+
+  // ── Native DOM listeners ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+
+    const handleMouseDown = (e) => {
+      if (e.button !== 0) return;
+      // preventDefault ngay tại mousedown — đây là chìa khoá chặn browser native drag
+      // (kéo ảnh, kéo link) trước khi nó kịp khởi động
+      e.preventDefault();
+      drag.current = {
+        active: true,
+        moved: false,
+        startX: e.clientX,
+        scrollLeft: el.scrollLeft,
+      };
+      el.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+    };
+
+    const handleMouseMove = (e) => {
+      if (!drag.current.active) return;
+      const delta = e.clientX - drag.current.startX;
+      if (Math.abs(delta) > THRESHOLD) drag.current.moved = true;
+      el.scrollLeft = drag.current.scrollLeft - delta;
+    };
+
+    const handleMouseUp = () => {
+      if (!drag.current.active) return;
+      drag.current.active = false;
+      el.style.cursor = "grab";
+      document.body.style.userSelect = "";
+    };
+
+    // Chặn click sau drag — capture mode để chạy trước React Router Link
+    const handleClick = (e) => {
+      if (drag.current.moved) {
+        drag.current.moved = false;
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+
+    // Chặn hoàn toàn browser native drag (kéo ảnh / kéo link)
+    const handleDragStart = (e) => e.preventDefault();
+
+    el.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    el.addEventListener("click", handleClick, true);
+    el.addEventListener("dragstart", handleDragStart);
+
+    return () => {
+      el.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      el.removeEventListener("click", handleClick, true);
+      el.removeEventListener("dragstart", handleDragStart);
+      document.body.style.userSelect = "";
+    };
+  }, []);
 
   const items = loading
     ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
     : books.length > 0
       ? books.map((book) => (
-          <div key={book.id} className="w-[170px] sm:w-[185px] flex-shrink-0">
+          <div
+            key={book.id}
+            className="w-[170px] sm:w-[185px] flex-shrink-0"
+            draggable="false"
+            onDragStart={(e) => e.preventDefault()}
+          >
             <BookCard book={book} variant="trending" />
           </div>
         ))
@@ -95,14 +157,16 @@ export function BookRow({ books, loading, emptyMessage }) {
         <ChevronLeft className="w-5 h-5" />
       </button>
 
-      {/* Scrollable track - Đã lược bỏ hoàn toàn các sự kiện Drag chuột */}
+      {/* Scrollable track — không cần React mouse handler nữa */}
       <div
         ref={rowRef}
-        className="flex gap-5 overflow-x-auto py-4 px-2 select-none transition-colors"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="book-row-track flex gap-5 overflow-x-auto py-4 px-2 select-none"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}
       >
         <style>{`
           div::-webkit-scrollbar { display: none; }
+          .book-row-track img { -webkit-user-drag: none; user-drag: none; draggable: false; }
+          .book-row-track a { -webkit-user-drag: none; user-drag: none; }
         `}</style>
         {items}
       </div>

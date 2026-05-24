@@ -1,24 +1,38 @@
 import { useState } from "react";
 import { Mail, BookOpen, CheckCircle, X } from "lucide-react";
+import { useNavigate } from "react-router-dom"; // MỚI
+import authService from "../../services/authService"; // MỚI
 
 export default function ForgotPasswordModal({ isOpen, onClose }) {
   const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const navigate = useNavigate();
 
-  // Nếu không mở modal thì không render gì cả
   if (!isOpen) return null;
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
     
-    // Giả lập gọi API
-    setTimeout(() => {
+    try {
+      const res = await authService.forgotPassword(email);
+      if (res.data?.success) {
+        onClose();
+        navigate("/verify-otp", { 
+          state: { 
+            email: email, 
+            action: 'forgot_password', 
+            debugOtp: res.data.debugOtp 
+          } 
+        });
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || "Error sending to your email. Please try again.");
+    } finally {
       setLoading(false);
-      setSubmitted(true);
-    }, 1200);
+    }
   }
 
   // Hàm reset trạng thái và đóng Modal
