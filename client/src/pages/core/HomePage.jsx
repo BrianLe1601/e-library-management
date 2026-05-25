@@ -33,74 +33,103 @@ function BookSkeleton() {
 
 export function BookRow({ books, loading, emptyMessage }) {
   const rowRef = useRef(null);
-
-  // States cho tính năng kéo cuộn (Drag to Scroll)
-  const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-
-  // State cho tính năng tự động trượt (Auto-play)
   const [isHovered, setIsHovered] = useState(false);
 
-  const scroll = (dir) => {
-    // Cuộn mượt khi bấm nút
+  // Toàn bộ drag state trong 1 ref duy nhất — không gây re-render
+  const drag = useRef({ active: false, moved: false, startX: 0, scrollLeft: 0 });
+
+  // Ngưỡng 6px: dưới mức này vẫn là click
+  const THRESHOLD = 6;
+
+  const scroll = (dir) =>
     rowRef.current?.scrollBy({ left: dir * 300, behavior: "smooth" });
-  };
 
-  // --- Logic Tự động trượt (Auto-play) ---
+  // ── Auto-scroll ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    // Nếu đang load, không có sách hoặc người dùng đang tương tác (hover/kéo) thì KHÔNG tự động chạy
-    if (loading || !books || books.length === 0 || isHovered || isDragging)
-      return;
+    if (loading || !books || books.length === 0 || isHovered) return;
+    const id = setInterval(() => {
+      if (!rowRef.current) return;
+      const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
+      if (scrollLeft + clientWidth >= scrollWidth - 10)
+        rowRef.current.scrollTo({ left: 0, behavior: "smooth" });
+      else
+        rowRef.current.scrollBy({ left: 220, behavior: "smooth" });
+    }, 3500);
+    return () => clearInterval(id);
+  }, [loading, books, isHovered]);
 
-    const autoScrollInterval = setInterval(() => {
-      if (rowRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
+  // ── Native DOM listeners ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
 
-        // Kiểm tra nếu đã cuộn gần hết hàng (dung sai 10px)
-        if (scrollLeft + clientWidth >= scrollWidth - 10) {
-          // Quay lại từ đầu
-          rowRef.current.scrollTo({ left: 0, behavior: "smooth" });
-        } else {
-          // Cuộn tiếp sang phải 220px (khoảng bằng kích thước 1 card sách + gap)
-          rowRef.current.scrollBy({ left: 220, behavior: "smooth" });
-        }
+    const handleMouseDown = (e) => {
+      if (e.button !== 0) return;
+      // preventDefault ngay tại mousedown — đây là chìa khoá chặn browser native drag
+      // (kéo ảnh, kéo link) trước khi nó kịp khởi động
+      e.preventDefault();
+      drag.current = {
+        active: true,
+        moved: false,
+        startX: e.clientX,
+        scrollLeft: el.scrollLeft,
+      };
+      el.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+    };
+
+    const handleMouseMove = (e) => {
+      if (!drag.current.active) return;
+      const delta = e.clientX - drag.current.startX;
+      if (Math.abs(delta) > THRESHOLD) drag.current.moved = true;
+      el.scrollLeft = drag.current.scrollLeft - delta;
+    };
+
+    const handleMouseUp = () => {
+      if (!drag.current.active) return;
+      drag.current.active = false;
+      el.style.cursor = "grab";
+      document.body.style.userSelect = "";
+    };
+
+    // Chặn click sau drag — capture mode để chạy trước React Router Link
+    const handleClick = (e) => {
+      if (drag.current.moved) {
+        drag.current.moved = false;
+        e.stopPropagation();
+        e.preventDefault();
       }
-    }, 3500); // Tự động trượt sau mỗi 3.5 giây
+    };
 
-    // Clear interval khi component unmount hoặc khi các dependency thay đổi
-    return () => clearInterval(autoScrollInterval);
-  }, [loading, books, isHovered, isDragging]);
+    // Chặn hoàn toàn browser native drag (kéo ảnh / kéo link)
+    const handleDragStart = (e) => e.preventDefault();
 
-  // --- Xử lý sự kiện kéo chuột (Drag) ---
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    setStartX(e.pageX - rowRef.current.offsetLeft);
-    setScrollLeft(rowRef.current.scrollLeft);
-  };
+    el.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    el.addEventListener("click", handleClick, true);
+    el.addEventListener("dragstart", handleDragStart);
 
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-    setIsHovered(false); // huỷ hover khi chuột rời hẳn vùng container
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    const x = e.pageX - rowRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5;
-    rowRef.current.scrollLeft = scrollLeft - walk;
-  };
+    return () => {
+      el.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      el.removeEventListener("click", handleClick, true);
+      el.removeEventListener("dragstart", handleDragStart);
+      document.body.style.userSelect = "";
+    };
+  }, []);
 
   const items = loading
     ? Array.from({ length: 6 }).map((_, i) => <BookSkeleton key={i} />)
     : books.length > 0
       ? books.map((book) => (
-          <div key={book.id} className="w-[170px] sm:w-[185px] flex-shrink-0">
+          <div
+            key={book.id}
+            className="w-[170px] sm:w-[185px] flex-shrink-0"
+            draggable="false"
+            onDragStart={(e) => e.preventDefault()}
+          >
             <BookCard book={book} variant="trending" />
           </div>
         ))
@@ -114,12 +143,10 @@ export function BookRow({ books, loading, emptyMessage }) {
         ];
 
   return (
-    // Đặt sự kiện onMouseEnter và onMouseLeave ở thẻ bọc ngoài cùng
-    // để khi rê chuột vào Nút mũi tên hoặc Card sách thì tiến trình tự động trượt đều dừng lại
     <div
       className="relative group/row"
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Left arrow */}
       <button
@@ -130,21 +157,16 @@ export function BookRow({ books, loading, emptyMessage }) {
         <ChevronLeft className="w-5 h-5" />
       </button>
 
-      {/* Scrollable track */}
+      {/* Scrollable track — không cần React mouse handler nữa */}
       <div
         ref={rowRef}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseMove={handleMouseMove}
-        className={`flex gap-5 overflow-x-auto py-4 px-2 select-none transition-colors ${
-          isDragging
-            ? "cursor-grabbing [&_*]:pointer-events-none"
-            : "cursor-grab"
-        }`}
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="book-row-track flex gap-5 overflow-x-auto py-4 px-2 select-none"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none", cursor: "grab" }}
       >
         <style>{`
           div::-webkit-scrollbar { display: none; }
+          .book-row-track img { -webkit-user-drag: none; user-drag: none; draggable: false; }
+          .book-row-track a { -webkit-user-drag: none; user-drag: none; }
         `}</style>
         {items}
       </div>
