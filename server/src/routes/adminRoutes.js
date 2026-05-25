@@ -17,9 +17,20 @@ const router  = express.Router();
 
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const adminController             = require('../controllers/adminController');
-
+const upload                      = require('../middlewares/uploadMiddleware'); // Cấu hình Multer để xử lý upload ảnh bìa sách
 // Tất cả admin routes yêu cầu đăng nhập
 router.use(authenticate);
+
+// ── Book Inventory management (admin & employee) ──────────────────────────────
+// upload.single('cover') có nghĩa là API này sẽ đón 1 file ảnh có tên trường là 'cover'
+router.get   ('/books/publishers',      authorize('admin', 'employee'),                         adminController.getPublishers);
+router.get   ('/books',                 authorize('admin', 'employee'),                         adminController.getBooks);
+router.post  ('/books',                 authorize('admin', 'employee'), upload.single('cover'), adminController.createBook);
+router.put   ('/books/:id',             authorize('admin', 'employee'), upload.single('cover'), adminController.updateBook);
+router.delete('/books/:id',             authorize('admin', 'employee'),                         adminController.deleteBook);
+router.patch ('/books/:id/toggle-hide', authorize('admin', 'employee'),                         adminController.toggleHide);
+router.post  ('/authors',               authorize('admin', 'employee'),                         adminController.createAuthor);
+router.post  ('/publishers',            authorize('admin', 'employee'),                         adminController.createPublisher);
 
 // ── Dashboard & Reports (admin + employee) ────────────────────────────────────
 router.get('/stats',                authorize('admin', 'employee'), adminController.getStats);

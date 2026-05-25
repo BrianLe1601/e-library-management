@@ -45,62 +45,49 @@ API.interceptors.request.use((config) => {
  */
 export const getStats = () => API.get("/admin/stats");
 
-// ─────────────────────────────────────────────────────────────
-//  CHARTS — Dữ liệu cho biểu đồ
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Lấy dữ liệu lượt mượn/trả theo từng tháng trong năm
- * Response mong đợi:
- * [
- *   { month: 1, borrows: 12, returned: 10 },
- *   { month: 2, borrows: 18, returned: 15 },
- *   ...
- * ]
- */
-export const getBorrowChartData = (year = new Date().getFullYear()) =>
-  API.get(`/admin/reports/borrow-chart?year=${year}`);
-
-/**
- * Lấy số lượng sách theo thể loại cho PieChart
- * Response mong đợi:
- * [
- *   { name: "Công nghệ", value: 12 },
- *   { name: "Văn học",   value: 8  },
- *   ...
- * ]
- */
-export const getCategoryChartData = () =>
-  API.get("/admin/reports/category-chart");
 
 // ─────────────────────────────────────────────────────────────
-//  REPORTS — Báo cáo
+//  BOOK MANAGEMENT — Quản lý sách
 // ─────────────────────────────────────────────────────────────
-
-/**
- * Lấy báo cáo mượn trả theo khoảng ngày
- * @param {string} from  — "2025-01-01"
- * @param {string} to    — "2025-12-31"
- * @param {string} type  — "borrows" | "returns" | "overdue"
+/** * Lấy danh sách toàn bộ sách 
+ * @param {object} params — Truyền vào các bộ lọc như { page, limit, search, category }
  */
-export const getReports = (from, to, type = "borrows") =>
-  API.get(`/admin/reports?from=${from}&to=${to}&type=${type}`);
+export const getBooks = (params = {}) => 
+  API.get("/admin/books", { params });
 
-/**
- * Xuất báo cáo ra file PDF hoặc Excel
- * @param {string} format — "pdf" | "excel"
+/** * Xóa một cuốn sách khỏi hệ thống
+ * @param {number|string} bookId — ID của sách cần xóa
  */
-export const exportReport = (format = "pdf", from, to) =>
-  API.get(`/admin/reports/export?format=${format}&from=${from}&to=${to}`, {
-    responseType: "blob", // Quan trọng! Để nhận file binary
+export const deleteBook = (bookId) => 
+  API.delete(`/admin/books/${bookId}`);
+
+/** Thêm mới sách */
+export const createBook = (bookData) => 
+  API.post("/admin/books", bookData, {
+    headers: { "Content-Type": "multipart/form-data" },
   });
 
+/** Cập nhật sách */
+export const updateBook = (bookId, bookData) => 
+  API.put(`/admin/books/${bookId}`, bookData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+export const getAuthors = () => API.get("/books/authors");
+export const getCategories = () => API.get("/books/categories");
+export const getPublishers = () => API.get("/admin/books/publishers");
+export const toggleHideBook = (id) => API.patch(`/admin/books/${id}/toggle-hide`);
 /**
- * Lấy top sách được mượn nhiều nhất
- * @param {number} limit — Số lượng sách (mặc định 10)
+ * Thêm nhanh một tác giả mới từ form Book
+ * @param {Object} data — { name: "Tên tác giả" }
  */
-export const getTopBooks = (limit = 10) =>
-  API.get(`/admin/reports/top-books?limit=${limit}`);
+export const createAuthor = (data) => API.post('/admin/authors', data);
+
+/**
+ * Thêm nhanh một nhà xuất bản mới từ form Book
+ * @param {Object} data — { name: "Tên nhà xuất bản" }
+ */
+export const createPublisher = (data) => API.post('/admin/publishers', data);
+
 
 // ─────────────────────────────────────────────────────────────
 //  USER MANAGEMENT — Quản lý người dùng
@@ -135,5 +122,61 @@ export const updateUserRole = (userId, role) =>
  */
 export const addUser = (data) =>
   API.post("/admin/users", data);
+
+
+// ─────────────────────────────────────────────────────────────
+//  REPORTS — Báo cáo
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Lấy báo cáo mượn trả theo khoảng ngày
+ * @param {string} from  — "2025-01-01"
+ * @param {string} to    — "2025-12-31"
+ * @param {string} type  — "borrows" | "returns" | "overdue"
+ */
+export const getReports = (from, to, type = "borrows") =>
+  API.get(`/admin/reports?from=${from}&to=${to}&type=${type}`);
+
+/**
+ * Xuất báo cáo ra file PDF hoặc Excel
+ * @param {string} format — "pdf" | "excel"
+ */
+export const exportReport = (format = "pdf", from, to) =>
+  API.get(`/admin/reports/export?format=${format}&from=${from}&to=${to}`, {
+    responseType: "blob", // Quan trọng! Để nhận file binary
+  });
+
+/**
+ * Lấy top sách được mượn nhiều nhất
+ * @param {number} limit — Số lượng sách (mặc định 10)
+ */
+export const getTopBooks = (limit = 10) =>
+  API.get(`/admin/reports/top-books?limit=${limit}`);
+
+//  CHARTS — Dữ liệu cho biểu đồ
+/**
+ * Lấy dữ liệu lượt mượn/trả theo từng tháng trong năm
+ * Response mong đợi:
+ * [
+ *   { month: 1, borrows: 12, returned: 10 },
+ *   { month: 2, borrows: 18, returned: 15 },
+ *   ...
+ * ]
+ */
+export const getBorrowChartData = (year = new Date().getFullYear()) =>
+  API.get(`/admin/reports/borrow-chart?year=${year}`);
+
+/**
+ * Lấy số lượng sách theo thể loại cho PieChart
+ * Response mong đợi:
+ * [
+ *   { name: "Công nghệ", value: 12 },
+ *   { name: "Văn học",   value: 8  },
+ *   ...
+ * ]
+ */
+export const getCategoryChartData = () =>
+  API.get("/admin/reports/category-chart");
+
 
 export default API;

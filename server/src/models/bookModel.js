@@ -9,14 +9,14 @@
 const db = require('../config/db');
 
 // ── Danh sách sách (search, category, pagination) ─────────────────────────────
-const findAll = async ({ search = '', category = '', author = '', publisher = '', availability = 'all', sort = 'latest', page = 1, limit = 12 }) => {
+const findAll = async ({ search = '', category = '', author = '', publisher = '', availability = 'all', sort = 'latest', page = 1, limit = 12, includeHidden = false }) => {
   const conditions = [];
   const params = [];
 
-  // 1. Tìm kiếm từ khóa (Tiêu đề hoặc Tác giả)
+  // 1. Tìm kiếm từ khóa (Tiêu đề hoặc Tác giả hoac Nhà xuất bản)
   if (search) {
-    conditions.push('(b.title LIKE ? OR a.name LIKE ?)');
-    params.push(`%${search}%`, `%${search}%`);
+    conditions.push('(b.title LIKE ? OR a.name LIKE ? OR p.name LIKE ?)');
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
   // 2. Lọc theo danh mục (Có thể là chuỗi "1,2,3" hoặc ID đơn lẻ)
@@ -53,6 +53,10 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     conditions.push('b.available_copies = 0');
   }
 
+  if (!includeHidden) {
+    conditions.push('b.is_hidden = 0');
+  }
+
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // Tính toán phân trang
@@ -81,6 +85,10 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
       b.id, b.title, b.isbn, b.publish_year AS year, b.description,
       b.cover_url AS coverUrl, b.total_copies AS totalCopies, 
       b.available_copies AS availableCopies,
+      b.author_id,
+      b.publisher_id,
+      b.is_hidden,
+      (SELECT bc.category_id FROM book_categories bc WHERE bc.book_id = b.id LIMIT 1) AS category_id, -- Bổ sung ID thể loại
       a.name AS author, p.name AS publisher,
       (SELECT c.name FROM categories c JOIN book_categories bc ON bc.category_id = c.id WHERE bc.book_id = b.id LIMIT 1) AS category,
       COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating,
@@ -141,7 +149,7 @@ const findFeatured = async (limit = 8) => {
      JOIN authors a ON a.id = b.author_id
      LEFT JOIN borrows br ON br.book_id = b.id
      LEFT JOIN reviews r  ON r.book_id  = b.id AND r.is_visible = 1
-     WHERE b.available_copies > 0
+     WHERE b.available_copies > 0 AND b.is_hidden = 0
      GROUP BY b.id
      ORDER BY borrow_count DESC, rating DESC
      LIMIT ?`,
@@ -162,6 +170,7 @@ const findTopRated = async (limit = 10) => {
      FROM books b
      JOIN authors a ON a.id = b.author_id
      LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
+     WHERE b.is_hidden = 0
      GROUP BY b.id
      HAVING rating > 0
      ORDER BY rating DESC, reviewCount DESC
@@ -184,6 +193,7 @@ const findNewest = async (limit = 10) => {
      FROM books b
      JOIN authors a ON a.id = b.author_id
      LEFT JOIN reviews r ON r.book_id = b.id AND r.is_visible = 1
+     WHERE b.is_hidden = 0
      GROUP BY b.id
      ORDER BY b.created_at DESC
      LIMIT ?`,
@@ -247,6 +257,42 @@ const setCategories = async (bookId, categoryIds = []) => {
   await db.query('INSERT INTO book_categories (book_id, category_id) VALUES ?', [values]);
 };
 
+// ── Đảo ngược trạng thái ẩn/hiện của sách ────────────────────────────────────
+const toggleHide = async (id) => {
+  // 1. Kiểm tra xem sách có tồn tại không
+  const [[book]] = await db.query('SELECT is_hidden FROM books WHERE id = ?', [id]);
+  if (!book) return null; // Trả về null nếu không tìm thấy sách
+
+  // 2. Đảo ngược trạng thái (Nếu đang 1 thì thành 0, đang 0 thì thành 1)
+  const newHiddenState = book.is_hidden ? 0 : 1;
+  
+  // 3. Cập nhật xuống Database
+  await db.query('UPDATE books SET is_hidden = ? WHERE id = ?', [newHiddenState, id]);
+  
+  // 4. Trả về trạng thái mới cho Controller
+  return newHiddenState;
+};
+
+// Lấy danh sách toàn bộ nhà xuất bản
+const findAllPublishers = async () => {
+  // Truy vấn lấy id và name (hoặc publisher_name tùy theo tên cột trong DB của bạn)
+  const [rows] = await db.query('SELECT id, name FROM publishers ORDER BY name ASC');
+  return rows;
+};
+
+// ── Thêm nhanh tác giả mới ──────────────────────────────────────────────────
+const createAuthor = async (name, bio) => {
+  const [result] = await db.query('INSERT INTO authors (name, bio) VALUES (?, ?)', [name, bio || null]);
+  return { id: result.insertId, name };
+};
+
+// ── Thêm nhanh nhà xuất bản mới ──────────────────────────────────────────────
+const createPublisher = async (name, country) => {
+  const [result] = await db.query('INSERT INTO publishers (name, country) VALUES (?, ?)', [name, country]);
+  return { id: result.insertId, name };
+};
+
+
 // ── Dashboard Statistics ─────────────────────────────────────
 const getDashboardStats = async () => {
   // Tổng số bản sao hiện có của toàn bộ sách
@@ -276,4 +322,4 @@ const getDashboardStats = async () => {
   };
 };
 
-module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats };
+module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher };

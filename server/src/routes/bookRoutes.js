@@ -35,9 +35,5 @@ router.get('/publishers',  bookController.getPublishers);   // [MỚI] cho Filte
 router.get('/',            bookController.getBooks);
 router.get('/:id(\\d+)',   bookController.getBookById);
 router.get('/stats',       bookController.dashboardStats);
-// Admin-only routes
-router.post  ('/',             authenticate, authorize('admin'), bookRules, validate, bookController.createBook);
-router.put   ('/:id(\\d+)',    authenticate, authorize('admin'), bookRules, validate, bookController.updateBook);
-router.delete('/:id(\\d+)',    authenticate, authorize('admin'), bookController.deleteBook);
- 
+
 module.exports = router;

@@ -172,66 +172,6 @@ exports.getPublishers = async (_req, res) => {
     return error(res, 'Lỗi khi lấy danh sách nhà xuất bản', 500);
   }
 };
- 
- 
-// POST /api/books (admin)
-exports.createBook = async (req, res) => {
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
-    const { category_ids, ...fields } = req.body;
-    const id = await bookModel.createInTransaction(connection, fields);
-    if (category_ids && Array.isArray(category_ids) && category_ids.length > 0) {
-      await bookModel.setCategoriesInTransaction(connection, id, category_ids);
-    }
-    await connection.commit();
-    const book = await bookModel.findById(id);
-    return success(res, book, 'Tạo thông tin sách mới thành công', 201);
-  } catch (err) {
-    await connection.rollback();
-    console.error('[createBook]', err);
-    return error(res, err.message || 'Lỗi hệ thống, không thể thêm sách mới', 500);
-  } finally {
-    connection.release();
-  }
-};
- 
-// PUT /api/books/:id (admin)
-exports.updateBook = async (req, res) => {
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
-    const { category_ids, ...fields } = req.body;
-    const bookId = req.params.id;
-    const updated = await bookModel.updateInTransaction(connection, bookId, fields);
-    if (!updated) { await connection.rollback(); return error(res, 'Không tìm thấy sách để cập nhật', 404); }
-    if (category_ids !== undefined) await bookModel.setCategoriesInTransaction(connection, bookId, category_ids);
-    await connection.commit();
-    const book = await bookModel.findById(bookId);
-    return success(res, book, 'Cập nhật thông tin sách thành công');
-  } catch (err) {
-    await connection.rollback();
-    console.error('[updateBook]', err);
-    return error(res, err.message || 'Lỗi hệ thống khi cập nhật sách', 500);
-  } finally {
-    connection.release();
-  }
-};
- 
-// DELETE /api/books/:id (admin)
-exports.deleteBook = async (req, res) => {
-  try {
-    const deleted = await bookModel.remove(req.params.id);
-    if (!deleted) return error(res, 'Không tìm thấy cuốn sách yêu cầu xóa', 404);
-    return success(res, null, 'Xóa sách ra khỏi kho thành công');
-  } catch (err) {
-    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-      return error(res, 'Sách này đang được mượn hoặc có lịch sử mượn, không thể xóa', 409);
-    }
-    console.error('[deleteBook]', err);
-    return error(res, 'Lỗi hệ thống khi thực hiện xóa sách', 500);
-  }
-};
 
 
 exports.dashboardStats = async (req, res) => {
