@@ -73,25 +73,6 @@ export default function NotFound() {
           Oops! It seems this page has been checked out and hasn't been returned yet.
           The page you're looking for doesn't exist or has been moved.
         </p>
-
-        {/* Quick Links */}
-        <div className="grid grid-cols-2 gap-3 mb-8 max-w-xs mx-auto text-sm">
-          {[
-            { label: 'Dashboard', path: '/' },
-            { label: 'Book Inventory', path: '/books' },
-            { label: 'Users', path: '/users' },
-            { label: 'Reports', path: '/reports' },
-          ].map(link => (
-            <button
-              key={link.path}
-              onClick={() => navigate(link.path)}
-              className="py-2 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-500/40 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors text-xs"
-            >
-              {link.label}
-            </button>
-          ))}
-        </div>
-
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
