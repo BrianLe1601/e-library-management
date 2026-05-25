@@ -1,25 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
-import AuthLayout from "../../layouts/auth/AuthLayout"; 
-
+import AuthLayout from "../../layouts/auth/AuthLayout";
+import ForgotPasswordModal from "./ForgotPasswordPage";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isLoading, isAuthenticated } = useAuth();
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
-  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   // Điều hướng bảo vệ: Nếu đã đăng nhập thành công, không cho quay lại trang login
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     }
   }, [isLoading, isAuthenticated, navigate]);
 
@@ -29,39 +30,38 @@ export default function LoginPage() {
       [e.target.name]: e.target.value,
     });
     if (error) {
-      setError('');
+      setError("");
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
-      setError('Please enter both email and password');
+      setError("Please enter both email and password");
       return;
     }
     try {
       setLoading(true);
-      setError('');
-      
+      setError("");
+
       const response = await authService.login(formData);
       const { token, user } = response.data.data; // Đọc thông tin user & token từ backend trả về
-      
+
       // Lưu session đăng nhập vào Context toàn cục của hệ thống
       login(token, user);
-      
+
       // LOGIC ĐIỀU HƯỚNG CHUYÊN SÂU THEO VAI TRÒ (ROLE-BASED REDIRECTION)
-      if (user && (user.role === 'admin' || user.role === 'employee')) {
+      if (user && (user.role === "admin" || user.role === "employee")) {
         // Đưa Admin và Nhân viên thư viện thẳng vào Dashboard trang quản trị hệ thống
-        navigate('/admin', { replace: true });
+        navigate("/admin", { replace: true });
       } else {
         // Đưa độc giả thông thường về trang chủ của UserLayout để tìm và mượn sách
-        navigate('/', { replace: true });
+        navigate("/", { replace: true });
       }
-      
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message = error.response?.data?.message || "Login failed";
       setError(message);
-      console.error('Login failed:', error.response?.data || error.message);
+      console.error("Login failed:", error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,9 @@ export default function LoginPage() {
     // BỌC TOÀN BỘ TRONG AUTHLAYOUT
     <>
       <div className="mb-6">
-        <h1 className="text-slate-900 dark:text-white font-bold text-2xl">Welcome back</h1>
+        <h1 className="text-slate-900 dark:text-white font-bold text-2xl">
+          Welcome back
+        </h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Sign in to access your dashboard
         </p>
@@ -94,9 +96,14 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email */}
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-medium">Email Address</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
+            Email Address
+          </label>
           <div className="relative">
-            <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Mail
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
             <input
               type="email"
               name="email"
@@ -113,15 +120,27 @@ export default function LoginPage() {
         {/* Password */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Password</label>
-            <Link to="/forgot-password" className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors">
+            <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              Password
+            </label>
+            {/* <Link to="/forgot-password" className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors">
               Forgot password?
-            </Link>
+            </Link> */}
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
+            >
+              Forgot password?
+            </button>
           </div>
           <div className="relative">
-            <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Lock
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
             <input
-              type={showPass ? 'text' : 'password'}
+              type={showPass ? "text" : "password"}
               name="password"
               required
               autoComplete="current-password"
@@ -132,7 +151,7 @@ export default function LoginPage() {
             />
             <button
               type="button"
-              onClick={() => setShowPass(p => !p)}
+              onClick={() => setShowPass((p) => !p)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
               {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -159,17 +178,22 @@ export default function LoginPage() {
           )}
         </button>
       </form>
-
+          <ForgotPasswordModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
       {/* Divider */}
       <div className="flex items-center gap-3 my-5">
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-        <span className="text-slate-400 text-xs font-medium">or continue with</span>
+        <span className="text-slate-400 text-xs font-medium">
+          or continue with
+        </span>
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
       </div>
 
       {/* Social */}
       <div className="grid grid-cols-2 gap-3">
-        {['Google', 'Facebook'].map(p => (
+        {["Google", "Facebook"].map((p) => (
           <button
             key={p}
             type="button"
@@ -181,10 +205,10 @@ export default function LoginPage() {
       </div>
 
       <p className="text-center text-slate-500 dark:text-slate-400 text-sm mt-6">
-        Don't have an account?{' '}
+        Don't have an account?{" "}
         <button
           type="button"
-          onClick={() => navigate('/register')}
+          onClick={() => navigate("/register")}
           className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors"
         >
           Register here

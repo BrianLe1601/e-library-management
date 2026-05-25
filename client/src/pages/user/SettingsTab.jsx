@@ -39,16 +39,16 @@ export function SettingsTab() {
       if (profileForm.avatar_url !== (user?.avatar_url || "")) payload.avatar_url = profileForm.avatar_url;
 
       if (!Object.keys(payload).length) {
-        setProfileMsg({ type: "info", text: "Không có thay đổi nào để lưu." });
+        setProfileMsg({ type: "info", text: "There are no changes to save." });
         return;
       }
       const { data } = await authService.updateProfile(payload);
       if (data.success) {
         updateUser(data.data);
-        setProfileMsg({ type: "success", text: "Cập nhật thông tin thành công!" });
+        setProfileMsg({ type: "success", text: "Profile updated successfully!" });
       }
     } catch (err) {
-      setProfileMsg({ type: "error", text: err.response?.data?.message || "Cập nhật thất bại." });
+      setProfileMsg({ type: "error", text: err.response?.data?.message || "Failed to update profile." });
     } finally {
       setProfileLoading(false);
       setTimeout(() => setProfileMsg(null), 4000);
@@ -58,7 +58,7 @@ export function SettingsTab() {
   const handlePasswordSave = async (e) => {
     e.preventDefault();
     if (passwordForm.new_password !== passwordForm.confirm) {
-      setPasswordMsg({ type: "error", text: "Mật khẩu xác nhận không khớp." });
+      setPasswordMsg({ type: "error", text: "Confirm password does not match." });
       return;
     }
     setPasswordLoading(true);
@@ -69,11 +69,11 @@ export function SettingsTab() {
         new_password: passwordForm.new_password,
       });
       if (data.success) {
-        setPasswordMsg({ type: "success", text: "Đổi mật khẩu thành công!" });
+        setPasswordMsg({ type: "success", text: "Password changed successfully!" });
         setPasswordForm({ old_password: "", new_password: "", confirm: "" });
       }
     } catch (err) {
-      setPasswordMsg({ type: "error", text: err.response?.data?.message || "Đổi mật khẩu thất bại." });
+      setPasswordMsg({ type: "error", text: err.response?.data?.message || "Failed to change password." });
     } finally {
       setPasswordLoading(false);
       setTimeout(() => setPasswordMsg(null), 4000);
@@ -104,7 +104,7 @@ export function SettingsTab() {
           </div>
         </div>
 
-        <h3 className="text-gray-900 dark:text-gray-100 mb-5 font-semibold">Thông tin cá nhân</h3>
+        <h3 className="text-gray-900 dark:text-gray-100 mb-5 font-semibold">Personal Information</h3>
 
         {profileMsg && (
           <div className={`mb-4 p-3 rounded-xl text-sm flex items-center gap-2 ${
@@ -121,7 +121,7 @@ export function SettingsTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">
-                <User className="w-3.5 h-3.5 inline mr-1.5 text-gray-400" />Họ và tên
+                <User className="w-3.5 h-3.5 inline mr-1.5 text-gray-400" />Full Name
               </label>
               <input
                 type="text"
@@ -143,7 +143,7 @@ export function SettingsTab() {
             </div>
             <div>
               <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">
-                <Phone className="w-3.5 h-3.5 inline mr-1.5 text-gray-400" />Số điện thoại
+                <Phone className="w-3.5 h-3.5 inline mr-1.5 text-gray-400" />Phone Number
               </label>
               <input
                 type="tel"
@@ -154,7 +154,7 @@ export function SettingsTab() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">URL ảnh đại diện</label>
+              <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">Avatar URL</label>
               <input
                 type="url"
                 value={profileForm.avatar_url}
@@ -168,7 +168,7 @@ export function SettingsTab() {
             <button type="submit" disabled={profileLoading}
               className="flex items-center gap-2 px-6 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-sm rounded-xl transition-colors shadow-sm font-semibold">
               {profileLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              Lưu thay đổi
+              Save Changes
             </button>
           </div>
         </form>
@@ -178,7 +178,7 @@ export function SettingsTab() {
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6">
         <h3 className="text-gray-900 dark:text-gray-100 mb-5 flex items-center gap-2 font-semibold">
           <Lock className="w-4 h-4 text-blue-700 dark:text-blue-400" />
-          Đổi mật khẩu
+          Change Password
         </h3>
 
         {passwordMsg && (
@@ -195,13 +195,13 @@ export function SettingsTab() {
         <form onSubmit={handlePasswordSave} className="space-y-4 max-w-md">
           {/* Old password */}
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">Mật khẩu hiện tại</label>
+            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">Current Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 value={passwordForm.old_password}
                 onChange={e => setPasswordForm(p => ({ ...p, old_password: e.target.value }))}
-                placeholder="Nhập mật khẩu hiện tại"
+                placeholder="Enter current password"
                 autoComplete="current-password"
                 className="w-full px-4 py-2.5 pr-11 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
@@ -214,13 +214,13 @@ export function SettingsTab() {
 
           {/* New password */}
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">Mật khẩu mới</label>
+            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">New Password</label>
             <div className="relative">
               <input
                 type={showNewPassword ? "text" : "password"}
                 value={passwordForm.new_password}
                 onChange={e => setPasswordForm(p => ({ ...p, new_password: e.target.value }))}
-                placeholder="Tối thiểu 8 ký tự, 1 chữ hoa, 1 số"
+                placeholder="At least 8 characters, 1 uppercase, 1 number"
                 autoComplete="new-password"
                 className="w-full px-4 py-2.5 pr-11 rounded-xl border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-gray-100 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               />
@@ -240,12 +240,12 @@ export function SettingsTab() {
 
           {/* Confirm */}
           <div>
-            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">Xác nhận mật khẩu mới</label>
+            <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1.5 font-medium">Confirm New Password</label>
             <input
               type="password"
               value={passwordForm.confirm}
               onChange={e => setPasswordForm(p => ({ ...p, confirm: e.target.value }))}
-              placeholder="Nhập lại mật khẩu mới"
+              placeholder="Re-enter new password"
               autoComplete="new-password"
               className={`w-full px-4 py-2.5 rounded-xl border text-sm outline-none transition-all bg-gray-50 dark:bg-slate-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 ${
                 passwordForm.confirm && passwordForm.confirm !== passwordForm.new_password
@@ -254,7 +254,7 @@ export function SettingsTab() {
               }`}
             />
             {passwordForm.confirm && passwordForm.confirm !== passwordForm.new_password && (
-              <p className="text-xs text-red-500 mt-1">Mật khẩu không khớp</p>
+              <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
             )}
           </div>
 
@@ -265,7 +265,7 @@ export function SettingsTab() {
               className="flex items-center gap-2 px-6 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:bg-gray-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-sm rounded-xl transition-colors font-semibold"
             >
               {passwordLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-              Cập nhật mật khẩu
+              Update Password
             </button>
           </div>
         </form>

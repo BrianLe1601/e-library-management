@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom"; // Đã thêm import
 import { BookOpen, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, Check } from "lucide-react";
+import authService from "../../services/authService"; // Đã thêm import
 
 const REQUIREMENTS = [
   { label: "At least 8 characters", test: (pw) => pw.length >= 8 },
   { label: "At least 1 uppercase letter", test: (pw) => /[A-Z]/.test(pw) },
   { label: "At least 1 number", test: (pw) => /\d/.test(pw) },
-  { label: "At least 1 special character", test: (pw) => /[^A-Za-z0-9]/.test(pw) },
 ];
 
 function RequirementRow({ label, met }) {
@@ -44,11 +44,27 @@ export function ResetPasswordPage() {
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
+  const navigate = useNavigate();
+  const location = useLocation();
+  const resetToken = location.state?.resetToken;
+
   const allMet = REQUIREMENTS.every((r) => r.test(password));
   const passwordsMatch = password.length > 0 && confirm === password;
   const canSubmit = allMet && passwordsMatch && !loading;
 
-  function handleSubmit(e) {
+  if (!resetToken) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-center p-5">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Phiên đổi mật khẩu không hợp lệ!</h2>
+          <Link to="/login" className="text-indigo-600 hover:underline">Quay về Đăng nhập</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ĐÃ GỘP 2 HÀM LÀM 1 VÀ XỬ LÝ API THẬT
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) {
       if (!allMet) {
@@ -58,13 +74,22 @@ export function ResetPasswordPage() {
       }
       return;
     }
+    
     setError("");
     setLoading(true);
-    setTimeout(() => {
+    try {
+      // Gọi API gửi Token và mật khẩu mới
+      const res = await authService.resetPassword(resetToken, password);
+      
+      if (res.data?.success) {
+        setDone(true); // Hiển thị màn hình báo thành công màu xanh lá thay vì out ra ngay
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Lỗi hệ thống hoặc phiên hết hạn.");
+    } finally {
       setLoading(false);
-      setDone(true);
-    }, 1300);
-  }
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4 py-12">
@@ -226,7 +251,7 @@ export function ResetPasswordPage() {
 
                 {/* Global error */}
                 {error && (
-                  <p className="mb-4 text-xs text-red-500 dark:text-red-400 text-center">
+                  <p className="mb-4 text-sm font-semibold text-red-500 dark:text-red-400 text-center">
                     {error}
                   </p>
                 )}

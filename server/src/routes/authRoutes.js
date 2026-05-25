@@ -48,6 +48,9 @@ const updateProfileRules = [
 router.post('/auth/register',         registerRules,       validate, authController.register);
 router.post('/auth/login',            loginRules,          validate, authController.login);
 router.post('/auth/verify-otp',       authController.verifyOtp);
+router.post('/auth/forgot-password', authController.forgotPassword);
+router.post('/auth/verify-forgot-otp', authController.verifyForgotOtp);
+router.post('/auth/reset-password', authController.resetPassword);
 
 // ── Protected routes (yêu cầu JWT) ───────────────────────────────────────────
 router.get ('/users/profile',         authenticate, authController.getProfile);

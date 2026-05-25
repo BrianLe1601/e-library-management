@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom"; // Đã xóa useLocation
 import { BookOpen, Users, Clock, CheckCircle2, Moon, Sun } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import bookService from "../../services/bookService";
 
 export default function AuthLayout() {
   const { theme, toggleTheme } = useTheme();
-  
-  const location = useLocation();
-  const isRegister = location.pathname === '/register';
 
   const [systemStats, setSystemStats] = useState({ totalBooks: 0, activeMembers: 0, checkedOutBooks: 0 });
 
@@ -34,28 +31,23 @@ export default function AuthLayout() {
   ], [systemStats]);
 
   return (
-    <div className="relative min-h-screen w-full bg-slate-50 dark:bg-[#070d1b] overflow-hidden flex">
+    // Dùng flex chuẩn để chia đôi màn hình
+    <div className="min-h-screen w-full flex bg-slate-50 dark:bg-[#070d1b]">
       
       {/* ----------------- NỬA TRÁI (BRANDING TRANG TRÍ) ----------------- */}
-      <div 
-        className={`hidden lg:flex flex-col justify-between absolute top-0 left-0 w-1/2 h-full z-20 transition-transform duration-700 ease-in-out bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 p-12
-        ${isRegister ? "translate-x-full" : "translate-x-0"}`}
-      >
-        <div className="absolute inset-0 overflow-hidden">
+      <div className="hidden lg:flex relative w-1/2 flex-col justify-between bg-gradient-to-br from-indigo-900 via-indigo-800 to-purple-900 p-12 overflow-hidden">
+        
+        {/* Đồ họa nền */}
+        <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5" />
           <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-white/5" />
           <div className="absolute top-1/2 left-1/4 w-48 h-48 rounded-full bg-purple-500/10" />
         </div>
-        <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)", backgroundSize: "32px 32px" }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)", backgroundSize: "32px 32px" }} />
         
-        {/* LOGO: Trượt từ góc Trái sang góc Phải */}
+        {/* LOGO */}
         <div className="relative z-10 w-full">
-          <Link 
-            to="/" 
-            className={`inline-flex items-center gap-3 transition-transform duration-700 ease-in-out ${
-              isRegister ? "lg:translate-x-[calc(50vw_-_6rem_-_100%)]" : "lg:translate-x-0"
-            }`}
-          >
+          <Link to="/" className="inline-flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
               <BookOpen size={20} className="text-white" />
             </div>
@@ -66,7 +58,7 @@ export default function AuthLayout() {
           </Link>
         </div>
 
-<div className="relative z-10 space-y-10">
+        <div className="relative z-10 space-y-10">
           {/* ----- PHẦN TIÊU ĐỀ ----- */}
           <div className="relative">
             {/* Vầng sáng nhẹ phía sau chữ */}
@@ -113,35 +105,31 @@ export default function AuthLayout() {
           </div>
         </div>
 
-        {/* COPYRIGHT: Trượt từ góc Trái sang góc Phải */}
+        {/* COPYRIGHT */}
         <div className="relative z-10 w-full">
-          <p 
-            className={`inline-block text-indigo-300 text-xs transition-transform duration-700 ease-in-out ${
-              isRegister ? "lg:translate-x-[calc(50vw_-_6rem_-_100%)]" : "lg:translate-x-0"
-            }`}
-          >
+          <p className="inline-block text-indigo-300 text-xs">
             © 2026 E-Library. All rights reserved.
           </p>
         </div>
       </div>
 
       {/* ----------------- NỬA PHẢI (CHỨA FORM) ----------------- */}
-      <div 
-        className={`absolute top-0 right-0 w-full lg:w-1/2 h-full flex flex-col items-center justify-center p-6 sm:p-12 z-10 transition-transform duration-700 ease-in-out bg-slate-50 dark:bg-[#070d1b]
-        ${isRegister ? "lg:-translate-x-full" : "translate-x-0"}`}
-      >
-        {/* NÚT DARK MODE: Trượt từ góc Phải sang góc Trái */}
+      <div className="w-full lg:w-1/2 relative flex flex-col items-center justify-center p-6 sm:p-12">
+        
+        {/* NÚT DARK MODE: Đặt góc tĩnh */}
         <button 
           onClick={toggleTheme} 
-          className={`absolute top-6 right-6 z-50 p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-700 ease-in-out
-          ${isRegister ? "lg:translate-x-[calc(-50vw_+_3rem_+_100%)]" : "lg:translate-x-0"}`}
+          className="absolute top-6 right-6 z-50 p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
         >
           {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
         <div className="w-full max-w-sm">
+          {/* Logo Mobile */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center"><BookOpen size={16} className="text-white" /></div>
+            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <BookOpen size={16} className="text-white" />
+            </div>
             <span className="text-slate-900 dark:text-white font-semibold">E-Library</span>
           </div>
 
