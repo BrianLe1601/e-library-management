@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckCircle, Bell, Clock, AlertTriangle, BookOpen, RotateCcw } from 'lucide-react';
+import {
+  CheckCircle, Bell, Clock, AlertTriangle, BookOpen,
+  RotateCcw, Package, XCircle, Loader2,
+} from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
 import borrowService from '../../services/borrowService';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
 const avatarColors = [
   'from-indigo-500 to-purple-600',
   'from-emerald-500 to-teal-600',
@@ -13,39 +15,12 @@ const avatarColors = [
   'from-blue-500 to-cyan-600',
 ];
 
-// Calculate days remaining (positive) or days overdue (negative)
-const calcDaysLeft = (dueDateStr) => {
-  const today = new Date(); 
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDateStr);
-  due.setHours(0, 0, 0, 0);
-  return Math.floor((due - today) / (1000 * 60 * 60 * 24));
-};
-
-// Calculate days overdue (always positive)
-const calcDaysOverdue = (dueDateStr) => {
-  const days = calcDaysLeft(dueDateStr);
-  return days < 0 ? Math.abs(days) : 0;
-};
-
-// Get initials for avatar
-const getAvatar = (name = '') => {
-  const parts = name.trim().split(' ');
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-};
-
-// Format currency (VND)
-const formatMoney = (amount) =>
-  amount > 0
-    ? new Intl.NumberFormat('vi-VN').format(amount) + 'đ'
-    : '—';
-
-// Calculate fine from due_date (1,000đ/day, max 50,000đ)
-const calcFine = (dueDateStr) => {
-  const days = calcDaysOverdue(dueDateStr);
-  return Math.min(days * 1000, 50000);
-};
+const calcDaysLeft    = (d) => { const t = new Date(); t.setHours(0,0,0,0); const due = new Date(d); due.setHours(0,0,0,0); return Math.floor((due-t)/86400000); };
+const calcDaysOverdue = (d) => { const n = calcDaysLeft(d); return n < 0 ? Math.abs(n) : 0; };
+const getAvatar       = (name = '') => { const p = name.trim().split(' '); return p.length >= 2 ? (p[0][0]+p[p.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase(); };
+const formatMoney     = (amount) => amount > 0 ? new Intl.NumberFormat('vi-VN').format(amount) + 'đ' : '—';
+const calcFine        = (d) => Math.min(calcDaysOverdue(d) * 1000, 50000);
+const fmtDate         = (d) => d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
 
 // ── Loading skeleton ──────────────────────────────────────────────────────────
 const TableSkeleton = ({ cols = 6 }) => (
@@ -62,7 +37,7 @@ const TableSkeleton = ({ cols = 6 }) => (
   </tbody>
 );
 
-// ── Toast notification ────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 const Toast = ({ message, type = 'success' }) => (
   <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium
     ${type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
@@ -71,22 +46,32 @@ const Toast = ({ message, type = 'success' }) => (
   </div>
 );
 
+// ── User avatar cell ──────────────────────────────────────────────────────────
+const UserCell = ({ name, email, colorIdx }) => (
+  <div className="flex items-center gap-2">
+    <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarColors[colorIdx % avatarColors.length]} flex items-center justify-center text-white text-xs font-semibold shrink-0`}>
+      {getAvatar(name)}
+    </div>
+    <div>
+      <p className="text-slate-700 dark:text-slate-200 text-sm">{name}</p>
+      <p className="text-slate-400 text-xs">{email}</p>
+    </div>
+  </div>
+);
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function BorrowingReturns() {
-  // ── State ──────────────────────────────────────────────────────────────────
   const [allBorrows,  setAllBorrows]  = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [actionId,    setActionId]    = useState(null);
   const [notifiedIds, setNotifiedIds] = useState([]);
   const [toast,       setToast]       = useState(null);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ── Fetch data ─────────────────────────────────────────────────────────────
-  // [SỬA] Bỏ getOverdue() riêng — dùng getAllBorrows() duy nhất, nhất quán hơn
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -102,58 +87,62 @@ export default function BorrowingReturns() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // ── Filter by status ────────────────────────────────────────────────────────
-  const pendingList  = allBorrows.filter(b => b.status === 'pending');
-  const activeList   = allBorrows.filter(b => ['borrowing', 'renewed'].includes(b.status));
-  // [SỬA] overdueList giờ filter từ allBorrows — cùng source, cùng field names
-  const overdueList  = allBorrows.filter(b => b.status === 'overdue');
+  // ── Filtered lists ──────────────────────────────────────────────────────────
+  const pendingList   = allBorrows.filter(b => b.status === 'pending');
+  const activeList    = allBorrows.filter(b => ['borrowing', 'renewed'].includes(b.status));
+  const returningList = allBorrows.filter(b => b.status === 'returning');
+  const overdueList   = allBorrows.filter(b => b.status === 'overdue');
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleApprove = async (id) => {
-    try {
-      await borrowService.approveBorrow(id);
-      showToast('Borrow request approved');
-      fetchData();
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Approval failed', 'error');
-    }
+  const withAction = (id, fn) => async () => {
+    setActionId(id);
+    try { await fn(); fetchData(); }
+    catch (err) { showToast(err.response?.data?.message || 'Action failed', 'error'); }
+    finally { setActionId(null); }
   };
 
-  const handleReject = async (id) => {
-    try {
-      await borrowService.rejectBorrow(id);
-      showToast('Borrow request rejected');
-      fetchData();
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Rejection failed', 'error');
-    }
-  };
+  const handleApprove = (id) => withAction(id, async () => {
+    await borrowService.approveBorrow(id);
+    showToast('Borrow request approved');
+  })();
 
-  const handleConfirmReturn = async (id) => {
-    try {
-      const res = await borrowService.returnBook(id);
-      showToast(res.data?.message || 'Book returned successfully');
-      fetchData();
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Return failed', 'error');
-    }
-  };
+  const handleReject = (id) => withAction(id, async () => {
+    await borrowService.rejectBorrow(id);
+    showToast('Borrow request rejected');
+  })();
 
-  // Notify is UI only — no email API yet
+  const handleConfirmReturn = (id) => withAction(id, async () => {
+    const res = await borrowService.returnBook(id);
+    showToast(res.data?.message || 'Book returned successfully');
+  })();
+
+  const handleMarkLost = (id) => withAction(id, async () => {
+    await borrowService.markLost(id);
+    showToast('Book marked as lost');
+  })();
+
   const handleNotify = (id) => {
     setNotifiedIds(prev => [...prev, id]);
     showToast('Notification sent to user');
     setTimeout(() => setNotifiedIds(prev => prev.filter(i => i !== id)), 3000);
   };
 
-  // ── Tab config ─────────────────────────────────────────────────────────────
+  // ── Tab config ──────────────────────────────────────────────────────────────
   const tabs = [
-    { id: 'pending', label: 'Pending',       count: pendingList.length, color: 'amber'   },
-    { id: 'active',  label: 'Active Borrows', count: activeList.length,  color: 'emerald' },
-    { id: 'overdue', label: 'Overdue',        count: overdueList.length, color: 'red'     },
+    { id: 'pending',   label: 'Pending',          count: pendingList.length,   color: 'amber'  },
+    { id: 'active',    label: 'Active Borrows',    count: activeList.length,    color: 'emerald'},
+    { id: 'returning', label: 'Return Requests',   count: returningList.length, color: 'teal'  },
+    { id: 'overdue',   label: 'Overdue',           count: overdueList.length,   color: 'red'   },
   ];
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const tabColor = (color) => ({
+    amber:   'bg-amber-500/20 text-amber-400',
+    emerald: 'bg-emerald-500/20 text-emerald-400',
+    teal:    'bg-teal-500/20 text-teal-400',
+    red:     'bg-red-500/20 text-red-400',
+  }[color]);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="p-6 space-y-5">
       {toast && <Toast message={toast.message} type={toast.type} />}
@@ -162,17 +151,18 @@ export default function BorrowingReturns() {
       <div>
         <h1 className="text-slate-900 dark:text-white text-xl font-semibold">Borrowing & Returns Management</h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-          Approve borrow requests, confirm returns and track overdue books
+          Approve requests, confirm returns, track overdue and lost books
         </p>
       </div>
 
-      {/* Summary cards — tất cả dùng cùng source */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Pending',       count: pendingList.length,  icon: Clock,         bg: 'bg-amber-500/10',   color: 'text-amber-400',   border: 'border-amber-500/20'   },
-          { label: 'Active Borrows', count: activeList.length,  icon: BookOpen,      bg: 'bg-emerald-500/10', color: 'text-emerald-400', border: 'border-emerald-500/20' },
-          { label: 'Overdue',       count: overdueList.length,  icon: AlertTriangle, bg: 'bg-red-500/10',     color: 'text-red-400',     border: 'border-red-500/20'     },
-        ].map((s) => {
+          { label: 'Pending',          count: pendingList.length,   icon: Clock,         bg: 'bg-amber-500/10',   color: 'text-amber-400',   border: 'border-amber-500/20'   },
+          { label: 'Active Borrows',   count: activeList.length,    icon: BookOpen,      bg: 'bg-emerald-500/10', color: 'text-emerald-400', border: 'border-emerald-500/20' },
+          { label: 'Return Requests',  count: returningList.length, icon: RotateCcw,     bg: 'bg-teal-500/10',    color: 'text-teal-400',    border: 'border-teal-500/20'    },
+          { label: 'Overdue',          count: overdueList.length,   icon: AlertTriangle, bg: 'bg-red-500/10',     color: 'text-red-400',     border: 'border-red-500/20'     },
+        ].map(s => {
           const Icon = s.icon;
           return (
             <div key={s.label} className={`bg-white dark:bg-[#111827] rounded-xl border ${s.border} p-4 flex items-center gap-4`}>
@@ -198,16 +188,14 @@ export default function BorrowingReturns() {
                 data-[state=active]:text-slate-900 dark:data-[state=active]:text-white
                 data-[state=inactive]:text-slate-500 dark:data-[state=inactive]:text-slate-400">
               {tab.label}
-              <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                tab.color === 'amber'   ? 'bg-amber-500/20 text-amber-400'     :
-                tab.color === 'emerald' ? 'bg-emerald-500/20 text-emerald-400' :
-                                          'bg-red-500/20 text-red-400'
-              }`}>{tab.count}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${tabColor(tab.color)}`}>
+                {tab.count}
+              </span>
             </Tabs.Trigger>
           ))}
         </Tabs.List>
 
-        {/* ── Tab: Pending ──────────────────────────────────────────────────── */}
+        {/* ── Pending ───────────────────────────────────────────────────────── */}
         <Tabs.Content value="pending" className="mt-4">
           <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
@@ -227,32 +215,20 @@ export default function BorrowingReturns() {
                   <tbody>
                     {pendingList.map((item, i) => (
                       <tr key={item.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-5 py-3.5">
-                          <span className="font-mono text-xs text-amber-400">#{item.id}</span>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarColors[i % avatarColors.length]} flex items-center justify-center text-white text-xs font-semibold shrink-0`}>
-                              {getAvatar(item.user_name)}
-                            </div>
-                            <div>
-                              <p className="text-slate-700 dark:text-slate-200 text-sm">{item.user_name}</p>
-                              <p className="text-slate-400 text-xs">{item.email}</p>
-                            </div>
-                          </div>
-                        </td>
+                        <td className="px-5 py-3.5"><span className="font-mono text-xs text-amber-400">#{item.id}</span></td>
+                        <td className="px-5 py-3.5"><UserCell name={item.user_name} email={item.email} colorIdx={i} /></td>
                         <td className="px-5 py-3.5 text-slate-700 dark:text-slate-200 text-sm">{item.book_title}</td>
-                        <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{item.borrow_date}</td>
-                        <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{item.due_date}</td>
+                        <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{fmtDate(item.borrow_date)}</td>
+                        <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{fmtDate(item.due_date)}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex gap-2">
-                            <button onClick={() => handleApprove(item.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs">
-                              <CheckCircle size={11} /> Approve
+                            <button onClick={() => handleApprove(item.id)} disabled={actionId === item.id}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs disabled:opacity-50">
+                              {actionId === item.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />} Approve
                             </button>
-                            <button onClick={() => handleReject(item.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs">
-                              ✕ Reject
+                            <button onClick={() => handleReject(item.id)} disabled={actionId === item.id}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs disabled:opacity-50">
+                              <XCircle size={11} /> Reject
                             </button>
                           </div>
                         </td>
@@ -271,12 +247,12 @@ export default function BorrowingReturns() {
           </div>
         </Tabs.Content>
 
-        {/* ── Tab: Active Borrows ───────────────────────────────────────────── */}
+        {/* ── Active Borrows ────────────────────────────────────────────────── */}
         <Tabs.Content value="active" className="mt-4">
           <div className="bg-white dark:bg-[#111827] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-slate-900 dark:text-white font-medium">Currently Borrowed Books</h3>
-              <p className="text-slate-400 text-xs mt-0.5">List of books that have not been returned</p>
+              <p className="text-slate-400 text-xs mt-0.5">Books that have been approved and are currently with users</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -293,37 +269,31 @@ export default function BorrowingReturns() {
                       const daysLeft = calcDaysLeft(item.due_date);
                       return (
                         <tr key={item.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <span className="font-mono text-xs text-emerald-400">#{item.id}</span>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarColors[i % avatarColors.length]} flex items-center justify-center text-white text-xs font-semibold shrink-0`}>
-                                {getAvatar(item.user_name)}
-                              </div>
-                              <div>
-                                <p className="text-slate-700 dark:text-slate-200 text-sm">{item.user_name}</p>
-                                <p className="text-slate-400 text-xs">{item.email}</p>
-                              </div>
-                            </div>
-                          </td>
+                          <td className="px-5 py-3.5"><span className="font-mono text-xs text-emerald-400">#{item.id}</span></td>
+                          <td className="px-5 py-3.5"><UserCell name={item.user_name} email={item.email} colorIdx={i} /></td>
                           <td className="px-5 py-3.5 text-slate-700 dark:text-slate-200 text-sm">{item.book_title}</td>
-                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{item.borrow_date}</td>
-                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{item.due_date}</td>
+                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{fmtDate(item.borrow_date)}</td>
+                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{fmtDate(item.due_date)}</td>
                           <td className="px-5 py-3.5">
-                            <span className={`px-2 py-0.5 rounded-full text-xs ${
-                              daysLeft <= 2 ? 'bg-red-500/10 text-red-400'     :
-                              daysLeft <= 5 ? 'bg-amber-500/10 text-amber-400' :
-                                              'bg-emerald-500/10 text-emerald-400'
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              daysLeft <= 2 ? 'bg-red-500/10 text-red-400'
+                              : daysLeft <= 5 ? 'bg-amber-500/10 text-amber-400'
+                              : 'bg-emerald-500/10 text-emerald-400'
                             }`}>
                               {daysLeft >= 0 ? `${daysLeft} days` : 'Overdue'}
                             </span>
                           </td>
                           <td className="px-5 py-3.5">
-                            <button onClick={() => handleConfirmReturn(item.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 text-xs">
-                              <RotateCcw size={11} /> Confirm Return
-                            </button>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleConfirmReturn(item.id)} disabled={actionId === item.id}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 text-xs disabled:opacity-50">
+                                {actionId === item.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Confirm Return
+                              </button>
+                              <button onClick={() => handleMarkLost(item.id)} disabled={actionId === item.id}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 text-xs disabled:opacity-50">
+                                <Package size={11} /> Mark Lost
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -340,7 +310,67 @@ export default function BorrowingReturns() {
           </div>
         </Tabs.Content>
 
-        {/* ── Tab: Overdue ──────────────────────────────────────────────────── */}
+        {/* ── Return Requests ───────────────────────────────────────────────── */}
+        <Tabs.Content value="returning" className="mt-4">
+          <div className="bg-white dark:bg-[#111827] rounded-xl border border-teal-500/20 overflow-hidden">
+            <div className="px-5 py-4 border-b border-teal-500/10 bg-teal-500/5">
+              <h3 className="text-teal-400 font-medium">Return Requests</h3>
+              <p className="text-teal-400/70 text-xs mt-0.5">Users have requested to return these books — confirm or mark as lost</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-teal-500/5">
+                    {['ID', 'User', 'Book', 'Borrow Date', 'Due Date', 'Fine', 'Actions'].map(h => (
+                      <th key={h} className="text-left text-xs text-slate-400 uppercase tracking-wider px-5 py-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                {loading ? <TableSkeleton cols={7} /> : (
+                  <tbody>
+                    {returningList.map((item, i) => {
+                      const fine = item.fine_amount > 0 ? item.fine_amount : calcFine(item.due_date);
+                      return (
+                        <tr key={item.id} className="border-b border-teal-500/10 hover:bg-teal-500/5 transition-colors">
+                          <td className="px-5 py-3.5"><span className="font-mono text-xs text-teal-400">#{item.id}</span></td>
+                          <td className="px-5 py-3.5"><UserCell name={item.user_name} email={item.email} colorIdx={i} /></td>
+                          <td className="px-5 py-3.5 text-slate-700 dark:text-slate-200 text-sm">{item.book_title}</td>
+                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{fmtDate(item.borrow_date)}</td>
+                          <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 text-sm">{fmtDate(item.due_date)}</td>
+                          <td className="px-5 py-3.5">
+                            {fine > 0
+                              ? <span className="text-red-400 font-semibold text-sm">{formatMoney(fine)}</span>
+                              : <span className="text-slate-400 text-sm">—</span>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex gap-2">
+                              <button onClick={() => handleConfirmReturn(item.id)} disabled={actionId === item.id}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs disabled:opacity-50">
+                                {actionId === item.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />} Confirm Return
+                              </button>
+                              <button onClick={() => handleMarkLost(item.id)} disabled={actionId === item.id}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 text-xs disabled:opacity-50">
+                                <Package size={11} /> Mark Lost
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {returningList.length === 0 && (
+                      <tr><td colSpan={7} className="text-center py-12">
+                        <RotateCcw size={32} className="mx-auto mb-2 text-teal-400 opacity-60" />
+                        <p className="text-slate-400 text-sm">No return requests at the moment.</p>
+                      </td></tr>
+                    )}
+                  </tbody>
+                )}
+              </table>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        {/* ── Overdue ───────────────────────────────────────────────────────── */}
         <Tabs.Content value="overdue" className="mt-4">
           {!loading && overdueList.length > 0 && (
             <div className="mb-3 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 w-fit">
@@ -353,7 +383,7 @@ export default function BorrowingReturns() {
           <div className="bg-white dark:bg-[#111827] rounded-xl border border-red-500/20 overflow-hidden">
             <div className="px-5 py-4 border-b border-red-500/10 bg-red-500/5">
               <h3 className="text-red-400 font-medium">Overdue Records</h3>
-              <p className="text-red-400/70 text-xs mt-0.5">These books are past their due date with accumulated fines</p>
+              <p className="text-red-400/70 text-xs mt-0.5">These books are past their due date — confirm return or mark as lost</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -369,45 +399,30 @@ export default function BorrowingReturns() {
                     {overdueList.map((item, i) => {
                       const notified    = notifiedIds.includes(item.id);
                       const daysOverdue = calcDaysOverdue(item.due_date);
-                      // [SỬA] Ưu tiên fine_amount từ DB, fallback tính lại nếu chưa có
-                      const fine        = item.fine_amount > 0
-                        ? item.fine_amount
-                        : calcFine(item.due_date);
+                      const fine        = item.fine_amount > 0 ? item.fine_amount : calcFine(item.due_date);
                       return (
                         <tr key={item.id} className="border-b border-red-500/10 bg-red-500/5 hover:bg-red-500/10 transition-colors">
-                          <td className="px-5 py-3.5">
-                            <span className="font-mono text-xs text-red-400">#{item.id}</span>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarColors[i % avatarColors.length]} flex items-center justify-center text-white text-xs font-semibold shrink-0`}>
-                                {getAvatar(item.user_name)}
-                              </div>
-                              <div>
-                                {/* [SỬA] Dùng user_name thay vì full_name — đúng với allBorrows response */}
-                                <p className="text-slate-700 dark:text-slate-200 text-sm">{item.user_name}</p>
-                                <p className="text-slate-400 text-xs">{item.email}</p>
-                              </div>
-                            </div>
-                          </td>
-                          {/* [SỬA] Dùng book_title thay vì title — đúng với allBorrows response */}
+                          <td className="px-5 py-3.5"><span className="font-mono text-xs text-red-400">#{item.id}</span></td>
+                          <td className="px-5 py-3.5"><UserCell name={item.user_name} email={item.email} colorIdx={i} /></td>
                           <td className="px-5 py-3.5 text-slate-700 dark:text-slate-200 text-sm">{item.book_title}</td>
-                          <td className="px-5 py-3.5 text-red-400 text-sm">{item.due_date}</td>
+                          <td className="px-5 py-3.5 text-red-400 text-sm">{fmtDate(item.due_date)}</td>
                           <td className="px-5 py-3.5">
                             <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 text-xs font-semibold">
                               {daysOverdue} days
                             </span>
                           </td>
                           <td className="px-5 py-3.5">
-                            <span className="text-red-400 font-semibold text-sm">
-                              {formatMoney(fine)}
-                            </span>
+                            <span className="text-red-400 font-semibold text-sm">{formatMoney(fine)}</span>
                           </td>
                           <td className="px-5 py-3.5">
-                            <div className="flex gap-2">
-                              <button onClick={() => handleConfirmReturn(item.id)}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs">
-                                <CheckCircle size={11} /> Return
+                            <div className="flex gap-2 flex-wrap">
+                              <button onClick={() => handleConfirmReturn(item.id)} disabled={actionId === item.id}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs disabled:opacity-50">
+                                {actionId === item.id ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />} Return
+                              </button>
+                              <button onClick={() => handleMarkLost(item.id)} disabled={actionId === item.id}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 text-xs disabled:opacity-50">
+                                <Package size={11} /> Mark Lost
                               </button>
                               <button onClick={() => handleNotify(item.id)} disabled={notified}
                                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all ${
@@ -436,10 +451,8 @@ export default function BorrowingReturns() {
               <div className="px-5 py-3 border-t border-red-500/10 bg-red-500/5 flex items-center justify-between">
                 <span className="text-xs text-slate-400">Total accumulated fines</span>
                 <span className="text-red-400 font-semibold">
-                  {/* [SỬA] Tính tổng từ fine_amount trong DB, fallback calcFine */}
                   {formatMoney(overdueList.reduce((sum, item) => {
-                    const fine = item.fine_amount > 0 ? item.fine_amount : calcFine(item.due_date);
-                    return sum + fine;
+                    return sum + (item.fine_amount > 0 ? item.fine_amount : calcFine(item.due_date));
                   }, 0))}
                 </span>
               </div>

@@ -195,14 +195,14 @@ exports.requestReturn = async (req, res) => {
 // PATCH /api/borrows/lost/:id — Admin/Employee đánh dấu mất sách
 exports.markLost = async (req, res) => {
   try {
-    const borrow = await BorrowModel.findById(req.params.id);
+    const borrow = await borrowModel.findById(req.params.id);
     if (!borrow)
       return error(res, 'Borrow record not found', 404);
 
     if (borrow.status === 'returned' || borrow.status === 'lost')
       return error(res, 'Book is already returned or marked as lost', 400);
 
-    await BorrowModel.markLost(req.params.id, req.user.id);
+    await borrowModel.markLost(req.params.id, req.user.id);
     return success(res, null, 'Book marked as lost. Copy count updated.');
   } catch (err) {
     console.error('[markLost]', err);
