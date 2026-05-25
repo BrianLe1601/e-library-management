@@ -36,9 +36,7 @@ export default function UserManagement() {
     try {
       setLoading(true);
       const response = await getUsers();
-      console.log("Fetched users:", response.data);
       const serverData = response.data.data;
-      console.log("Server data:", serverData);
       if(Array.isArray(serverData)){
         setUsers(serverData);
       } else{
