@@ -32,16 +32,6 @@ const bookService = {
 
   /** Thống kê công khai cho trang chủ (không cần đăng nhập) */
   getPublicStats: () => api.get("/books/stats"),
-  
-  // ── Admin ─────────────────────────────────────────────────────────────────
-  /** Thêm mới sách */
-  createBook: (data) => api.post("/books", data),
-
-  /** Cập nhật sách */
-  updateBook: (id, data) => api.put(`/books/${id}`, data),
-
-  /** Xóa sách */
-  deleteBook: (id) => api.delete(`/books/${id}`),
 };
 
 export default bookService;
