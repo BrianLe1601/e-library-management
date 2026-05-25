@@ -24,6 +24,12 @@ const authService = {
    */
   login: (data) => api.post("/auth/login", data),
 
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
+  
+  verifyForgotOtp: (email, otp) => api.post("/auth/verify-forgot-otp", { email, otp }),
+  
+  resetPassword: (token, newPassword) => api.post("/auth/reset-password", { token, newPassword }),
+
   // ── User Profile ────────────────────────────────────────────────────────────
 
   /**
@@ -48,7 +54,7 @@ const authService = {
    * Verify OTP sent to email after registration
    * @param {{ email, otpCode }} data
    */
-  verifyOtp: (data) => api.post("/auth/verify-otp", data),
+  verifyOtp: (email, otpCode) => api.post("/auth/verify-otp", { email, otpCode }),
 };
 
 export default authService;
