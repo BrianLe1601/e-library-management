@@ -1,362 +1,509 @@
-﻿import { useState } from "react";
+﻿import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Clock,
-  CheckCircle,
-  BookOpen,
-  AlertTriangle,
-  Info,
-  Trash2,
-  Archive,
-  BellOff,
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
+  Clock, CheckCircle, BookOpen, AlertTriangle, Info, Trash2,
+  Archive, BellOff, ChevronLeft, ChevronRight, RotateCcw, Check,
+  Plus, X, Search, CheckSquare, Square, Loader2
 } from "lucide-react";
-import { mockNotifications } from "../../components/NotificationPopover";
+import ComposeModal from "../../components/admin/ComposeModal";
+import NotificationDetail from "../../components/admin/NotificationDetail";
+import {
+  getNotifications, markNotificationRead, markAllNotificationsRead,
+  archiveNotificationApi, restoreNotificationApi, deleteNotificationApi,
+  bulkActionNotificationsApi, createNotificationApi, getUsers
+} from "../../services/adminService";
 
 const filterLabels = [
-  { key: "all", label: "All" },
-  { key: "unread", label: "Unread" },
+  { key: "all",     label: "All" },
+  { key: "unread",  label: "Unread" },
   { key: "overdue", label: "Overdue" },
-  { key: "system", label: "System" },
+  { key: "system",  label: "System" },
 ];
 
 const notifIcon = {
-  overdue: { icon: Clock, color: "text-red-500", label: "Overdue" },
-  approved: { icon: CheckCircle, color: "text-emerald-500", label: "Approved" },
-  returned: { icon: BookOpen, color: "text-sky-500", label: "Returned" },
-  fine: { icon: AlertTriangle, color: "text-amber-500", label: "Fine" },
-  system: { icon: Info, color: "text-slate-500", label: "System" },
+  overdue:  { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",       label: "Overdue" },
+  approved: { icon: CheckCircle,   color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", label: "Approved" },
+  returned: { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",       label: "Returned" },
+  fine:     { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20",   label: "Fine" },
+  system:   { icon: Info,          color: "text-slate-500",   bg: "bg-slate-50 dark:bg-slate-950/20",   label: "System" },
 };
-
-const typeBadge = {
-  overdue: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
-  approved: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-  returned: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-slate-300",
-  fine: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
-  system: "bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400",
-};
-
-const extraNotifications = [
-  {
-    id: "6",
-    type: "overdue",
-    message: 'Book "Tắt Đèn" is overdue by 5 days. Fine accumulating at $0.50/day.',
-    time: "3 days ago",
-    read: false,
-  },
-  {
-    id: "7",
-    type: "approved",
-    message: 'Borrow request for "Nhật Ký Trong Tù" approved for user Hà Linh.',
-    time: "3 days ago",
-    read: true,
-  },
-  {
-    id: "8",
-    type: "fine",
-    message: 'Fine of $12.00 issued to user Văn Toàn.',
-    time: "4 days ago",
-    read: true,
-  },
-  {
-    id: "9",
-    type: "system",
-    message: "Scheduled maintenance completed. Database reindexed successfully.",
-    time: "5 days ago",
-    read: true,
-  },
-  {
-    id: "10",
-    type: "returned",
-    message: 'User Ngọc Bảo returned "Truyện Kiều" one day early.',
-    time: "6 days ago",
-    read: true,
-  },
-];
-
-const initialNotifications = [...mockNotifications, ...extraNotifications];
-const ITEMS_PER_PAGE = 5;
-
-function applyFilter(items, filter) {
-  switch (filter) {
-    case "unread":
-      return items.filter((item) => !item.read);
-    case "overdue":
-      return items.filter((item) => item.type === "overdue" || item.type === "fine");
-    case "system":
-      return items.filter((item) => item.type === "system");
-    default:
-      return items;
-  }
-}
 
 export default function NotificationsPage() {
-  const [viewMode, setViewMode] = useState("active");
-  const [filter, setFilter] = useState("all");
-  const [notifications, setNotifications] = useState(initialNotifications);
-  const [archivedNotifications, setArchivedNotifications] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [toastMessage, setToastMessage] = useState("");
+  const [notifications, setNotifications]   = useState([]);
+  const [stats, setStats]                   = useState({ unreadCount: 0, activeCount: 0, archivedCount: 0 });
+  const [loading, setLoading]               = useState(true);
 
-  const activeList = applyFilter(notifications, filter);
-  const archivedList = applyFilter(archivedNotifications, filter);
-  const currentList = viewMode === "archived" ? archivedList : activeList;
-  const pageCount = Math.max(1, Math.ceil(currentList.length / ITEMS_PER_PAGE));
-  const activePage = Math.min(currentPage, pageCount);
-  const pageItems = currentList.slice((activePage - 1) * ITEMS_PER_PAGE, activePage * ITEMS_PER_PAGE);
+  const [filter, setFilter]                 = useState("all");
+  const [viewMode, setViewMode]             = useState("active");
+  const [searchQuery, setSearchQuery]       = useState("");
 
-  const unreadCount = notifications.filter((item) => !item.read).length;
-  const activeCount = notifications.length;
-  const archivedCount = archivedNotifications.length;
+  const [page, setPage]                     = useState(1);
+  const [totalPages, setTotalPages]         = useState(1);
+  const limit                               = 10;
 
-  function showToast(message) {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage(""), 2500);
-  }
+  const [selectedNotifId, setSelectedNotifId] = useState(null);
+  const [selectedIds, setSelectedIds]         = useState([]);
 
-  function updatePage(page) {
-    setCurrentPage(page);
-  }
+  const [isModalOpen, setIsModalOpen]       = useState(false);
+  const [userList, setUserList]             = useState([]);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
-  function setMode(mode) {
-    setViewMode(mode);
-    setFilter("all");
-    setCurrentPage(1);
-  }
+  const [toastMessage, setToastMessage]     = useState("");
+  const toastTimeoutRef                     = useRef(null);
 
-  function markAllRead() {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    showToast("All notifications marked as read.");
-  }
+  // ─── Fetch ────────────────────────────────────────────────────────────────
+  // [FIX] useCallback để tránh tạo lại hàm mỗi render và dùng được trong useEffect
+  const fetchNotifications = useCallback(async (overridePage) => {
+    try {
+      setLoading(true);
+      const res = await getNotifications({
+        page:        overridePage ?? page,
+        limit,
+        filter:      filter === "all" ? "" : filter,
+        is_archived: viewMode === "archived" ? 1 : 0,
+        // [FIX] search: trước đây dùng tên field "search" nhưng không truyền vào hàm
+        search:      searchQuery,
+        viewMode,   // giữ lại để backend nhận viewMode
+      });
 
-  function markRead(id) {
-    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-  }
+      if (res.data?.success) {
+        const notifArray = res.data.data.data       || [];
+        const newStats   = res.data.data.stats      || { unreadCount: 0, activeCount: 0, archivedCount: 0 };
+        const newTotal   = res.data.data.totalPages || 1;
 
-  function archiveNotification(id) {
-    setNotifications((prev) => {
-      const archivedItem = prev.find((item) => item.id === id);
-      if (!archivedItem) return prev;
-      setArchivedNotifications((prevArchived) => [archivedItem, ...prevArchived]);
-      return prev.filter((item) => item.id !== id);
-    });
-    showToast("Notification archived.");
-  }
+        setNotifications(notifArray);
+        setStats(newStats);
+        setTotalPages(newTotal);
 
-  function restoreNotification(id) {
-    setArchivedNotifications((prev) => {
-      const restoredItem = prev.find((item) => item.id === id);
-      if (!restoredItem) return prev;
-      setNotifications((prevNotifications) => [restoredItem, ...prevNotifications]);
-      return prev.filter((item) => item.id !== id);
-    });
-    showToast("Notification restored.");
-  }
-
-  function deleteNotification(id) {
-    if (viewMode === "archived") {
-      setArchivedNotifications((prev) => prev.filter((item) => item.id !== id));
-      showToast("Archived notification deleted.");
-      return;
+        // [FIX] Chọn item đầu tiên nếu item đang chọn không còn trong danh sách mới
+        setSelectedNotifId((prev) => {
+          const stillExists = notifArray.some((n) => n.id === prev);
+          if (notifArray.length === 0) return null;
+          if (!prev || !stillExists) return notifArray[0].id;
+          return prev;
+        });
+      }
+    } catch (err) {
+      console.error('[fetchNotifications]', err);
+    } finally {
+      setLoading(false);
     }
-    setNotifications((prev) => prev.filter((item) => item.id !== id));
-    showToast("Notification deleted.");
-  }
+  }, [page, filter, viewMode, searchQuery]);
 
+  // Chạy lại khi đổi tab/filter/trang
+  useEffect(() => {
+    fetchNotifications();
+    setSelectedIds([]);
+  }, [page, filter, viewMode]);
+
+  // Debounce search — reset về trang 1 khi search thay đổi
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchNotifications(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Lazy load danh sách user khi mở modal
+  useEffect(() => {
+    if (isModalOpen && userList.length === 0) {
+      getUsers({ page: 1, limit: 100 })
+        .then((res) => {
+          if (res.data?.success) setUserList(res.data.data.users || []);
+        })
+        .catch(console.error);
+    }
+  }, [isModalOpen]);
+
+  // ─── Toast ────────────────────────────────────────────────────────────────
+  const showToast = (message) => {
+    setToastMessage(message);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToastMessage(""), 2500);
+  };
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────
+  const handleSelectNotif = async (id) => {
+    setSelectedNotifId(id);
+    const target = notifications.find((n) => n.id === id);
+    if (target && !target.is_read) {
+      try {
+        await markNotificationRead(id);
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n)));
+        setStats((prev) => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+      setStats((prev) => ({ ...prev, unreadCount: 0 }));
+      showToast("Tất cả thông báo đã được đánh dấu đã đọc");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleArchive = async (id) => {
+    try {
+      await archiveNotificationApi(id);
+      showToast("Đã lưu trữ thông báo");
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRestore = async (id) => {
+    try {
+      await restoreNotificationApi(id);
+      showToast("Đã khôi phục thông báo");
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await deleteNotificationApi(id);
+      showToast("Đã xóa vĩnh viễn");
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleBulkAction = async (action) => {
+    if (selectedIds.length === 0) return;
+    try {
+      await bulkActionNotificationsApi(action, selectedIds);
+      showToast(`Đã xử lý ${selectedIds.length} mục`);
+      setSelectedIds([]);
+      fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDispatchAlert = async (formData, resetForm) => {
+    if (!formData.title || !formData.message) return;
+    try {
+      setIsSubmittingForm(true);
+      const payload = { ...formData };
+      if (payload.scope === "all") payload.user_id = null;
+      if (!payload.borrow_id) payload.borrow_id = null;
+      if (!payload.book_id)   payload.book_id   = null;
+
+      await createNotificationApi(payload);
+      showToast("Gửi thông báo thành công!");
+      setIsModalOpen(false);
+      resetForm();
+      // [FIX] Sau khi tạo thông báo mới, quay về trang 1 của Inbox để thấy ngay
+      setViewMode("active");
+      setFilter("all");
+      setPage(1);
+      fetchNotifications(1);
+    } catch (err) {
+      console.error(err);
+      showToast("Lỗi khi gửi thông báo");
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  };
+
+  // Chọn/bỏ tất cả
+  const handleToggleSelectAll = () => {
+    setSelectedIds(
+      selectedIds.length === notifications.length && notifications.length > 0
+        ? []
+        : notifications.map((n) => n.id)
+    );
+  };
+
+  const allSelected = selectedIds.length === notifications.length && notifications.length > 0;
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-full bg-slate-50 dark:bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        {toastMessage && (
-          <div className="fixed right-6 top-6 z-50 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-2xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-            <p className="text-sm font-medium">{toastMessage}</p>
-          </div>
-        )}
+    <div className="flex flex-col gap-6 p-4 md:p-6 bg-slate-50/50 dark:bg-[#060a13] min-h-screen text-slate-900 dark:text-slate-100">
 
-        <header className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-600 dark:text-indigo-300">Admin notifications</p>
-              <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Alerts and archive</h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Active notifications are shown here. Archived items stay in the local archive state and can be reviewed in the archived tab.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:auto-cols-min sm:grid-flow-col">
-              <div className="rounded-3xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {unreadCount} unread
-              </div>
-              <div className="rounded-3xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {activeCount} active
-              </div>
-              <div className="rounded-3xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {archivedCount} archived
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setMode("active")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  viewMode === "active"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => setMode("archived")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  viewMode === "archived"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                Archived
-              </button>
-            </div>
-            <button
-              onClick={markAllRead}
-              className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              Mark all read
-            </button>
-          </div>
+      {/* Toast */}
+      <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 shadow-2xl transition-all duration-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 ${toastMessage ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0 pointer-events-none"}`}>
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Check size={14} strokeWidth={3} />
         </div>
+        <p className="text-sm font-medium">{toastMessage}</p>
+      </div>
 
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-wrap gap-2">
-            {filterLabels.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => {
-                  setFilter(item.key);
-                  setCurrentPage(1);
-                }}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  filter === item.key
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            System Alerts & Notifications
+            {stats.unreadCount > 0 && (
+              <span className="text-xs font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full animate-pulse">
+                {stats.unreadCount} New
+              </span>
+            )}
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">Broadcast system alerts or manage library user notifications.</p>
         </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/20 transition-all"
+        >
+          <Plus size={16} /> <span>Dispatch Alert</span>
+        </button>
+      </div>
 
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                {viewMode === "archived" ? "Archived notifications" : "Active notifications"}
-              </p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                {currentList.length} items — page {activePage} of {pageCount}
-              </p>
+      {/* Tabs: Inbox / Archived */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+        {[
+          { key: "active",   label: "Inbox",    count: stats.activeCount },
+          { key: "archived", label: "Archived", count: stats.archivedCount },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => { setViewMode(tab.key); setPage(1); setSelectedIds([]); }}
+            className={`pb-3 text-xs font-black transition-all relative px-2 ${
+              viewMode === tab.key
+                ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400"
+                : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            }`}
+          >
+            {tab.label} ({tab.count || 0})
+          </button>
+        ))}
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        {/* Left panel — danh sách */}
+        <div className="lg:col-span-5 flex flex-col gap-4">
+
+          {/* Search + Filter */}
+          <div className="flex flex-col gap-3 p-4 bg-white dark:bg-[#090f1c] rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search alert topics..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => updatePage(Math.max(1, activePage - 1))}
-                disabled={activePage <= 1}
-                className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                onClick={() => updatePage(Math.min(pageCount, activePage + 1))}
-                disabled={activePage >= pageCount}
-                className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <ChevronRight size={16} />
-              </button>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {filterLabels.map((lbl) => (
+                <button
+                  key={lbl.key}
+                  onClick={() => { setFilter(lbl.key); setPage(1); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                    filter === lbl.key
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-slate-50 dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+                  }`}
+                >
+                  {lbl.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {pageItems.length === 0 ? (
-            <div className="mt-8 rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-              <BellOff className="mx-auto mb-4 h-10 w-10" />
-              <p className="text-lg font-semibold">No notifications found</p>
-              <p className="mt-2 text-sm">Try a different filter or switch to the other tab.</p>
+          {/* List */}
+          <div className="bg-white dark:bg-[#090f1c] rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-sm overflow-hidden flex flex-col">
+
+            {/* Toolbar: Select All + Mark All Read */}
+            <div className="hidden md:flex items-center justify-between p-3 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-[#0b1222]">
+              <button
+                onClick={handleToggleSelectAll}
+                className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+              >
+                {allSelected
+                  ? <CheckSquare size={16} className="text-indigo-600" />
+                  : <Square size={16} />}
+                <span>Select All</span>
+              </button>
+              {viewMode === "active" && stats.unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 px-2 py-1 rounded-md transition-colors"
+                >
+                  <Check size={14} /> Mark all read
+                </button>
+              )}
             </div>
-          ) : (
-            <div className="space-y-4 mt-6">
-              {pageItems.map((item) => {
-                const meta = notifIcon[item.type] || notifIcon.system;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => viewMode === "active" && markRead(item.id)}
-                    className={`group flex items-start justify-between gap-4 rounded-[1.5rem] border px-5 py-4 transition cursor-pointer ${
-                      item.read
-                        ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
-                        : "bg-indigo-50/70 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-3xl border ${item.read ? "border-slate-200 dark:border-slate-700" : "border-indigo-200 dark:border-indigo-700"}`}>
-                        <meta.icon className={meta.color} size={18} />
+
+            {/* Items */}
+            <div className="divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[500px] overflow-y-auto">
+              {loading ? (
+                <div className="py-20 flex items-center justify-center">
+                  <Loader2 size={24} className="animate-spin text-indigo-500" />
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-2 text-slate-400">
+                  <BellOff size={28} className="stroke-1 text-slate-300 dark:text-slate-700" />
+                  <span className="text-xs font-medium">No notifications found</span>
+                </div>
+              ) : (
+                notifications.map((item) => {
+                  const Config     = notifIcon[item.type] || notifIcon.system;
+                  const isSelected = selectedNotifId === item.id;
+                  const isChecked  = selectedIds.includes(item.id);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleSelectNotif(item.id)}
+                      className={`flex items-start gap-3 p-3.5 cursor-pointer transition-all hover:bg-slate-50/80 dark:hover:bg-[#0d1629] ${
+                        isSelected ? "bg-indigo-50/40 dark:bg-indigo-950/10 border-l-4 border-indigo-600" : "border-l-4 border-transparent"
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div
+                        className="hidden md:block mt-0.5 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedIds((p) =>
+                            p.includes(item.id) ? p.filter((i) => i !== item.id) : [...p, item.id]
+                          );
+                        }}
+                      >
+                        <button className="text-slate-400 hover:text-indigo-600 transition-colors">
+                          {isChecked
+                            ? <CheckSquare size={16} className="text-indigo-600" />
+                            : <Square size={16} />}
+                        </button>
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${typeBadge[item.type]}`}>
-                            {meta.label}
+
+                      {/* Icon */}
+                      <div className={`p-2 rounded-xl shrink-0 ${Config.bg} ${Config.color}`}>
+                        <Config.icon size={16} />
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-slate-400 font-medium">
+                            {new Date(item.created_at).toLocaleDateString()}
                           </span>
-                          {!item.read && viewMode === "active" && (
-                            <span className="rounded-full bg-indigo-600 px-2 py-1 text-[11px] font-semibold text-white">New</span>
+                          {/* [FIX] Unread dot: dùng !! để tránh lỗi khi is_read là số 0/1 từ MySQL */}
+                          {!item.is_read && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 shrink-0" />
                           )}
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{item.message}</p>
-                        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">{item.time}</p>
+                        <h4 className={`text-xs truncate text-slate-900 dark:text-white ${!item.is_read ? "font-black" : "font-medium"}`}>
+                          {item.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                          {item.message}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
-                      {viewMode === "archived" ? (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            restoreNotification(item.id);
-                          }}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
-                          title="Restore"
-                        >
-                          <RotateCcw size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            archiveNotification(item.id);
-                          }}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
-                          title="Archive"
-                        >
-                          <Archive size={16} />
-                        </button>
-                      )}
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteNotification(item.id);
-                        }}
-                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
-          )}
+
+            {/* Mark all read — mobile */}
+            {viewMode === "active" && stats.unreadCount > 0 && (
+              <div className="md:hidden p-2 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/30 dark:bg-[#0a1120]">
+                <button
+                  onClick={handleMarkAllRead}
+                  className="w-full py-2 px-3 flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20"
+                >
+                  <Check size={14} /> Mark all read
+                </button>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between p-3 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-[#0b1222]">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-[11px] font-bold text-slate-500">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 disabled:opacity-40"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right panel — chi tiết */}
+        <div className="lg:col-span-7">
+          <NotificationDetail
+            selectedNotif={notifications.find((n) => n.id === selectedNotifId)}
+            viewMode={viewMode}
+            onArchive={handleArchive}
+            onRestore={handleRestore}
+            onDelete={handleDelete}
+          />
         </div>
       </div>
+
+      {/* Bulk toolbar (desktop) */}
+      {selectedIds.length > 0 && (
+        <div className="hidden md:flex fixed bottom-8 left-1/2 -translate-x-1/2 z-50 items-center gap-4 rounded-full bg-slate-900 dark:bg-white px-6 py-3.5 text-white dark:text-slate-900 shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
+          <span className="text-xs font-black bg-white/20 dark:bg-slate-950/10 px-3 py-1 rounded-full">
+            {selectedIds.length} selected
+          </span>
+          <div className="h-5 w-[1px] bg-slate-700 dark:bg-slate-300" />
+          {viewMode === "active" ? (
+            <button
+              onClick={() => handleBulkAction("archive")}
+              className="flex items-center gap-1.5 text-xs font-bold hover:text-indigo-400 transition-colors"
+            >
+              <Archive size={14} /> Archive
+            </button>
+          ) : (
+            // [FIX] action='restore' — trước đây không được xử lý ở backend
+            <button
+              onClick={() => handleBulkAction("restore")}
+              className="flex items-center gap-1.5 text-xs font-bold hover:text-indigo-400 transition-colors"
+            >
+              <RotateCcw size={14} /> Restore
+            </button>
+          )}
+          <button
+            onClick={() => handleBulkAction("delete")}
+            className="flex items-center gap-1.5 text-xs font-bold hover:text-red-400 transition-colors"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+          <button
+            onClick={() => setSelectedIds([])}
+            className="p-1 rounded-full hover:bg-slate-800 dark:hover:bg-slate-200 ml-2"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      <ComposeModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        userList={userList}
+        onSubmit={handleDispatchAlert}
+        isSubmitting={isSubmittingForm}
+      />
     </div>
   );
 }

@@ -23,6 +23,7 @@ const reportModel  = require('../models/reportModel');
 const userModel    = require('../models/userModel');
 const bookModel    = require('../models/bookModel');
 const borrowCtrl   = require('./borrowController');
+const notificationModel = require('../models/notificationModel');
 const bcrypt = require('bcrypt');
 const { success, error, paginated } = require('../utils/response');
 
@@ -362,6 +363,146 @@ exports.exportReport = async (req, res) => {
   } catch (err) {
     console.error('[exportReport]', err);
     return error(res, 'System Error while exporting report', 500);
+  }
+};
+
+
+// ─────────────────────────────── NOTIFICATIONS ───────────────────────────────
+ 
+/**
+ * GET /api/admin/notifications
+ * [FIX] Nhận đầy đủ params: page, limit, search — trước đây không truyền xuống model
+ *       nên phân trang và search hoàn toàn không hoạt động dù frontend đã gửi đúng
+ */
+exports.getNotifications = async (req, res) => {
+  try {
+    const {
+      filter    = 'all',
+      viewMode  = 'active',
+      page      = 1,
+      limit     = 10,
+      search    = '',
+    } = req.query;
+ 
+    const is_archived = viewMode === 'archived' ? 1 : 0;
+ 
+    const { rows, total } = await notificationModel.findAll({
+      filter,
+      is_archived,
+      page:   Number(page),
+      limit:  Number(limit),
+      search,
+    });
+ 
+    const stats      = await notificationModel.getStats();
+    const totalPages = Math.ceil(total / Number(limit)) || 1;
+ 
+    // [FIX] Trả về đúng cấu trúc mà frontend kỳ vọng:
+    //   res.data.data.data        → mảng notifications
+    //   res.data.data.stats       → badge counts
+    //   res.data.data.totalPages  → số trang
+    return success(res, { data: rows, stats, totalPages }, 'Notifications fetched successfully');
+  } catch (err) {
+    console.error('[getNotifications]', err);
+    return error(res, 'System Error while fetching notifications', 500);
+  }
+};
+ 
+exports.markNotificationRead = async (req, res) => {
+  try {
+    await notificationModel.markRead(req.params.id);
+    return success(res, null, 'Notification marked as read successfully');
+  } catch (err) {
+    return error(res, 'System Error while marking notification as read', 500);
+  }
+};
+ 
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    await notificationModel.markAllRead();
+    return success(res, null, 'All notifications marked as read successfully');
+  } catch (err) {
+    return error(res, 'System Error while marking all notifications as read', 500);
+  }
+};
+ 
+exports.archiveNotification = async (req, res) => {
+  try {
+    await notificationModel.archive(req.params.id);
+    return success(res, null, 'Notification archived successfully');
+  } catch (err) {
+    return error(res, 'System Error while archiving notification', 500);
+  }
+};
+ 
+exports.restoreNotification = async (req, res) => {
+  try {
+    await notificationModel.restore(req.params.id);
+    return success(res, null, 'Notification restored successfully');
+  } catch (err) {
+    return error(res, 'System Error while restoring notification', 500);
+  }
+};
+ 
+exports.deleteNotification = async (req, res) => {
+  try {
+    await notificationModel.remove(req.params.id);
+    return success(res, null, 'Notification deleted successfully');
+  } catch (err) {
+    return error(res, 'System Error while deleting notification', 500);
+  }
+};
+ 
+/**
+ * POST /api/admin/notifications/bulk
+ * [FIX] Thêm xử lý action='restore' — trước đây chỉ có archive/delete,
+ *       khiến nút "Restore" trong bulk toolbar của tab Archived không làm gì cả
+ */
+exports.bulkActionNotifications = async (req, res) => {
+  try {
+    const { action, ids } = req.body;
+    if (!ids || ids.length === 0) return error(res, 'No items selected', 400);
+ 
+    if (action === 'archive') {
+      await notificationModel.bulkArchive(ids);
+      return success(res, null, 'Notifications archived successfully');
+    }
+    if (action === 'restore') {
+      await notificationModel.bulkRestore(ids);
+      return success(res, null, 'Notifications restored successfully');
+    }
+    if (action === 'delete') {
+      await notificationModel.bulkDelete(ids);
+      return success(res, null, 'Notifications deleted successfully');
+    }
+ 
+    return error(res, 'Invalid action', 400);
+  } catch (err) {
+    console.error('[bulkActionNotifications]', err);
+    return error(res, 'System Error while performing bulk action', 500);
+  }
+};
+ 
+/**
+ * POST /api/admin/notifications
+ * [FIX] Lấy thêm borrow_id, book_id từ body — trước đây controller bỏ qua 2 trường này
+ *       dù model và frontend đều đã xử lý đúng
+ * [FIX] Đổi notificationModel.create thay vì .createNotificationApi (đã đổi tên trong model)
+ * [FIX] Validation: title và message bắt buộc
+ */
+exports.createNotificationApi = async (req, res) => {
+  try {
+    const { scope, user_id, borrow_id, book_id, type, title, message } = req.body;
+ 
+    if (!title || !title.trim())   return error(res, 'Title is required', 400);
+    if (!message || !message.trim()) return error(res, 'Message is required', 400);
+    if (scope === 'user' && !user_id) return error(res, 'user_id is required when scope is "user"', 400);
+ 
+    await notificationModel.create({ scope, user_id, borrow_id, book_id, type, title: title.trim(), message: message.trim() });
+    return success(res, null, 'Notification created successfully', 201);
+  } catch (err) {
+    console.error('[createNotificationApi]', err);
+    return error(res, 'System Error while creating notification', 500);
   }
 };
 
