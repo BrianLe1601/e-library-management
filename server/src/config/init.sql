@@ -150,11 +150,13 @@ CREATE TABLE otps (
 -- ============================================================
 CREATE TABLE notifications (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id     INT UNSIGNED NOT NULL,
+    user_id     INT UNSIGNED DEFAULT NULL,
     title       VARCHAR(255) NOT NULL,
     message     TEXT NOT NULL,
-    type        ENUM('info', 'warning', 'success', 'error') DEFAULT 'info',
+    type        ENUM('overdue', 'approved', 'returned', 'fine', 'system') DEFAULT 'system',
+    target_url  VARCHAR(255) DEFAULT NULL,
     is_read     TINYINT(1) NOT NULL DEFAULT 0,
+    is_archived TINYINT(1) NOT NULL DEFAULT 0,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -228,3 +230,10 @@ INSERT INTO borrows (user_id, book_id, handled_by, borrow_date, due_date, status
 INSERT INTO reviews (user_id, book_id, rating, comment) VALUES
 (4, 1, 5, 'Rất hay'), (5, 1, 4, 'Kết buồn'), (6, 2, 5, 'Tuyệt vời'), 
 (4, 4, 5, 'Bổ ích'), (5, 5, 4, 'Sâu sắc'), (6, 6, 5, 'Kinh điển');
+
+INSERT INTO notifications (user_id, title, message, type, target_url, is_read, is_archived, created_at) VALUES
+(1, 'Overdue Book', 'Cuốn sách "Tắt Đèn" của bạn đã quá hạn 3 ngày. Vui lòng hoàn trả sớm để tránh phí phạt.', 'overdue', '/admin/borrows/overdue', 0, 0, DATE_SUB(NOW(), INTERVAL 1 DAY)),
+(2, 'Request Approved', 'Yêu cầu mượn sách "Nhật Ký Trong Tù" của bạn đã được Thủ thư duyệt.', 'approved', '/admin/borrows', 1, 0, DATE_SUB(NOW(), INTERVAL 2 DAY)),
+(3, 'Book Returned', 'Cảm ơn bạn Ngọc Bảo đã trả cuốn sách "Truyện Kiều" đúng thời hạn.', 'returned', '/admin/books', 1, 0, DATE_SUB(NOW(), INTERVAL 3 DAY)),
+(1, 'Fine Issued', 'Bạn có một khoản phạt $2.50 được ghi nhận do trả sách trễ hạn.', 'fine', '/admin/borrows/overdue', 0, 0, DATE_SUB(NOW(), INTERVAL 4 DAY)),
+(NULL, 'System Maintenance', 'Hệ thống e-Library sẽ tiến hành bảo trì định kỳ vào 00:00 ngày mai.', 'system', NULL, 0, 0, DATE_SUB(NOW(), INTERVAL 5 DAY));
