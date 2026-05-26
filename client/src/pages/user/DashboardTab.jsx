@@ -96,7 +96,6 @@ export function DashboardTab() {
     { label: "Active Loans",  value: activeCount,              icon: BookOpen,      bg: "bg-blue-500/10",    color: "text-blue-400"    },
     { label: "Pending",       value: pendingCount,             icon: Clock,         bg: "bg-amber-500/10",   color: "text-amber-400"   },
     { label: "Overdue",       value: overdueCount,             icon: AlertTriangle, bg: "bg-red-500/10",     color: "text-red-400"     },
-    { label: "Total Fines",   value: fmtMoney(totalFines) || "—", icon: TrendingUp, bg: "bg-purple-500/10", color: "text-purple-400"  },
   ];
 
   return (
@@ -111,7 +110,7 @@ export function DashboardTab() {
       </div>
 
       {/* ── Stats ────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {loading ? (
           [...Array(4)].map((_, i) => (
             <div key={i} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
@@ -140,10 +139,6 @@ export function DashboardTab() {
               <h3 className="text-slate-900 dark:text-slate-100 font-semibold text-sm">Due Soon</h3>
               <p className="text-slate-400 text-xs mt-0.5">Books due within 5 days</p>
             </div>
-            <Link to="/user/borrowed"
-              className="text-xs text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors">
-              View all <ChevronRight size={12} />
-            </Link>
           </div>
 
           {loading ? (
@@ -195,10 +190,6 @@ export function DashboardTab() {
               <h3 className="text-slate-900 dark:text-slate-100 font-semibold text-sm">Recent Activity</h3>
               <p className="text-slate-400 text-xs mt-0.5">Your latest borrow actions</p>
             </div>
-            <Link to="/user/borrowed"
-              className="text-xs text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors">
-              View all <ChevronRight size={12} />
-            </Link>
           </div>
 
           {loading ? (
@@ -256,10 +247,6 @@ export function DashboardTab() {
               Fines are accumulating daily. Please return your books as soon as possible.
             </p>
           </div>
-          <Link to="/user/borrowed"
-            className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 font-medium transition-colors">
-            View Now
-          </Link>
         </div>
       )}
 

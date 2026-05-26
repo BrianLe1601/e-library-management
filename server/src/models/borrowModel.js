@@ -117,12 +117,11 @@ const returnBook = async (borrowId, handledBy = null) => {
     }
 
     const todayStr = today.toISOString().split('T')[0];
-    await conn.query(
-      `UPDATE borrows
-       SET status = 'returned', return_date = ?, fine_amount = ?, handled_by = ?
-       WHERE id = ?`,
-      [todayStr, fine_amount, handledBy ?? borrow.handled_by, borrowId]
-    );
+    await conn.query(`
+      UPDATE borrows
+      SET status = 'returned', return_date = ?, fine_amount = ?, handled_by = ?
+      WHERE id = ?
+    `, [todayStr, fine_amount, handledBy, borrowId]);
 
     await conn.query(
       'UPDATE books SET available_copies = available_copies + 1 WHERE id = ?',
@@ -206,38 +205,58 @@ const extendBorrow = async (borrowId, renewedBy = null) => {
 const findActiveByUser = async (userId) => {
   await markOverdue();
   const [rows] = await db.query(`
-    SELECT b.id, b.book_id,  -- ← phải có b.book_id
-       b.due_date, b.borrow_date, b.status, b.renewed_count,
-       bk.title, bk.cover_url, a.name AS author
-      FROM borrows b
-      JOIN books bk ON bk.id = b.book_id
-      JOIN authors a ON a.id  = bk.author_id
-      WHERE b.user_id = ? AND b.status IN ('pending','borrowing','renewed','overdue')
-      ORDER BY b.due_date ASC
+  SELECT
+    b.id, b.book_id,
+    b.due_date, b.borrow_date, b.status, b.renewed_count, b.fine_amount,
+    bk.title, bk.cover_url,
+    a.name AS author,
+    (SELECT c.name FROM book_categories bc
+     JOIN categories c ON c.id = bc.category_id
+     WHERE bc.book_id = bk.id LIMIT 1) AS category
+    FROM borrows b
+    JOIN books bk ON bk.id = b.book_id
+    JOIN authors a ON a.id = bk.author_id
+    WHERE b.user_id = ?
+      AND b.status IN ('pending','borrowing','renewed','overdue','returning')
+    ORDER BY b.borrow_date DESC
   `, [userId]);
   return rows;
 };
 
 // ── Lịch sử mượn trả của user ────────────────────────────────────────────────
 const findHistoryByUser = async (userId, { page = 1, limit = 10 }) => {
-  await markOverdue();
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+
   const [[{ total }]] = await db.query(
-    'SELECT COUNT(*) AS total FROM borrows WHERE user_id = ?',
+    `SELECT COUNT(*) AS total FROM borrows
+     WHERE user_id = ? AND status IN ('returned','cancelled','lost')`,
     [userId]
   );
-  const [rows] = await db.query(
-    `SELECT b.id, b.borrow_date, b.due_date, b.return_date, b.status,
-            b.fine_amount, b.fine_paid, b.renewed_count,
-            bk.title, bk.cover_url, a.name AS author
-     FROM borrows b
-     JOIN books bk ON bk.id = b.book_id
-     JOIN authors a ON a.id  = bk.author_id
-     WHERE b.user_id = ?
-     ORDER BY b.borrow_date DESC
-     LIMIT ? OFFSET ?`,
-    [userId, Number(limit), offset]
-  );
+
+  const [rows] = await db.query(`
+    SELECT
+      b.id, b.book_id,
+      b.borrow_date, b.due_date, b.return_date, b.status,
+      b.fine_amount, b.fine_paid, b.renewed_count,
+      bk.title, bk.cover_url,
+      a.name AS author,
+      -- Lấy 1 category đầu tiên (tránh duplicate rows)
+      (SELECT c.name FROM book_categories bc
+       JOIN categories c ON c.id = bc.category_id
+       WHERE bc.book_id = bk.id LIMIT 1) AS category,
+      -- Lấy rating của user cho cuốn sách này
+      (SELECT r.rating FROM reviews r
+       WHERE r.book_id = b.book_id
+         AND r.user_id = b.user_id LIMIT 1) AS user_rating
+    FROM borrows b
+    JOIN books bk ON bk.id = b.book_id
+    JOIN authors a ON a.id = bk.author_id
+    WHERE b.user_id = ?
+      AND b.status IN ('returned', 'cancelled', 'lost')
+    ORDER BY b.borrow_date DESC   -- ← thứ tự thời gian mới nhất trước
+    LIMIT ? OFFSET ?
+  `, [userId, Number(limit), offset]);
+
   return { rows, total: Number(total) };
 };
 
@@ -264,10 +283,13 @@ const findAll = async ({ page = 1, limit = 20, status = '', user_id = '' }) => {
             u.full_name  AS user_name,
             u.email,
             bk.title     AS book_title,
+            c.name       AS category,
             h.full_name  AS handled_by_name
      FROM borrows b
      JOIN  users u  ON u.id  = b.user_id
      JOIN  books bk ON bk.id = b.book_id
+     LEFT JOIN book_categories bc ON bc.book_id = bk.id
+     LEFT JOIN categories c ON c.id = bc.category_id
      LEFT JOIN users h ON h.id = b.handled_by
      ${where}
      ORDER BY b.borrow_date DESC
@@ -283,11 +305,13 @@ const findOverdue = async () => {
   const [rows] = await db.query(
     `SELECT b.id, b.due_date, b.borrow_date,
             u.full_name, u.email,
-            bk.title,
+            bk.title, c.name AS category,
             DATEDIFF(CURRENT_DATE, b.due_date) AS days_overdue
      FROM borrows b
      JOIN users u  ON u.id  = b.user_id
      JOIN books bk ON bk.id = b.book_id
+     LEFT JOIN book_categories bc ON bc.book_id = bk.id
+     LEFT JOIN categories c ON c.id = bc.category_id
      WHERE b.status IN ('borrowing','renewed') AND b.due_date < CURRENT_DATE
      ORDER BY days_overdue DESC`
   );

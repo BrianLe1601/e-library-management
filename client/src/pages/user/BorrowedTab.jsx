@@ -68,7 +68,7 @@ function mapHistoryRecord(b) {
     status:       b.status,
     condition:    b.status === 'lost' ? 'lost' : isLate ? "late" : "on-time",
     finePaid:     b.fine_amount || 0,
-    userRating:   b.user_rating || null,
+    userRating:   b.user_rating ?? null,
   };
 }
 
@@ -445,9 +445,13 @@ function HistoryView() {
       const mapped = (res.data.data || []).map(mapHistoryRecord);
       setRecords(mapped);
       setTotal(res.data.pagination?.total || 0);
+
+      // [SỬA] Set ratings từ DB — override bất kỳ state local nào
       const initRatings = {};
-      mapped.forEach(r => { if (r.userRating) initRatings[r.id] = r.userRating; });
-      setRatings(prev => ({ ...initRatings, ...prev }));
+      mapped.forEach(r => {
+        if (r.userRating) initRatings[r.id] = r.userRating;
+      });
+      setRatings(initRatings); // ← dùng set thay vì merge để tránh stale state
     } catch (err) {
       console.error("[History]", err);
       showToast("Failed to load history", "error");
