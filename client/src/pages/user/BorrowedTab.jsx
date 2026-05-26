@@ -10,7 +10,7 @@ import reviewService from "../../services/reviewService";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_RENEWALS = 2;
-const PAGE_SIZE    = 5;
+const PAGE_SIZE    = 20;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function parseDateLocal(str) {
@@ -650,8 +650,8 @@ export function BorrowedTab() {
     borrowService.getMyBooks()
       .then(r => setActiveCnt((r.data.data || []).length))
       .catch(() => {});
-    borrowService.getHistory({ page: 1, limit: 1 })
-      .then(r => setHistoryCnt(r.data.pagination?.total || 0))
+    borrowService.getHistory()
+      .then(r => setHistoryCnt(r.data.data?.length || 0))
       .catch(() => {});
   }, []);
 

@@ -104,7 +104,7 @@ exports.getMyBooks = async (req, res) => {
 // GET /api/borrows/history — lịch sử mượn trả
 exports.getHistory = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 20 } = req.query;
     const { rows, total } = await borrowModel.findHistoryByUser(req.user.id, { page, limit });
     return paginated(res, rows, total, page, limit);
   } catch (err) {

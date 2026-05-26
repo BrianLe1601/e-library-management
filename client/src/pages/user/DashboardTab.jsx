@@ -62,7 +62,7 @@ export function DashboardTab() {
       try {
         const [activeRes, historyRes] = await Promise.all([
           borrowService.getMyBooks(),
-          borrowService.getHistory({ page: 1, limit: 10 }),
+          borrowService.getHistory(),
         ]);
         setActive(activeRes.data.data   || []);
         setHistory(historyRes.data.data || []);
