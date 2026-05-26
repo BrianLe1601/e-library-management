@@ -388,10 +388,10 @@ const markLost = async (borrowId, handledBy) => {
     );
 
     // Hoàn lại available_copies vì sách không còn
-    await conn.query(
-      'UPDATE books SET available_copies = available_copies + 1 WHERE id = ?',
-      [borrow.book_id]
-    );
+    // await conn.query(
+    //   'UPDATE books SET available_copies = available_copies + 1 WHERE id = ?',
+    //   [borrow.book_id]
+    // );
 
     await conn.commit();
   } catch (err) {
