@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom"; 
 import {
   Search,
@@ -10,7 +10,7 @@ import {
   CheckCircle,
   X,
 } from "lucide-react";
-import { savedBooks } from "../data/mockData";
+import bookService from "../../services/bookService";
 
 function formatExpectedDate(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -191,17 +191,23 @@ function BookCard({
 export function SavedBooksTab() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
-  const [savedList, setSavedList] = useState(savedBooks);
+  const [savedList, setSavedList] = useState([]);
+  useEffect(() => {
+    bookService.getSaved()
+      .then(res => { if (res.data?.success) setSavedList(res.data.data); })
+      .catch(() => {});
+  }, []);
   const [removingId, setRemovingId] = useState(null);
   const [borrowedId, setBorrowedId] = useState(null);
   const [holdIds, setHoldIds] = useState(new Set());
 
-  const handleUnsave = (id) => {
+  const handleUnsave = async (id) => {
     setRemovingId(id);
+    await bookService.unsaveBook(id).catch(() => {});
     setTimeout(() => {
-      setSavedList((prev) => prev.filter((b) => b.id !== id));
+      setSavedList(prev => prev.filter(b => b.id !== id));
       setRemovingId(null);
-    }, 280);
+    }, 280); // đợi animation fade out xong rồi mới xóa khỏi list
   };
 
   const handleBorrow = (id) => {

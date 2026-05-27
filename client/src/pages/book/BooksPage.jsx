@@ -9,11 +9,9 @@ import Pagination from "../../components/Pagination";
 const BOOKS_PER_PAGE = 12; // 12 để chia đều cho lưới 2, 3, 4 cột
 
 const sortOptions = [
-  { value: "rating-desc", label: "Rating: High to Low" },
-  { value: "rating-asc", label: "Rating: Low to High" },
-  { value: "title-asc", label: "Title: A to Z" },
-  { value: "title-desc", label: "Title: Z to A" },
-  { value: "available", label: "Most Available" },
+  { value: "featured",  label: "⭐ Featured Books" },
+  { value: "trending",  label: "🔥 Trending — Top Rated" },
+  { value: "newest",    label: "🆕 Newest Books" },
 ];
 
 export default function BookListingPage() {
@@ -26,7 +24,7 @@ export default function BookListingPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [sortBy, setSortBy] = useState("rating-desc");
+  const [sortBy, setSortBy] = useState("featured");
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("search") || "",
   );
@@ -96,10 +94,10 @@ export default function BookListingPage() {
 
         if (response.data?.success) {
           setBooksList(response.data.data || []);
-          const totalItems = response.data.pagination?.totalItems || 0;
+          const totalItems = response.data.meta?.total || 0;
           setTotalBooks(totalItems);
           setTotalPages(
-            response.data.pagination?.totalPages ||
+            response.data.meta?.totalPages ||
               Math.ceil(totalItems / BOOKS_PER_PAGE) ||
               1,
           );

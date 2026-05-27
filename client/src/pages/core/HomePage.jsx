@@ -223,6 +223,7 @@ export default function HomePage() {
   const [newest, setNewest] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryBooks, setCategoryBooks] = useState([]);
+  const [discoverCategory, setDiscoverCategory] = useState(null);
   const [systemStats, setSystemStats] = useState({
     totalBooks: 0,
     activeMembers: 0,
@@ -268,10 +269,17 @@ export default function HomePage() {
         if (categoriesRes.data?.success) {
           const allCats = categoriesRes.data.data || [];
           setCategories(allCats.slice(0, 8));
-          const firstCat = allCats.find((c) => c.book_count > 0);
-          if (firstCat) {
+          const eligibleCats = allCats.filter((c) => c.book_count > 0);
+          if (eligibleCats.length > 0) {
+            // Seed từ ngày hôm nay → cùng ngày luôn ra cùng category, sang ngày mới đổi
+            const seed = new Date().toDateString()
+              .split("")
+              .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+            const todayCat = eligibleCats[seed % eligibleCats.length];
+            setDiscoverCategory(todayCat);
+
             const catBooksRes = await bookService
-              .getBooks({ category: firstCat.id, limit: 10 })
+              .getBooks({ category: todayCat.id, limit: 12 })
               .catch(() => ({ data: { success: false } }));
             if (catBooksRes.data?.success)
               setCategoryBooks(catBooksRes.data.data || []);
@@ -470,8 +478,8 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-1 h-6 bg-emerald-500 rounded-full" />
-                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold">
-                  Spotlight: {spotlightCat?.name || "Genre Collections"}
+                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+                  📚 Today's Spotlight · {discoverCategory?.name || "Genre Collections"}
                 </span>
               </div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -479,7 +487,7 @@ export default function HomePage() {
               </h2>
             </div>
             <Link
-              to={`/books?category=${spotlightCat?.id}`}
+              to={`/books?category=${discoverCategory?.id}`}
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors font-medium"
             >

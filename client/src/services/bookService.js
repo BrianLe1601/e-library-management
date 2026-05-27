@@ -32,6 +32,12 @@ const bookService = {
 
   /** Thống kê công khai cho trang chủ (không cần đăng nhập) */
   getPublicStats: () => api.get("/books/stats"),
+
+  // ── Saved books ────────────────────────────────────────────────────────────
+  getSavedIds: ()       => api.get("/books/saved/ids"),
+  getSaved:    ()       => api.get("/books/saved"),
+  saveBook:    (bookId) => api.post(`/books/saved/${bookId}`),
+  unsaveBook:  (bookId) => api.delete(`/books/saved/${bookId}`),
 };
 
 export default bookService;
