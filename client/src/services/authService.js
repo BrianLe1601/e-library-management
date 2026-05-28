@@ -25,9 +25,9 @@ const authService = {
   login: (data) => api.post("/auth/login", data),
 
   forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
-  
+
   verifyForgotOtp: (email, otp) => api.post("/auth/verify-forgot-otp", { email, otp }),
-  
+
   resetPassword: (token, newPassword) => api.post("/auth/reset-password", { token, newPassword }),
 
   // ── User Profile ────────────────────────────────────────────────────────────
@@ -49,12 +49,17 @@ const authService = {
    * @param {{ old_password, new_password }} data
    */
   changePassword: (data) => api.put("/users/change-password", data),
-  
+
   /**
    * Verify OTP sent to email after registration
    * @param {{ email, otpCode }} data
    */
   verifyOtp: (email, otpCode) => api.post("/auth/verify-otp", { email, otpCode }),
+
+  loginWithGoogle: async (googleAccessToken) => {
+    // Gửi chính xác định dạng token mà backend đón nhận
+    return await api.post('/auth/google', { accessToken: googleAccessToken });
+  }
 };
 
 export default authService;

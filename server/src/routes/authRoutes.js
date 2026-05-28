@@ -52,6 +52,8 @@ router.post('/auth/forgot-password', authController.forgotPassword);
 router.post('/auth/verify-forgot-otp', authController.verifyForgotOtp);
 router.post('/auth/reset-password', authController.resetPassword);
 
+router.post('/auth/google', authController.googleLogin);
+
 // ── Protected routes (yêu cầu JWT) ───────────────────────────────────────────
 router.get ('/users/profile',         authenticate, authController.getProfile);
 router.put ('/users/profile',         authenticate, updateProfileRules, validate, authController.updateProfile);

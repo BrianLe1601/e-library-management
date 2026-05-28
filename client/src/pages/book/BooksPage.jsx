@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, SlidersHorizontal, BookOpen } from "lucide-react"; // Đã thêm BookOpen bị thiếu ở import cũ
+import { Search, SlidersHorizontal, BookOpen } from "lucide-react"; 
 import bookService from "../../services/bookService";
 import BookCard from "../../components/BookCard";
 import FilterSidebar from "../../components/FilterSidebar";
 import Pagination from "../../components/Pagination";
+import BookSkeleton from "../../components/Skeletons";
 
 const BOOKS_PER_PAGE = 12; // 12 để chia đều cho lưới 2, 3, 4 cột
 
@@ -18,7 +19,7 @@ export default function BookListingPage() {
   const [searchParams] = useSearchParams();
 
   const [booksList, setBooksList] = useState([]);
-  const [totalBooks, setTotalBooks] = useState(0); // 🌟 FIX 1: Đã thêm khai báo State lưu số sách tìm thấy
+  const [totalBooks, setTotalBooks] = useState(0); 
   const [systemStats, setSystemStats] = useState({ totalBooks: 0 });
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -262,20 +263,7 @@ export default function BookListingPage() {
             {loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                 {Array.from({ length: BOOKS_PER_PAGE }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700/80 overflow-hidden shadow-sm flex flex-col h-full"
-                  >
-                    <div className="w-full aspect-[3/4] bg-slate-200 dark:bg-slate-700 animate-pulse" />
-                    <div className="p-3.5 flex-1 flex flex-col gap-3">
-                      <div className="h-4 w-full bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                      <div className="h-4 w-2/3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                      <div className="mt-auto pt-3 border-t border-gray-100 dark:border-slate-700/40 flex justify-between">
-                        <div className="h-3 w-1/3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                        <div className="h-3 w-1/4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                      </div>
-                    </div>
-                  </div>
+                  <BookSkeleton key={i} />
                 ))}
               </div>
             ) : booksList.length > 0 ? (

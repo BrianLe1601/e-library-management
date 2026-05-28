@@ -17,20 +17,49 @@ import HeroCarousel from "../../components/HeroCarousel";
 import BookCard from "../../components/BookCard";
 import bookService from "../../services/bookService";
 
-/* ─── Skeleton ─────────────────────────────────────────────────────────────── */
 function BookSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 overflow-hidden animate-pulse flex flex-col">
-      <div className="w-full aspect-[3/4] bg-gray-200 dark:bg-slate-700" />
-      <div className="p-3 space-y-2">
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-4/5" />
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/2" />
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/3 mt-1" />
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700/60 overflow-hidden animate-pulse flex flex-col w-full">
+      {/* Khối ảnh tỷ lệ 3:4 */}
+      <div className="w-full aspect-[3/4] bg-slate-200 dark:bg-slate-700" />
+      {/* Khối thông tin chữ */}
+      <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+        <div className="space-y-1.5">
+          <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded-md w-11/12" />
+          <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-md w-2/3" />
+        </div>
+        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-md w-1/3 mt-2" />
       </div>
     </div>
   );
 }
 
+// 2. Khung xương cho hàng Categories (Danh mục)
+function CategoryListSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-16 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700/60 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 animate-pulse"
+        >
+          <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+          <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 3. Khung xương cho thanh số liệu liên kết thư viện (Stats)
+function StatsSkeleton() {
+  return (
+    <div className="space-y-2 flex flex-col items-center w-full">
+      <div className="h-6 bg-blue-800/80 dark:bg-slate-800 rounded-lg w-16 animate-pulse" />
+      <div className="h-3 bg-blue-800/40 dark:bg-slate-800/40 rounded-md w-28 animate-pulse" />
+    </div>
+  );
+}
 export function BookRow({ books, loading, emptyMessage }) {
   const rowRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);

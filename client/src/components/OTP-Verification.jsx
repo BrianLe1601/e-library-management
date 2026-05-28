@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Mail, ArrowLeft } from "lucide-react";
 import authService from "../services/authService";
 import { useTheme } from "../context/ThemeContext";
+import { useToast } from "../context/ToastContext";
 
 export default function OtpVerification() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -13,8 +14,9 @@ export default function OtpVerification() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme } = useTheme();
+  const toast = useToast();
 
-  const actionType = location.state?.action || 'register';
+  const actionType = location.state?.action || "register";
 
   // Đọc email động được chuyển tiếp từ màn hình RegisterPage
   const email = location.state?.email || "your-email@example.com";
@@ -82,9 +84,11 @@ export default function OtpVerification() {
       setOtp(["", "", "", "", "", ""]);
       setError("");
       setResendMsg("A new OTP has been sent to your email.");
+      toast.success("Success", "A new OTP has been sent to your email.");
       inputRefs.current[0]?.focus();
     } catch {
       setResendMsg("Failed to resend. Please try again.");
+      toast.error("Error", "Failed to resend OTP. Please try again.");
     } finally {
       setResendLoading(false);
     }
@@ -94,19 +98,29 @@ export default function OtpVerification() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const otpCode = otp.join("");
-    if (otpCode.length < 6) return setError("Please enter a 6-digit code.");
+    if (otpCode.length < 6)
+      return setError(
+        "Please enter a 6-digit code.",
+        toast.error("Error", "Please enter a 6-digit code."),
+      );
 
     setLoading(true);
     try {
       if (actionType === "register") {
         // 1. Luồng của Đăng ký
         const res = await authService.verifyOtp(email, otpCode);
-        if (res.data?.success) navigate("/login");
+        if (res.data?.success)
+          toast.success("Success", "OTP verified! Now you can log in.");
+        navigate("/login");
       } else if (actionType === "forgot_password") {
         // 2. Luồng của Quên mật khẩu
         const res = await authService.verifyForgotOtp(email, otpCode);
         if (res.data?.success) {
           // Cầm Reset Token bay qua trang Đổi mật khẩu
+          toast.success(
+            "Success",
+            "OTP verified! Now you can reset your password.",
+          );
           navigate("/reset-password", {
             state: { resetToken: res.data.resetToken },
           });
@@ -114,6 +128,10 @@ export default function OtpVerification() {
       }
     } catch (err) {
       setError(err.response?.data?.message || "Invalid or expired OTP.");
+      toast.error(
+        "Error",
+        err.response?.data?.message || "Invalid or expired OTP.",
+      );
     } finally {
       setLoading(false);
     }
@@ -159,7 +177,7 @@ export default function OtpVerification() {
                 value={digit}
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste} 
+                onPaste={handlePaste}
                 className="h-11 w-11 rounded-xl border text-center text-base font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/60 transition-all"
               />
             ))}
@@ -176,7 +194,7 @@ export default function OtpVerification() {
             )}
           </button>
         </form>
-        
+
         {debugOtp && (
           <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
             <p className="font-semibold">Temporary OTP (dev mode):</p>
@@ -187,19 +205,39 @@ export default function OtpVerification() {
         <div className="text-center text-xs text-slate-400">
           <p>
             {timer > 0 ? (
-              `Send again in 00:${timer.toString().padStart(2, "0")}`
+              <div
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full 
+               bg-slate-100 dark:bg-slate-800 text-sm font-semibold 
+               text-slate-700 dark:text-slate-200"
+              >
+                <span>Send again in</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                  00:{timer.toString().padStart(2, "0")}
+                </span>
+              </div>
             ) : (
               <button
                 onClick={handleResend}
                 disabled={resendLoading}
-                className="text-indigo-500 hover:underline disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 px-3 py-1.5 
+               rounded-lg bg-indigo-600 text-white text-base font-semibold 
+               hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {resendLoading ? "Sending..." : "Send OTP again now"}
+                {resendLoading ? (
+                  <>
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  "Send OTP again now"
+                )}
               </button>
             )}
           </p>
           {resendMsg && (
-            <p className={`mt-2 text-xs font-medium ${resendMsg.startsWith("Failed") ? "text-red-400" : "text-emerald-500"}`}>
+            <p
+              className={`mt-2 text-xs font-medium ${resendMsg.startsWith("Failed") ? "text-red-400" : "text-emerald-500"}`}
+            >
               {resendMsg}
             </p>
           )}

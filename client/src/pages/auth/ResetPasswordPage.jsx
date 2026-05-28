@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom"; // Đã thêm import
+import { Link, useNavigate, useLocation } from "react-router-dom"; 
 import { BookOpen, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, Check } from "lucide-react";
-import authService from "../../services/authService"; // Đã thêm import
+import authService from "../../services/authService"; 
+import { useToast } from "../../context/ToastContext";
 
 const REQUIREMENTS = [
   { label: "At least 8 characters", test: (pw) => pw.length >= 8 },
@@ -52,6 +53,8 @@ export function ResetPasswordPage() {
   const passwordsMatch = password.length > 0 && confirm === password;
   const canSubmit = allMet && passwordsMatch && !loading;
 
+  const toast = useToast();
+
   if (!resetToken) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 text-center p-5">
@@ -63,14 +66,15 @@ export function ResetPasswordPage() {
     );
   }
 
-  // ĐÃ GỘP 2 HÀM LÀM 1 VÀ XỬ LÝ API THẬT
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) {
       if (!allMet) {
         setError("Please meet all password requirements.");
+        toast.warning("Please meet all password requirements.");
       } else if (!passwordsMatch) {
         setError("Passwords do not match.");
+        toast.warning("Passwords do not match.");
       }
       return;
     }
@@ -83,9 +87,11 @@ export function ResetPasswordPage() {
       
       if (res.data?.success) {
         setDone(true); // Hiển thị màn hình báo thành công màu xanh lá thay vì out ra ngay
+        toast.success("Password reset successful!", "You can now log in with your new password.");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Lỗi hệ thống hoặc phiên hết hạn.");
+      setError(err.response?.data?.message || "Error system or session expired.");
+      toast.error("Error", err.response?.data?.message || "Error system or session expired.");
     } finally {
       setLoading(false);
     }
