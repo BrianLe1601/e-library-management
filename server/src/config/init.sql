@@ -158,6 +158,20 @@ CREATE TABLE notifications (
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+-- ============================================================
+-- 12. saved_books
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS saved_books (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT UNSIGNED NOT NULL,
+    book_id    INT UNSIGNED NOT NULL,
+    saved_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_book (user_id, book_id),
+    CONSTRAINT fk_saved_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_saved_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+);
+
 
 -- ============================================================
 -- INDEXES TỐI ƯU TRUY VẤN
