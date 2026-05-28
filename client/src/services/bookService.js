@@ -38,6 +38,8 @@ const bookService = {
   getSaved:    ()       => api.get("/books/saved"),
   saveBook:    (bookId) => api.post(`/books/saved/${bookId}`),
   unsaveBook:  (bookId) => api.delete(`/books/saved/${bookId}`),
+
+  getSuggestions: (q) => api.get("/books/suggest", { params: { q } }),
 };
 
 export default bookService;

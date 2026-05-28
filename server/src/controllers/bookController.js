@@ -146,9 +146,11 @@ exports.getAuthors = async (_req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT a.id, a.name, COUNT(b.id) AS book_count
-       FROM authors a
-       LEFT JOIN books b ON b.author_id = a.id
-       GROUP BY a.id ORDER BY a.name`
+      FROM authors a
+      LEFT JOIN books b ON b.author_id = a.id AND b.is_hidden = 0
+      GROUP BY a.id
+      HAVING book_count > 0
+      ORDER BY a.name`
     );
     return success(res, rows);
   } catch (err) {
@@ -162,9 +164,11 @@ exports.getPublishers = async (_req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT p.id, p.name, COUNT(b.id) AS book_count
-       FROM publishers p
-       LEFT JOIN books b ON b.publisher_id = p.id
-       GROUP BY p.id ORDER BY p.name`
+      FROM publishers p
+      LEFT JOIN books b ON b.publisher_id = p.id AND b.is_hidden = 0
+      GROUP BY p.id
+      HAVING book_count > 0
+      ORDER BY p.name`
     );
     return success(res, rows);
   } catch (err) {
@@ -189,5 +193,102 @@ exports.dashboardStats = async (req, res) => {
       success: false,
       message: 'Server Error'
     });
+  }
+};
+
+// GET /api/books/suggest?q=...
+exports.getSuggestions = async (req, res) => {
+  try {
+    const { q = '' } = req.query;
+    if (q.trim().length < 2) return success(res, []);
+    const results = await bookModel.searchSuggestions(q, 6);
+    return success(res, results);
+  } catch (err) {
+    console.error('[getSuggestions]', err);
+    return error(res, 'Lỗi gợi ý tìm kiếm');
+  }
+};
+
+// ── SAVED BOOKS ────────────────────────────────────────────────────────────
+ 
+// GET /api/books/saved/ids  — trả về mảng bookId đã lưu (để check trạng thái bookmark)
+exports.getSavedIds = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await db.query(
+      'SELECT book_id FROM saved_books WHERE user_id = ?',
+      [userId]
+    );
+    return success(res, rows.map(r => r.book_id));
+  } catch (err) {
+    console.error('[getSavedIds]', err);
+    return error(res, 'Lỗi khi lấy danh sách sách đã lưu', 500);
+  }
+};
+ 
+// GET /api/books/saved  — trả về danh sách sách đầy đủ đã lưu
+exports.getSaved = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await db.query(
+      `SELECT
+         sb.id,
+         sb.book_id         AS bookId,
+         sb.saved_at        AS savedDate,
+         bk.title,
+         bk.cover_url       AS coverUrl,
+         bk.available_copies AS availableCopies,
+         bk.total_copies    AS totalCopies,
+         a.name             AS author,
+         c.name             AS category
+       FROM saved_books sb
+       JOIN books      bk ON bk.id = sb.book_id
+       JOIN authors    a  ON a.id  = bk.author_id
+       LEFT JOIN book_categories bc ON bc.book_id = bk.id
+       LEFT JOIN categories      c  ON c.id = bc.category_id
+       WHERE sb.user_id = ?
+       ORDER BY sb.saved_at DESC`,
+      [userId]
+    );
+    return success(res, rows);
+  } catch (err) {
+    console.error('[getSaved]', err);
+    return error(res, 'Lỗi khi lấy danh sách sách đã lưu', 500);
+  }
+};
+ 
+// POST /api/books/saved/:bookId  — lưu sách
+exports.saveBook = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const bookId = Number(req.params.bookId);
+    // Kiểm tra sách tồn tại
+    const [[book]] = await db.query('SELECT id FROM books WHERE id = ? AND is_hidden = 0', [bookId]);
+    if (!book) return error(res, 'Không tìm thấy sách', 404);
+    // INSERT IGNORE để tránh lỗi duplicate
+    await db.query(
+      'INSERT IGNORE INTO saved_books (user_id, book_id) VALUES (?, ?)',
+      [userId, bookId]
+    );
+    return success(res, { bookId }, 'Đã lưu sách thành công');
+  } catch (err) {
+    console.error('[saveBook]', err);
+    return error(res, 'Lỗi khi lưu sách', 500);
+  }
+};
+ 
+// DELETE /api/books/saved/:bookId  — bỏ lưu sách
+exports.unsaveBook = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const bookId = Number(req.params.bookId);
+    await db.query(
+      'DELETE FROM saved_books WHERE user_id = ? AND book_id = ?',
+      [userId, bookId]
+    );
+    return success(res, { bookId }, 'Đã bỏ lưu sách');
+  } catch (err) {
+    console.error('[unsaveBook]', err);
+    return error(res, 'Lỗi khi bỏ lưu sách', 500);
   }
 };

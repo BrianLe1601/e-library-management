@@ -35,5 +35,12 @@ router.get('/publishers',  bookController.getPublishers);   // [MỚI] cho Filte
 router.get('/stats',       bookController.dashboardStats);
 router.get('/',            bookController.getBooks);
 router.get('/:id(\\d+)',   bookController.getBookById);
+router.get('/suggest', bookController.getSuggestions);
+
+router.get('/saved/ids',      authenticate, bookController.getSavedIds);
+router.get('/saved',          authenticate, bookController.getSaved);
+router.post('/saved/:bookId', authenticate, bookController.saveBook);
+router.delete('/saved/:bookId', authenticate, bookController.unsaveBook);
+
 
 module.exports = router;

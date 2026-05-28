@@ -71,7 +71,14 @@ export default function BookCard({ book, variant = "trending" }) {
             {/* Chân card: Đưa thanh ngang ngăn cách vào, thêm StarRating cân xứng với Availability */}
             <div className="mt-auto pt-2.5 border-t border-gray-100 dark:border-slate-700/40 flex items-center justify-between gap-1">
               <AvailabilityBadge availableCopies={book.availableCopies} />
-              <StarRating rating={book.rating} size="sm" />
+              <div className="flex items-center gap-1.5">
+                {Number(book.reviewCount) > 0 && (
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                    ({Number(book.reviewCount).toLocaleString()})
+                  </span>
+                )}
+                <StarRating rating={book.rating} size="sm" />
+              </div>
             </div>
           </div>
 
@@ -112,8 +119,13 @@ export default function BookCard({ book, variant = "trending" }) {
           <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 mb-2 line-clamp-1">
             {book.author}
           </p>
-          <div className="mt-auto pt-1">
-            <StarRating rating={book.rating} size="sm" showValue />
+          <div className="mt-auto pt-1 flex items-center gap-2">
+            <StarRating rating={book.rating} size="sm" />
+            {Number(book.reviewCount) > 0 && (
+              <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                ({Number(book.reviewCount).toLocaleString()} reviews)
+              </span>
+            )}
           </div>
         </div>
 

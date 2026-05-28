@@ -87,8 +87,8 @@ function BookCard({
   holdIds,
 }) {
   const available = book.availableCopies > 0;
-  const isBorrowed = borrowedId === book.id;
-  const isOnHold = holdIds.has(book.id);
+  const isBorrowed = borrowedId === book.bookId;
+  const isOnHold = holdIds.has(book.bookId);
 
   return (
     <div className="group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -105,7 +105,7 @@ function BookCard({
 
         {/* Unsave button */}
         <button
-          onClick={() => onUnsave(book.id)}
+          onClick={() => onUnsave(book.bookId)}
           title="Remove from saved"
           className="absolute top-2.5 right-2.5 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-red-500 transition-colors duration-200 shadow-lg group/btn"
           aria-label="Remove from saved"
@@ -157,7 +157,7 @@ function BookCard({
             </div>
           ) : available ? (
             <button
-              onClick={() => onBorrow(book.id)}
+              onClick={() => onBorrow(book.bookId)}
               className="w-full py-2 rounded-xl text-xs text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
               style={{ fontWeight: 600 }}
             >
@@ -165,7 +165,7 @@ function BookCard({
             </button>
           ) : (
             <button
-              onClick={() => onHold(book.id)}
+              onClick={() => onHold(book.bookId)}
               className="w-full py-2 rounded-xl text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
               style={{ fontWeight: 600 }}
             >
@@ -201,13 +201,13 @@ export function SavedBooksTab() {
   const [borrowedId, setBorrowedId] = useState(null);
   const [holdIds, setHoldIds] = useState(new Set());
 
-  const handleUnsave = async (id) => {
-    setRemovingId(id);
-    await bookService.unsaveBook(id).catch(() => {});
+  const handleUnsave = async (bookId) => {
+    setRemovingId(bookId);
+    await bookService.unsaveBook(bookId).catch(() => {});
     setTimeout(() => {
-      setSavedList(prev => prev.filter(b => b.id !== id));
+      setSavedList(prev => prev.filter(b => b.bookId !== bookId));
       setRemovingId(null);
-    }, 280); // đợi animation fade out xong rồi mới xóa khỏi list
+    }, 280);
   };
 
   const handleBorrow = (id) => {
@@ -323,16 +323,16 @@ export function SavedBooksTab() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((book) => (
             <div
-              key={book.id}
+              key={book.bookId}
               className="transition-all duration-300"
               style={{
-                opacity: removingId === book.id ? 0 : 1,
-                transform: removingId === book.id ? "scale(0.95)" : "scale(1)",
+                opacity: removingId === book.bookId ? 0 : 1,
+                transform: removingId === book.bookId ? "scale(0.95)" : "scale(1)",
               }}
             >
               <BookCard
                 book={book}
-                onUnsave={handleUnsave}
+                onUnsave={() => handleUnsave(book.bookId)}
                 onBorrow={handleBorrow}
                 onHold={handleHold}
                 borrowedId={borrowedId}
