@@ -1,69 +1,39 @@
 'use strict';
-/**
- * ╔══════════════════════════════════════════════════════╗
- * ║  THÀNH VIÊN 3 — Borrow & Return System              ║
- * ║  Routes: borrowRoutes.js                            ║
- * ╚══════════════════════════════════════════════════════╝
- *
- * Mount tại: /api/borrows
- * (Admin borrow routes nằm trong adminRoutes.js)
- */
 
-const express  = require('express');
-const router   = express.Router();
+const express    = require('express');
+const router     = express.Router();
 const { body, param } = require('express-validator');
-
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const { validate }                = require('../middlewares/validateMiddleware');
-const borrowController            = require('../controllers/borrowController');
+const borrowCtrl                  = require('../controllers/borrowController');
 
-// Tất cả borrow routes yêu cầu đăng nhập
 router.use(authenticate);
 
-// ── Validate id trên URL dùng chung ──────────────────────────────────────────
 const validateId = [
-  param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương'),
+  param('id').isInt({ min: 1 }).withMessage('id must be a positive integer'),
   validate,
 ];
 
-// ── User / Employee / Admin ───────────────────────────────────────────────────
-
-// POST /api/borrows — tạo phiếu mượn
-router.post(
-  '/',
-  [
-    body('book_id')
-      .isInt({ min: 1 })
-      .withMessage('book_id phải là số nguyên dương'),
-    validate,
-  ],
-  borrowController.createBorrow
+// ── User ────────────────────────────────────────────────────────────────────
+router.post('/',
+  [body('book_id').isInt({ min: 1 }).withMessage('book_id must be a positive integer'), validate],
+  borrowCtrl.createBorrow
 );
 
-// GET /api/borrows/my-books — sách đang mượn của user hiện tại
-// [LƯU Ý] Đặt TRƯỚC /:id để Express không nhầm 'my-books' là :id
-router.get('/my-books', borrowController.getMyBooks);
+router.get('/my-books',  borrowCtrl.getMyBooks);
+router.get('/history',   borrowCtrl.getHistory);
 
-// GET /api/borrows/history — lịch sử mượn trả
-router.get('/history',  borrowController.getHistory);
+// QUAN TRỌNG: các route cố định phải đặt TRƯỚC /:id
+// Thứ tự: /extend/:id, /request-return/:id, /return/:id, /pay-fine/:id, /lost/:id
+router.post ('/extend/:id',         validateId, borrowCtrl.extendBorrow);
+router.patch('/request-return/:id', validateId, borrowCtrl.requestReturn);
 
-// POST /api/borrows/extend/:id — gia hạn sách
-// [SỬA] Đổi PUT → POST vì tạo mới bản ghi borrow_renewals
-router.post(
-  '/extend/:id',
-  validateId,
-  borrowController.extendBorrow
-);
+// ── Employee / Admin ────────────────────────────────────────────────────────
+router.patch('/return/:id',   authorize('employee','admin'), validateId, borrowCtrl.returnBook);
+// router.patch('/pay-fine/:id', authorize('employee','admin'), validateId, borrowCtrl.payFine);
+router.patch('/lost/:id',     authorize('employee','admin'), validateId, borrowCtrl.markLost);
 
-// ── Employee + Admin only ─────────────────────────────────────────────────────
-
-// PUT /api/borrows/return/:id — xác nhận trả sách
-// [SỬA] Thêm authorize — chỉ employee và admin mới xác nhận trả được
-router.put(
-  '/return/:id',
-  authorize('employee', 'admin'),
-  validateId,
-  borrowController.returnBook
-);
+// ── Generic ─────────────────────────────────────────────────────────────────
+router.get('/:id',            validateId, borrowCtrl.getBorrowById);
 
 module.exports = router;

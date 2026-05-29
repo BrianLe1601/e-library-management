@@ -95,7 +95,7 @@ CREATE TABLE borrows (
     due_date        DATE NOT NULL,
     return_date     DATE DEFAULT NULL,
     renewed_count   TINYINT UNSIGNED NOT NULL DEFAULT 0,
-    status          ENUM('pending', 'borrowing', 'returned', 'overdue', 'renewed', 'cancelled', 'lost') NOT NULL DEFAULT 'pending',
+    status          ENUM('pending', 'borrowing', 'returning', 'returned', 'overdue', 'renewed', 'cancelled', 'lost') NOT NULL DEFAULT 'pending',
     fine_amount     INT UNSIGNED NOT NULL DEFAULT 0,
     fine_paid       TINYINT(1) NOT NULL DEFAULT 0,
     note            TEXT DEFAULT NULL,
@@ -148,15 +148,22 @@ CREATE TABLE otps (
 -- ============================================================
 -- 11. NOTIFICATIONS
 -- ============================================================
+DROP TABLE IF EXISTS notifications;
 CREATE TABLE notifications (
-    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id     INT UNSIGNED NOT NULL,
-    title       VARCHAR(255) NOT NULL,
-    message     TEXT NOT NULL,
-    type        ENUM('info', 'warning', 'success', 'error') DEFAULT 'info',
-    is_read     TINYINT(1) NOT NULL DEFAULT 0,
-    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    id          	INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id     	INT UNSIGNED DEFAULT NULL,
+    borrow_id   	INT UNSIGNED DEFAULT NULL,    
+    book_id     	INT UNSIGNED DEFAULT NULL,
+    receiver_role 	VARCHAR(20) DEFAULT 'user',
+    title       	VARCHAR(255) NOT NULL,
+    message     	TEXT NOT NULL,
+    type        	ENUM('overdue', 'approved', 'returned', 'fine', 'system') DEFAULT 'system',
+    is_read     	TINYINT(1) NOT NULL DEFAULT 0,
+    is_archived 	TINYINT(1) NOT NULL DEFAULT 0,
+    created_at  	DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notification_borrow FOREIGN KEY (borrow_id) REFERENCES borrows(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notification_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 
 -- ============================================================

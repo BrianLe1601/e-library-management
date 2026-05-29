@@ -1,72 +1,94 @@
 /**
- * services/borrowService.js — TV3: Borrow & Return System
+ * services/borrowService.js — Borrow & Return System
  *
- * Tất cả hàm gọi API liên quan đến mượn/trả sách.
- * Mọi endpoint đều cần token (gắn tự động).
+ * All API calls related to borrowing/returning books.
+ * Token is attached automatically via axios interceptor.
  */
 
 import api from "./api";
 
 const borrowService = {
-  // ── User endpoints ───────────────────────────────────────────────────────────
+
+  // ── User endpoints ──────────────────────────────────────────────────────────
 
   /**
-   * Tạo yêu cầu mượn sách
+   * Create a borrow request → status = 'pending'
    * @param {number} book_id
-   * @returns {{ success, data: { borrow_id } }}
    */
-  borrowBook: (book_id) => api.post("/borrow", { book_id }),
+  borrowBook: (book_id) => api.post("/borrows", { book_id }),
 
   /**
-   * Trả sách
-   * @param {number} borrowId — ID của bản ghi borrow
-   * @returns {{ success, data: { fine_amount }, message }}
+   * Get all active loans of current user
+   * (status: pending / borrowing / renewed / overdue / returning)
    */
-  returnBook: (borrowId) => api.put(`/borrow/return/${borrowId}`),
+  getMyBooks: () => api.get("/borrows/my-books"),
 
   /**
-   * Gia hạn mượn (tối đa 2 lần, +14 ngày mỗi lần)
-   * @param {number} borrowId
-   * @returns {{ success, data: { new_due_date }, message }}
-   */
-  extendBorrow: (borrowId) => api.put(`/borrow/extend/${borrowId}`),
-
-  /**
-   * Lấy danh sách sách đang mượn của user hiện tại
-   * (status: borrowing / renewed / overdue)
-   */
-  getMyBooks: () => api.get("/borrow/my-books"),
-
-  /**
-   * Lấy lịch sử mượn trả của user hiện tại
+   * Get borrow history of current user (returned / cancelled / lost)
    * @param {{ page?, limit? }} params
    */
-  getHistory: (params = {}) => api.get("/borrow/history", { params }),
-
-  // ── Admin / Employee endpoints ───────────────────────────────────────────────
+  getHistory: (params = {}) => api.get("/borrows/history", { params }),
 
   /**
-   * Lấy toàn bộ danh sách lượt mượn (admin/employee)
-   * @param {{ page?, limit?, status? }} params
+   * Request return — user side only, sets status = 'returning'
+   * Admin must confirm to finalize as 'returned'
+   * @param {number} borrowId
+   */
+  requestReturn: (borrowId) => api.patch(`/borrows/request-return/${borrowId}`),
+
+  /**
+   * Renew borrow (max 2 times, +14 days each)
+   * Only allowed when status = borrowing/renewed and not overdue
+   * @param {number} borrowId
+   */
+  extendBorrow: (borrowId) => api.post(`/borrows/extend/${borrowId}`),
+
+  // ── Employee / Admin endpoints ──────────────────────────────────────────────
+
+  /**
+   * Get all borrow records (admin/employee)
+   * @param {{ page?, limit?, status?, user_id? }} params
    */
   getAllBorrows: (params = {}) => api.get("/admin/borrows", { params }),
 
   /**
-   * Lấy danh sách sách đang quá hạn
+   * Get all overdue records
    */
   getOverdue: () => api.get("/admin/borrows/overdue"),
 
   /**
-   * Duyệt yêu cầu mượn
+   * Approve a pending borrow request → status = 'borrowing'
    * @param {number} borrowId
    */
   approveBorrow: (borrowId) => api.put(`/admin/borrows/approve/${borrowId}`),
 
   /**
-   * Từ chối yêu cầu mượn
+   * Reject a pending borrow request → status = 'cancelled'
+   * available_copies + 1
    * @param {number} borrowId
    */
   rejectBorrow: (borrowId) => api.put(`/admin/borrows/reject/${borrowId}`),
+
+  /**
+   * Confirm return (admin/employee) → status = 'returned'
+   * Calculates fine if overdue, available_copies + 1
+   * @param {number} borrowId
+   */
+  returnBook: (borrowId) => api.patch(`/borrows/return/${borrowId}`),
+
+  /**
+   * Confirm fine has been paid
+   * @param {number} borrowId
+   */
+  payFine: (borrowId) => api.patch(`/borrows/pay-fine/${borrowId}`),
+
+  /**
+   * Mark book as lost (admin/employee)
+   * status = 'lost', available_copies + 1
+   * @param {number} borrowId
+   */
+  markLost: (borrowId) => api.patch(`/borrows/lost/${borrowId}`),
+
 };
 
 export default borrowService;
