@@ -22,12 +22,12 @@
  */
 
 const borrowModel          = require('../models/borrowModel');
+const notificationModel    = require('../models/notificationModel');
 const { success, error, paginated } = require('../utils/response');
 
 // ─── User endpoints ───────────────────────────────────────────────────────────
 
-// POST /api/borrows
-// [SỬA] Thêm validate book_id trước khi gọi model
+// POST /api/borrows — User gửi yêu cầu mượn
 exports.createBorrow = async (req, res) => {
   try {
     const { book_id } = req.body;
@@ -39,6 +39,19 @@ exports.createBorrow = async (req, res) => {
       user_id:    req.user.id,
       book_id:    Number(book_id),
       handled_by: req.user.role !== 'user' ? req.user.id : null,
+    });
+
+    // Lấy thông tin phiếu mượn để lấy tên sách, tên user cho thông báo
+    const borrowDetail = await borrowModel.findById(id);
+
+    // [THÊM MỚI] Gửi thông báo cho Admin/Employee
+    await notificationModel.create({
+      receiver_role: 'admin_employee',
+      borrow_id: id,
+      book_id: Number(book_id),
+      type: 'system',
+      title: 'Yêu cầu mượn sách mới',
+      message: `Có user "${borrowDetail.user_name}" gửi yêu cầu mượn sách "${borrowDetail.book_title}".`
     });
 
     return success(res, { borrow_id: id }, 'Tạo yêu cầu mượn thành công', 201);
@@ -61,7 +74,28 @@ exports.returnBook = async (req, res) => {
     const msg = result.fine_amount > 0
       ? `Trả sách thành công. Tiền phạt: ${result.fine_amount.toLocaleString('vi-VN')}đ`
       : 'Trả sách thành công';
-
+      
+    if (result.fine_amount > 0) {
+      await notificationModel.create({
+        receiver_role: 'user',
+        user_id: borrow.user_id,
+        borrow_id: borrow.id,
+        book_id: borrow.book_id,
+        type: 'fine',
+        title: 'Trả sách trễ hạn - Có phí phạt',
+        message: `Bạn đã trả cuốn sách "${borrow.book_title}". Tuy nhiên bạn bị phạt ${result.fine_amount.toLocaleString('vi-VN')} VNĐ do trễ hạn. Vui lòng thanh toán cho thủ thư.`
+      });
+    } else {
+      await notificationModel.create({
+        receiver_role: 'user',
+        user_id: borrow.user_id,
+        borrow_id: borrow.id,
+        book_id: borrow.book_id,
+        type: 'returned',
+        title: 'Trả sách thành công',
+        message: `Yêu cầu trả cuốn sách "${borrow.book_title}" của bạn đã được xác nhận thành công. Cảm ơn bạn!`
+      });
+    }
     return success(res, result, msg);
   } catch (err) {
     console.error('[returnBook]', err);
@@ -139,7 +173,7 @@ exports.getOverdue = async (_req, res) => {
   }
 };
 
-// PUT /api/admin/borrows/approve/:id — duyệt phiếu mượn
+// PUT /api/admin/borrows/approve/:id — Admin duyệt mượn
 exports.approveBorrow = async (req, res) => {
   try {
     const borrow = await borrowModel.findById(req.params.id);
@@ -147,6 +181,17 @@ exports.approveBorrow = async (req, res) => {
       return error(res, 'Không tìm thấy phiếu mượn', 404);
 
     await borrowModel.updateStatus(req.params.id, 'borrowing', req.user.id);
+    
+    // Bắn thông báo về cho User
+    await notificationModel.create({
+      receiver_role: 'user',  // Khai báo rõ gửi cho user
+      user_id: borrow.user_id,
+      borrow_id: borrow.id,
+      book_id: borrow.book_id,
+      type: 'approved',
+      title: 'Yêu cầu mượn sách được duyệt',
+      message: `Thủ thư đã duyệt phiếu mượn #${borrow.id}. Vui lòng đến thư viện nhận sách "${borrow.book_title}" của bạn.`
+    });
     return success(res, null, 'Đã duyệt yêu cầu mượn');
   } catch (err) {
     console.error('[approveBorrow]', err);
@@ -154,14 +199,36 @@ exports.approveBorrow = async (req, res) => {
   }
 };
 
-// PUT /api/admin/borrows/reject/:id — từ chối phiếu mượn
+// PUT /api/admin/borrows/reject/:id — Admin từ chối mượn
 exports.rejectBorrow = async (req, res) => {
   try {
     const borrow = await borrowModel.findById(req.params.id);
     if (!borrow)
       return error(res, 'Không tìm thấy phiếu mượn', 404);
+      
+    await borrowModel.rejectBorrow(req.params.id, req.user.id);
+    
+    // Gửi báo cho User
+    await notificationModel.create({
+      receiver_role: 'user',
+      user_id: borrow.user_id,
+      borrow_id: borrow.id,
+      book_id: borrow.book_id,
+      type: 'system',
+      title: 'Yêu cầu mượn sách bị từ chối',
+      message: `Rất tiếc, yêu cầu mượn sách "${borrow.book_title}" (phiếu #${borrow.id}) của bạn đã bị từ chối.`
+    });
 
-    await borrowModel.updateStatus(req.params.id, 'cancelled', req.user.id);
+    // Thông báo nội bộ cho Admin/Employee (Ghi nhận log hệ thống)
+    await notificationModel.create({
+      receiver_role: 'admin_employee', // Sửa lại để nhảy vào hộp thư chung Admin
+      borrow_id: borrow.id,
+      book_id: borrow.book_id,
+      type: 'system',
+      title: 'Đã từ chối yêu cầu',
+      message: `Quản trị viên đã từ chối mượn sách '${borrow.book_title}' của user '${borrow.user_name}'.`
+    });
+    
     return success(res, null, 'Đã từ chối yêu cầu mượn');
   } catch (err) {
     console.error('[rejectBorrow]', err);
@@ -169,13 +236,13 @@ exports.rejectBorrow = async (req, res) => {
   }
 };
 
+// PATCH /api/borrows/request-return/:id — User xin trả sách
 exports.requestReturn = async (req, res) => {
   try {
     const borrow = await borrowModel.findById(req.params.id);
     if (!borrow)
       return error(res, 'Borrow record not found', 404);
 
-    // Chỉ user sở hữu phiếu mới được request return
     if (req.user.role === 'user' && borrow.user_id !== req.user.id)
       return error(res, 'Access denied', 403);
 
@@ -183,6 +250,17 @@ exports.requestReturn = async (req, res) => {
       return error(res, 'This borrow cannot be returned at this stage', 400);
 
     await borrowModel.updateStatus(req.params.id, 'returning', req.user.id);
+    
+    // [THÊM MỚI] Bắn thông báo cho Admin/Employee duyệt trả
+    await notificationModel.create({
+      receiver_role: 'admin_employee',
+      borrow_id: borrow.id,
+      book_id: borrow.book_id,
+      type: 'system',
+      title: 'Yêu cầu trả sách mới',
+      message: `User "${borrow.user_name}" vừa gửi yêu cầu trả cuốn sách "${borrow.book_title}". Vui lòng kiểm tra và xác nhận.`
+    });
+
     return success(res, null, 'Return request sent. Awaiting admin confirmation.');
   } catch (err) {
     console.error('[requestReturn]', err);

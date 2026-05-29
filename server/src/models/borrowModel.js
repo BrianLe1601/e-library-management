@@ -14,12 +14,38 @@ const FINE_PER_DAY        = 1000; // 1,000 VND/ngày
 const MAX_FINE            = 50000; // tối đa 50,000 VND
 
 const markOverdue = async () => {
-  await db.query(`
-    UPDATE borrows
-    SET status = 'overdue'
-    WHERE status IN ('borrowing', 'renewed')
-      AND due_date < CURRENT_DATE
-  `);
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Tìm các phiếu mượn ĐÃ ĐẾN HẠN nhưng chưa trả
+    const [overdueBorrows] = await conn.query(`
+      SELECT id, user_id, book_id 
+      FROM borrows 
+      WHERE status IN ('borrowing', 'renewed') 
+        AND due_date < CURRENT_DATE
+    `);
+
+    // 2. Nếu có sách quá hạn, tiến hành cập nhật trạng thái
+    if (overdueBorrows.length > 0) {
+      const borrowIds = overdueBorrows.map(b => b.id);
+      await conn.query(`
+        UPDATE borrows 
+        SET status = 'overdue' 
+        WHERE id IN (?)
+      `, [borrowIds]);
+    }
+
+    await conn.commit();
+    
+    // 3. Trả về danh sách để hệ thống đi rải thông báo
+    return overdueBorrows; 
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 };
 
 // ── Tạo yêu cầu mượn ─────────────────────────────────────────────────────────
@@ -203,7 +229,6 @@ const extendBorrow = async (borrowId, renewedBy = null) => {
 
 // ── Sách đang mượn của user ───────────────────────────────────────────────────
 const findActiveByUser = async (userId) => {
-  await markOverdue();
   const [rows] = await db.query(`
   SELECT
     b.id, b.book_id,
@@ -263,7 +288,6 @@ const findHistoryByUser = async (userId, { page = 1, limit = 10 }) => {
 // ── Admin/Employee: toàn bộ lượt mượn ────────────────────────────────────────
 // [BỔ SUNG] Thêm filter theo user_id
 const findAll = async ({ page = 1, limit = 20, status = '', user_id = '' }) => {
-  await markOverdue();
   const offset     = (Math.max(1, Number(page)) - 1) * Number(limit);
   const conditions = [];
   const params     = [];
@@ -301,7 +325,6 @@ const findAll = async ({ page = 1, limit = 20, status = '', user_id = '' }) => {
 
 // ── Admin/Employee: danh sách quá hạn ────────────────────────────────────────
 const findOverdue = async () => {
-  await markOverdue();
   const [rows] = await db.query(
     `SELECT b.id, b.due_date, b.borrow_date,
             u.full_name, u.email,

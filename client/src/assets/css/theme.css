@@ -179,3 +179,32 @@
     line-height: 1.5;
   }
 }
+
+/* Cấu hình thanh cuộn đồng bộ toàn hệ thống */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 10.5px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #a2a8af;
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #bcbcbc;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: #1e293b; 
+    border: 1px solid #334155;
+  }
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: #475569;
+  }
+}

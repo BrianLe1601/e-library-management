@@ -16,7 +16,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell, Sector,
 } from 'recharts';
-import { getStats, getTopBooks } from '../../services/adminService';
+import adminService from '../../services/adminService';
 import borrowService from '../../services/borrowService';
 
 // ── Recharts helpers ──────────────────────────────────────────────────────────
@@ -70,8 +70,8 @@ export default function Dashboard() {
     const fetchAll = async () => {
       try {
         const [statsRes, topRes, borrowsRes] = await Promise.all([
-          getStats(),
-          getTopBooks(5),
+          adminService.getStats(),
+          adminService.getTopBooks(5),
           borrowService.getAllBorrows({ status: 'borrowing', limit: 5 }),
         ]);
         if (statsRes.data.success)   setStats(statsRes.data.data);
