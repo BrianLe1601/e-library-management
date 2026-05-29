@@ -3,11 +3,7 @@ import {
   Plus, Search, Edit2, Trash2, EyeOff, Eye, X, Upload,
   BookOpen, Hash, Package, PenTool, Building, Tag, FileText, ChevronDown, Layers
 } from 'lucide-react';
-import { 
-  getPublishers, getBooks, createBook, updateBook, deleteBook,
-  getAuthors, getCategories, createAuthor, createPublisher, toggleHideBook 
-} from '../../services/adminService';
-
+import adminService from '../../services/adminService';
 import InputField from '../../components/InputField';
 
 // 100% English Status Configuration
@@ -59,7 +55,7 @@ export default function BookInventory() {
   const fetchBooks = async () => {
     try {
       setLoadingData(true);
-      const response = await getBooks();
+      const response = await adminService.getBooks();
       const bookData = response.data.data;
       if (Array.isArray(bookData)) {
         const formattedBooks = bookData.map(book => {
@@ -93,7 +89,7 @@ export default function BookInventory() {
 
   useEffect(() => {
     fetchBooks();
-    Promise.all([getAuthors(), getCategories(), getPublishers()]).then(([resAuth, resCat, resPub]) => {
+    Promise.all([adminService.getAuthors(), adminService.getCategories(), adminService.getPublishers()]).then(([resAuth, resCat, resPub]) => {
       setAuthorOptions(resAuth.data?.data || resAuth.data || []);
       setCategoryOptions(resCat.data?.data || resCat.data || []);
       setPublisherOptions(resPub.data?.data || resPub.data || []);
@@ -167,9 +163,9 @@ export default function BookInventory() {
       }
 
       if (editBook) {
-        await updateBook(editBook.id, dataToSend); 
+        await adminService.updateBook(editBook.id, dataToSend); 
       } else {
-        await createBook(dataToSend); 
+        await adminService.createBook(dataToSend); 
       }
 
       setShowModal(false);
@@ -185,7 +181,7 @@ export default function BookInventory() {
 
   const toggleHide = async (id) => {
     try {
-      const response = await toggleHideBook(id);
+      const response = await adminService.toggleHideBook(id);
       const newHiddenState = response.data.data.is_hidden;
       setBooks(prev => prev.map(b => 
         b.id === id ? { ...b, hidden: !!newHiddenState } : b
@@ -198,7 +194,7 @@ export default function BookInventory() {
 
   const handleDelete = async (id) => {
     try {
-      await deleteBook(id);
+      await adminService.deleteBook(id);
       setBooks(prev => prev.filter(b => b.id !== id));
       setDeleteId(null);
     } catch (error) {
@@ -211,7 +207,7 @@ export default function BookInventory() {
     if (!newAuthName.trim()) return;
     setIsSavingAuth(true);
     try {
-      const res = await createAuthor({ name: newAuthName.trim(), bio: newAuthBio.trim() });
+      const res = await adminService.createAuthor({ name: newAuthName.trim(), bio: newAuthBio.trim() });
       if (res.data?.success) {
         const newAuthor = res.data.data;
         setAuthorOptions(prev => [...prev, newAuthor]);
@@ -231,7 +227,7 @@ export default function BookInventory() {
     if (!newPubName.trim() || !newPubCountry.trim()) return;
     setIsSavingPub(true);
     try {
-      const res = await createPublisher({ name: newPubName.trim(), country: newPubCountry.trim() });
+      const res = await adminService.createPublisher({ name: newPubName.trim(), country: newPubCountry.trim() });
       if (res.data?.success) {
         const newPub = res.data.data;
         setPublisherOptions(prev => [...prev, newPub]);

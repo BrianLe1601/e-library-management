@@ -377,132 +377,171 @@ exports.exportReport = async (req, res) => {
 exports.getNotifications = async (req, res) => {
   try {
     const {
-      filter    = 'all',
-      viewMode  = 'active',
-      page      = 1,
-      limit     = 10,
-      search    = '',
+      filter      = 'all',
+      is_archived = 0,
+      page        = 1,
+      limit       = 10,
+      search      = '',
     } = req.query;
  
-    const is_archived = viewMode === 'archived' ? 1 : 0;
- 
-    const { rows, total } = await notificationModel.findAll({
+    const result = await notificationModel.findAll({
+      receiver_role:  'admin_employee',
       filter,
-      is_archived,
-      page:   Number(page),
-      limit:  Number(limit),
+      is_archived:    Number(is_archived),
+      page:           Number(page),
+      limit:          Number(limit),
       search,
     });
  
-    const stats      = await notificationModel.getStats();
-    const totalPages = Math.ceil(total / Number(limit)) || 1;
+    const stats = await notificationModel.getStats();
  
-    // [FIX] Trả về đúng cấu trúc mà frontend kỳ vọng:
-    //   res.data.data.data        → mảng notifications
-    //   res.data.data.stats       → badge counts
-    //   res.data.data.totalPages  → số trang
-    return success(res, { data: rows, stats, totalPages }, 'Notifications fetched successfully');
+    return success(res, {
+      data:       result.rows,
+      total:      result.total,
+      page:       Number(page),
+      totalPages: Math.ceil(result.total / Number(limit)) || 1,
+      stats,
+    });
   } catch (err) {
     console.error('[getNotifications]', err);
-    return error(res, 'System Error while fetching notifications', 500);
+    return error(res, 'Error fetching notifications', 500);
   }
 };
  
+// ── PATCH /api/admin/notifications/:id/read ──────────────────────────────────
 exports.markNotificationRead = async (req, res) => {
   try {
     await notificationModel.markRead(req.params.id);
-    return success(res, null, 'Notification marked as read successfully');
+    return success(res, null, 'Marked as read');
   } catch (err) {
-    return error(res, 'System Error while marking notification as read', 500);
+    console.error('[markNotificationRead]', err);
+    return error(res);
   }
 };
  
+// ── PATCH /api/admin/notifications/mark-all ──────────────────────────────────
 exports.markAllNotificationsRead = async (req, res) => {
   try {
     await notificationModel.markAllRead();
-    return success(res, null, 'All notifications marked as read successfully');
+    return success(res, null, 'All marked as read');
   } catch (err) {
-    return error(res, 'System Error while marking all notifications as read', 500);
+    console.error('[markAllNotificationsRead]', err);
+    return error(res);
   }
 };
  
+// ── PATCH /api/admin/notifications/:id/archive ───────────────────────────────
 exports.archiveNotification = async (req, res) => {
   try {
     await notificationModel.archive(req.params.id);
-    return success(res, null, 'Notification archived successfully');
+    return success(res, null, 'Archived');
   } catch (err) {
-    return error(res, 'System Error while archiving notification', 500);
+    console.error('[archiveNotification]', err);
+    return error(res);
   }
 };
  
+// ── PATCH /api/admin/notifications/:id/restore ───────────────────────────────
 exports.restoreNotification = async (req, res) => {
   try {
     await notificationModel.restore(req.params.id);
-    return success(res, null, 'Notification restored successfully');
+    return success(res, null, 'Restored');
   } catch (err) {
-    return error(res, 'System Error while restoring notification', 500);
+    console.error('[restoreNotification]', err);
+    return error(res);
   }
 };
  
+// ── DELETE /api/admin/notifications/:id ─────────────────────────────────────
 exports.deleteNotification = async (req, res) => {
   try {
     await notificationModel.remove(req.params.id);
-    return success(res, null, 'Notification deleted successfully');
+    return success(res, null, 'Deleted permanently');
   } catch (err) {
-    return error(res, 'System Error while deleting notification', 500);
+    console.error('[deleteNotification]', err);
+    return error(res);
   }
 };
  
-/**
- * POST /api/admin/notifications/bulk
- * [FIX] Thêm xử lý action='restore' — trước đây chỉ có archive/delete,
- *       khiến nút "Restore" trong bulk toolbar của tab Archived không làm gì cả
- */
+// ── POST /api/admin/notifications/bulk ──────────────────────────────────────
+// Supports:
+//   { action, ids }                                  — operate on specific ids
+//   { action, selectAll: true, filter, is_archived } — operate on ALL matching
 exports.bulkActionNotifications = async (req, res) => {
   try {
-    const { action, ids } = req.body;
-    if (!ids || ids.length === 0) return error(res, 'No items selected', 400);
+    const {
+      action,
+      ids         = [],
+      selectAll   = false,
+      filter      = '',
+      is_archived = 0,
+      search      = '',
+    } = req.body;
  
-    if (action === 'archive') {
-      await notificationModel.bulkArchive(ids);
-      return success(res, null, 'Notifications archived successfully');
-    }
-    if (action === 'restore') {
-      await notificationModel.bulkRestore(ids);
-      return success(res, null, 'Notifications restored successfully');
-    }
-    if (action === 'delete') {
-      await notificationModel.bulkDelete(ids);
-      return success(res, null, 'Notifications deleted successfully');
+    const validActions = ['archive', 'restore', 'delete', 'mark_read'];
+    if (!validActions.includes(action)) {
+      return error(res, 'Invalid action', 400);
     }
  
-    return error(res, 'Invalid action', 400);
+    let targetIds = ids;
+ 
+    // If selectAll=true, fetch all matching ids from DB
+    if (selectAll) {
+      const result = await notificationModel.findAll({
+        receiver_role: 'admin_employee',
+        filter,
+        is_archived: Number(is_archived),
+        page:  1,
+        limit: 99999,
+        search,
+      });
+      targetIds = result.rows.map((n) => n.id);
+    }
+ 
+    if (!targetIds || targetIds.length === 0) {
+      return error(res, 'No notifications selected', 400);
+    }
+ 
+    switch (action) {
+      case 'archive':   await notificationModel.bulkArchive(targetIds); break;
+      case 'restore':   await notificationModel.bulkRestore(targetIds); break;
+      case 'delete':    await notificationModel.bulkDelete(targetIds);  break;
+      case 'mark_read':
+        // Inline bulk mark read (add to notificationModel if not exists)
+        const db = require('../config/db');
+        await db.query(
+          'UPDATE notifications SET is_read = 1 WHERE id IN (?)',
+          [targetIds]
+        );
+        break;
+    }
+ 
+    return success(res, { processed: targetIds.length }, `Bulk ${action} done`);
   } catch (err) {
     console.error('[bulkActionNotifications]', err);
-    return error(res, 'System Error while performing bulk action', 500);
+    return error(res);
   }
 };
  
-/**
- * POST /api/admin/notifications
- * [FIX] Lấy thêm borrow_id, book_id từ body — trước đây controller bỏ qua 2 trường này
- *       dù model và frontend đều đã xử lý đúng
- * [FIX] Đổi notificationModel.create thay vì .createNotificationApi (đã đổi tên trong model)
- * [FIX] Validation: title và message bắt buộc
- */
+// ── POST /api/admin/notifications ────────────────────────────────────────────
 exports.createNotificationApi = async (req, res) => {
   try {
     const { scope, user_id, borrow_id, book_id, type, title, message } = req.body;
  
-    if (!title || !title.trim())   return error(res, 'Title is required', 400);
-    if (!message || !message.trim()) return error(res, 'Message is required', 400);
-    if (scope === 'user' && !user_id) return error(res, 'user_id is required when scope is "user"', 400);
+    if (!title || !message) {
+      return error(res, 'title and message are required', 400);
+    }
  
-    await notificationModel.create({ scope, user_id, borrow_id, book_id, type, title: title.trim(), message: message.trim() });
-    return success(res, null, 'Notification created successfully', 201);
+    if (scope === 'all' || scope === 'users_only') {
+      await notificationModel.createForRoleUsers({ scope, type, title, message, book_id });
+    } else {
+      await notificationModel.create({ scope: 'user', user_id, borrow_id, book_id, type, title, message });
+    }
+ 
+    return success(res, null, 'Notification created');
   } catch (err) {
     console.error('[createNotificationApi]', err);
-    return error(res, 'System Error while creating notification', 500);
+    return error(res);
   }
 };
 

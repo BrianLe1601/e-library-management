@@ -3,7 +3,7 @@ import {
   Search, Lock, Unlock, ShieldCheck, ShieldOff, UserPlus, 
   Mail, X, Eye, EyeOff, User, Users, UserCheck, UserX, Shield, Phone, Layers
 } from "lucide-react";
-import { getUsers, toggleUserStatus, updateUserRole, addUser } from "../../services/adminService";
+import adminService from "../../services/adminService";
 import InputField from "../../components/InputField";
 
 const avatarColors = [
@@ -43,7 +43,7 @@ export default function UserManagement() {
   const fetchUsersData = async () => {
     try {
       setLoading(true);
-      const response = await getUsers();
+      const response = await adminService.getUsers();
       const serverData = response.data.data;
       if(Array.isArray(serverData)){
         setUsers(serverData);
@@ -109,7 +109,7 @@ export default function UserManagement() {
     if(!confirmChange) return;
 
     try{
-      const response = await updateUserRole(user.id, newRole);
+      const response = await adminService.updateUserRole(user.id, newRole);
       if(response.data && response.data.success){
         setUsers((prev) =>
           prev.map((u) => (u.id === user.id ? { ...u, role: newRole } : u)),
@@ -126,7 +126,7 @@ export default function UserManagement() {
 
   const toggleLock = async (userId) => {
     try {
-      await toggleUserStatus(userId);
+      await adminService.toggleUserStatus(userId);
       setUsers(prevUsers => prevUsers.map(user => {
         if (user.id === userId){
           const nextStatus = user.status === "active" ? "banned" : "active";
@@ -174,7 +174,7 @@ export default function UserManagement() {
     try {
       setIsSubmitting(true);
       const { confirm_password, ...submitData } = formData;
-      const response = await addUser(submitData);
+      const response = await adminService.addUser(submitData);
       
       if (response.data && response.data.success) {
         alert("User added successfully!");

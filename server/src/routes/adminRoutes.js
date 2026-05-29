@@ -39,7 +39,7 @@ router.get('/reports/top-books',    authorize('admin', 'employee'), adminControl
 router.get('/reports/export',       authorize('admin', 'employee'), adminController.exportReport);
 
 // ── User management (admin only) ──────────────────────────────────────────────
-router.get   ('/users',             authorize('admin'),             adminController.getUsers);
+router.get   ('/users',             authorize('admin', 'employee'), adminController.getUsers);
 router.post  ('/users',             authorize('admin'),             adminController.createUser);
 router.patch ('/users/:id/status',  authorize('admin'),             adminController.toggleUserStatus);
 router.delete('/users/:id',         authorize('admin'),             adminController.deleteUser);

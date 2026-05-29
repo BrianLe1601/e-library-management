@@ -10,7 +10,7 @@ import { User, Mail, Phone, Lock, Eye, EyeOff, CheckCircle2, Loader2 } from "luc
 import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
 
-export function SettingsTab() {
+export default function SettingsTab() {
   const { user, updateUser } = useAuth();
 
   const [showPassword,    setShowPassword]    = useState(false);
