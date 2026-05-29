@@ -217,20 +217,23 @@ export default function LoginPage() {
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
       </div>
 
-      {/* Social Buttons - BẺ VÒNG LẶP ĐỂ GẮN SỰ KIỆN CLICK RIÊNG BIỆT */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Social Login */}
+      <div className="mt-4">
         <button
           type="button"
           onClick={() => triggerGoogleLogin()}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
+          className="w-full flex items-center justify-center gap-3 px-4 py-2.5 
+                    rounded-lg border border-slate-300 dark:border-slate-700 
+                    bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 
+                    text-sm font-medium shadow-sm hover:bg-slate-50 
+                    dark:hover:bg-slate-700 transition-colors"
         >
-          Google
-        </button>
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
-        >
-          Facebook
+          <img
+            src="https://www.svgrepo.com/show/475656/google-color.svg"
+            alt="Google"
+            className="w-5 h-5"
+          />
+          <span>Login with Google</span>
         </button>
       </div>
 
