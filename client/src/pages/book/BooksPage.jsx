@@ -9,10 +9,10 @@ import Pagination from "../../components/Pagination";
 const BOOKS_PER_PAGE = 12;
 
 const sortOptions = [
-  { value: "default",  label: "📋 Default" },
-  { value: "featured", label: "⭐ Featured Books" },
-  { value: "trending", label: "🔥 Trending — Top Rated" },
-  { value: "newest",   label: "🆕 Newest Books" },
+  { value: "default",  label: " Default" },
+  { value: "featured", label: " Featured Books" },
+  { value: "trending", label: " Trending — Top Rated" },
+  { value: "newest",   label: " Newest Books" },
 ];
 
 export default function BookListingPage() {
@@ -27,7 +27,14 @@ export default function BookListingPage() {
   const [totalPages, setTotalPages]   = useState(1);
 
   // ── Sort / Filter ────────────────────────────────────────────────────────────
-  const [sortBy, setSortBy] = useState("default");
+  const [sortBy, setSortBy] = useState(() => {
+    const filter = searchParams.get("filter");
+    const sort   = searchParams.get("sort");
+    if (filter === "featured") return "featured";
+    if (sort === "trending")   return "trending"; 
+    if (sort === "newest")     return "newest";
+    return "default";
+  });
   const [filters, setFilters] = useState({
     // Luôn lưu dưới dạng Number để nhất quán với API và FilterSidebar
     categories: searchParams.get("category")
@@ -46,6 +53,29 @@ export default function BookListingPage() {
   const [suggLoading, setSuggLoading]         = useState(false);
   const searchWrapRef = useRef(null);
   const debounceRef   = useRef(null);
+
+//------------------------------------------------------------------------------
+
+// ── Sync sortBy khi URL thay đổi ─────────────────────────────────────────────
+useEffect(() => {
+  const filter = searchParams.get("filter");
+  const sort   = searchParams.get("sort");
+  if (filter === "featured")    setSortBy("featured");
+  else if (sort === "trending") setSortBy("trending");
+  else if (sort === "newest")   setSortBy("newest");
+  else                          setSortBy("default");
+  setCurrentPage(1);
+}, [searchParams]);
+
+// ── Sync category filter khi URL thay đổi ────────────────────────────────────
+useEffect(() => {
+  const cat = searchParams.get("category");
+  setFilters(prev => ({
+    ...prev,
+    categories: cat ? [Number(cat)] : [],
+  }));
+  setCurrentPage(1);
+}, [searchParams]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleFilterChange = (newFilters) => {
