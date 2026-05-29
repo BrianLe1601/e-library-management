@@ -13,7 +13,7 @@ const authService = {
   /**
    * Đăng ký tài khoản mới
    * @param {{ full_name, email, password, phone? }} data
-   * @returns {{ success, message, data: { id, full_name, email, role, active } }}
+   * @returns {{ success, message, data: { id, full_name, email, role } }}
    */
   register: (data) => api.post("/auth/register", data),
 
@@ -54,7 +54,9 @@ const authService = {
    * Verify OTP sent to email after registration
    * @param {{ email, otpCode }} data
    */
-  verifyOtp: (email, otpCode) => api.post("/auth/verify-otp", { email, otpCode }),
+  verifyOtp: (email, otp) => api.post("/auth/verify-otp", { email, otp }),
+  
+  resendOtp: (email) => api.post("/auth/resend-otp", { email }),
 
   loginWithGoogle: async (googleAccessToken) => {
     // Gửi chính xác định dạng token mà backend đón nhận

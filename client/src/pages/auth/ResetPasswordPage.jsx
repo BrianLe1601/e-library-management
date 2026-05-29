@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom"; 
 import { BookOpen, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, Check } from "lucide-react";
 import authService from "../../services/authService"; 
@@ -55,12 +55,20 @@ export function ResetPasswordPage() {
 
   const toast = useToast();
 
+  // ĐÃ SỬA: Bắt buộc phải đặt useEffect ở đây (trước các lệnh if + return)
+  useEffect(() => {
+    if (!resetToken) {
+      toast.error("Error", "Invalid session. Please verify your OTP again.");
+      navigate("/login");
+    }
+  }, [resetToken, navigate, toast]);
+
   if (!resetToken) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 text-center p-5">
         <div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Phiên đổi mật khẩu không hợp lệ!</h2>
-          <Link to="/login" className="text-indigo-600 hover:underline">Quay về Đăng nhập</Link>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Invalid password reset session!</h2>
+          <Link to="/login" className="text-indigo-600 hover:underline">Back to Login</Link>
         </div>
       </div>
     );

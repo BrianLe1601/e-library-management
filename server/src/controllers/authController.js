@@ -4,7 +4,7 @@
  * POST /api/auth/register
  * POST /api/auth/verify-otp
  * POST /api/auth/login
- * POST /api/auth/google         <-- Thêm mới endpoint này
+ * POST /api/auth/google       
  * GET  /api/users/profile
  * PUT  /api/users/profile
  * PUT  /api/users/change-password
@@ -121,21 +121,87 @@ exports.register = async (req, res) => {
     }
 };
 
+// ── POST /api/auth/resend-otp ────────────────────────────────────────────────
+exports.resendOtp = async (req, res) => {
+    const { email } = req.body;
+    try {
+        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (users.length === 0) return res.status(404).json({ success: false, message: 'Account not found.' });
+
+        const user = users[0];
+        if (user.status !== 'pending') return res.status(400).json({ success: false, message: 'This account has already been verified.' });
+
+        // Xóa OTP cũ và tạo mới
+        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "register"', [email]);
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+        await db.query(
+            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "register", ?)',
+            [email, otpCode, expiresAt]
+        );
+
+        // Logic gửi Mail (Giống hệt phần Register)
+        const mailUser = process.env.MAIL_USER;
+        const mailPass = process.env.MAIL_PASS;
+        let mailSent = false;
+
+        if (mailUser && mailPass) {
+            try {
+                const transporter = nodemailer.createTransport({
+                    host: process.env.MAIL_HOST || 'smtp.gmail.com',
+                    port: Number(process.env.MAIL_PORT) || 587,
+                    secure: false,
+                    auth: { user: mailUser, pass: mailPass }
+                });
+                await transporter.sendMail({
+                    from: process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>',
+                    to: email,
+                    subject: 'E-Library Account Activation OTP',
+                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
+                            <p>Hello,</p>
+                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
+                            <div style="text-align: center; margin: 30px 0;">
+                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                                    ${otpCode}
+                                </span>
+                            </div>
+                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+                           </div>`
+                });
+                mailSent = true;
+            } catch (err) { console.warn('Error sending email:', err.message); }
+        }
+
+        const responsePayload = { success: true, message: 'New OTP code has been sent to your email.' };
+        if (!mailSent) responsePayload.debugOtp = otpCode;
+
+        return res.status(200).json(responsePayload);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Error on server while resending OTP.' });
+    }
+};
+
 // ── POST /api/auth/verify-otp ───────────────────────────────────────────────────
 exports.verifyOtp = async (req, res) => {
-    const { email, otpCode } = req.body;
+    const { email, otp } = req.body;
     try {
-        const [rows] = await db.query(
-            'SELECT * FROM otps WHERE email = ? AND otp_code = ? AND action_type = "register" AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
-            [email, otpCode]
+        const [otps] = await db.query(
+            `SELECT * FROM otps 
+             WHERE email = ? AND otp_code = ? AND action_type = "register" 
+             AND is_used = 0 AND expires_at > NOW() 
+             ORDER BY created_at DESC LIMIT 1`,
+            [email, otp]
         );
-        if (rows.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
+        if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
 
+        await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otps[0].id]);
         await db.query('UPDATE users SET status = "active" WHERE email = ?', [email]);
-        await db.query('DELETE FROM otps WHERE email = ?', [email]);
-        res.status(200).json({ success: true, message: 'Account verification successful.' });
+        return res.status(200).json({ success: true, message: 'Verification successful. Now you can login.' });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error processing verification.' });
+        console.error('[authController.verifyOtp] Error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error when verifying OTP.' });
     }
 };
 
@@ -154,7 +220,7 @@ exports.login = async (req, res) => {
         // TÌNH HUỐNG CHẶN: Nếu mật khẩu trong DB là token Google, yêu cầu họ nhấn nút đăng nhập bằng Google bên dưới
         if (user.password === 'GOOGLE_AUTH_ACCOUNT' || user.login_method === 'google') {
             return res.status(400).json({ 
-                message: 'Tài khoản này được đăng ký thông qua Google. Vui lòng bấm vào nút "Google" bên dưới để đăng nhập!' 
+                message: 'This account was registered via Google. Please click the "Google" button below to log in!' 
             });
         }
 
@@ -174,18 +240,18 @@ exports.login = async (req, res) => {
     }
 };
 
-// ── POST /api/auth/google (MỚI BỔ SUNG) ──────────────────────────────────────────
+// ── POST /api/auth/google ──────────────────────────────────────────
 exports.googleLogin = async (req, res) => {
     const { accessToken } = req.body;
     if (!accessToken) {
-        return res.status(400).json({ success: false, message: 'Thiếu mã truy cập tài khoản Google.' });
+        return res.status(400).json({ success: false, message: 'Missing Google access token.' });
     }
 
     try {
         // Gọi trực tiếp API chính chủ của Google để lấy thông tin User từ Access Token nhận từ React
         const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
         if (!googleRes.ok) {
-            return res.status(400).json({ success: false, message: 'Xác thực tài khoản Google không hợp lệ hoặc đã hết hạn.' });
+            return res.status(400).json({ success: false, message: 'Invalid or expired Google access token.' });
         }
         
         const payload = await googleRes.json();
@@ -242,7 +308,7 @@ exports.googleLogin = async (req, res) => {
         });
     } catch (error) {
         console.error('[authController.googleLogin] Lỗi:', error);
-        return res.status(500).json({ success: false, message: 'Lỗi máy chủ trong quá trình xác thực Google.' });
+        return res.status(500).json({ success: false, message: 'Internal server error when verifying Google account.' });
     }
 };
 
@@ -317,17 +383,25 @@ exports.forgotPassword = async (req, res) => {
 exports.verifyForgotOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
-        const [otpRecord] = await db.query(
-            `SELECT * FROM otps WHERE email = ? AND otp_code = ? AND action_type = 'forgot_password' AND is_used = 0 AND expires_at > NOW()`,
+        const [otps] = await db.query(
+            `SELECT * FROM otps 
+             WHERE email = ? AND otp_code = ? AND action_type = "forgot_password" 
+             AND is_used = 0 AND expires_at > NOW() 
+             ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
         );
-        if (otpRecord.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+        if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
 
-        await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otpRecord[0].id]);
+        await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otps[0].id]);
         const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '15m' });
-        return res.status(200).json({ success: true, resetToken, message: 'OTP verified successfully.' });
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Verification successful. Please enter your new password.',
+            resetToken 
+        });
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Internal server error.' });
+        console.error('[authController.verifyForgotOtp] Error:', error);
+        return res.status(500).json({ success: false, message: 'Internal server error when verifying OTP.' });
     }
 };
 
