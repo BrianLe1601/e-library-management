@@ -1,286 +1,270 @@
-/**
- * pages/user/BorrowingTab.jsx
- * Kết nối:
- *   borrowService.getHistory() → GET /api/borrow/history
- *   borrowService.returnBook() → PUT /api/borrow/return/:id
- *   borrowService.extendBorrow() → PUT /api/borrow/extend/:id
- */
-
-import { useState, useEffect, useCallback } from "react";
-import { BookOpen, BookMarked, AlertTriangle, Clock, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  BookOpen, AlertTriangle, Clock, CheckCircle2,
+  RotateCcw, XCircle, ChevronRight, Loader2,
+  TrendingUp, Package,
+} from "lucide-react";
 import borrowService from "../../services/borrowService";
 
-const STATUS_MAP = {
-  borrowing:  { label: "Đang mượn",  classes: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" },
-  returned:   { label: "Đã trả",     classes: "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400" },
-  overdue:    { label: "Quá hạn",    classes: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400" },
-  renewed:    { label: "Đã gia hạn", classes: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300" },
-  cancelled:  { label: "Đã hủy",     classes: "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400" },
-  lost:       { label: "Mất sách",   classes: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" },
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+}
+function daysLeft(dueDateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due   = new Date(dueDateStr); due.setHours(0,0,0,0);
+  return Math.ceil((due - today) / 86400000);
+}
+function fmtMoney(amount) {
+  if (!amount || amount === 0) return null;
+  return new Intl.NumberFormat("vi-VN").format(amount) + "đ";
+}
+function timeAgo(dateStr) {
+  if (!dateStr) return "";
+  const diff = Math.floor((Date.now() - new Date(dateStr)) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7)  return `${diff} days ago`;
+  if (diff < 30) return `${Math.floor(diff/7)} weeks ago`;
+  return `${Math.floor(diff/30)} months ago`;
+}
+
+// ─── Status icon map ──────────────────────────────────────────────────────────
+const ACTIVITY_CONFIG = {
+  pending:   { icon: Clock,        color: "text-amber-400",   bg: "bg-amber-500/10",   label: "Awaiting Approval"    },
+  borrowing: { icon: BookOpen,     color: "text-blue-400",    bg: "bg-blue-500/10",    label: "Approved"             },
+  renewed:   { icon: RotateCcw,    color: "text-purple-400",  bg: "bg-purple-500/10",  label: "Renewed"              },
+  returning: { icon: RotateCcw,    color: "text-teal-400",    bg: "bg-teal-500/10",    label: "Return Requested"     },
+  returned:  { icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10", label: "Returned"             },
+  overdue:   { icon: AlertTriangle,color: "text-red-400",     bg: "bg-red-500/10",     label: "Overdue"              },
+  cancelled: { icon: XCircle,      color: "text-slate-400",   bg: "bg-slate-500/10",   label: "Cancelled"            },
+  lost:      { icon: Package,      color: "text-orange-400",  bg: "bg-orange-500/10",  label: "Lost"                 },
 };
 
-function fmt(d) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+const Skeleton = ({ className }) => (
+  <div className={`bg-slate-200 dark:bg-slate-700 rounded animate-pulse ${className}`} />
+);
 
-function daysLeft(dueDateStr) {
-  const today   = new Date(); today.setHours(0, 0, 0, 0);
-  const dueDate = new Date(dueDateStr); dueDate.setHours(0, 0, 0, 0);
-  return Math.ceil((dueDate - today) / 86400000);
-}
-
+// ─── Main Component ───────────────────────────────────────────────────────────
 export function DashboardTab() {
-  const [borrows, setBorrows]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [page, setPage]         = useState(1);
-  const [meta, setMeta]         = useState({ total: 0, totalPages: 1 });
-  const [actionId, setActionId] = useState(null);
-  const [toast, setToast]       = useState(null);
+  const [active,  setActive]  = useState([]);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const showToast = (msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  useEffect(() => {
+    const fetchAll = async () => {
+      setLoading(true);
+      try {
+        const [activeRes, historyRes] = await Promise.all([
+          borrowService.getMyBooks(),
+          borrowService.getHistory(),
+        ]);
+        setActive(activeRes.data.data   || []);
+        setHistory(historyRes.data.data || []);
+      } catch (err) {
+        console.error("[DashboardTab]", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
 
-  const fetchHistory = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await borrowService.getHistory({ page, limit: 10 });
-      if (data.success) { setBorrows(data.data); setMeta(data.meta); }
-    } catch { showToast("Không thể tải lịch sử mượn", "error"); }
-    finally { setLoading(false); }
-  }, [page]);
+  // ── Computed stats ──────────────────────────────────────────────────────────
+  const activeCount   = active.filter(b => ['borrowing','renewed'].includes(b.status)).length;
+  const pendingCount  = active.filter(b => b.status === 'pending').length;
+  const overdueCount  = active.filter(b => b.status === 'overdue').length;
+  const totalFines    = active.reduce((sum, b) => sum + (Number(b.fine_amount) || 0), 0);
 
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+  // Due soon — sắp hết hạn trong 5 ngày (chỉ borrowing/renewed)
+  const dueSoon = active
+    .filter(b => ['borrowing','renewed'].includes(b.status) && b.due_date)
+    .map(b => ({ ...b, days: daysLeft(b.due_date) }))
+    .filter(b => b.days >= 0 && b.days <= 5)
+    .sort((a, b) => a.days - b.days);
 
-  // Aggregated stats từ dữ liệu hiện tại (server nên trả tổng, ta tính gần đúng)
-  const totalBorrowed    = meta.total;
-  const currentBorrowing = borrows.filter(b => ['borrowing','renewed','overdue'].includes(b.status)).length;
-  const overdueCount     = borrows.filter(b => b.status === 'overdue' || (b.due_date && daysLeft(b.due_date) < 0 && b.status !== 'returned')).length;
-  const totalFines       = borrows.reduce((sum, b) => sum + (Number(b.fine_amount) || 0), 0);
+  // Recent activity — 5 records gần nhất từ history
+  const recentActivity = history.slice(0, 5);
 
-  const handleReturn = async (borrowId) => {
-    if (!window.confirm("Xác nhận trả sách này?")) return;
-    setActionId(borrowId);
-    try {
-      const { data } = await borrowService.returnBook(borrowId);
-      const fine = data.data?.fine_amount;
-      showToast(fine > 0 ? `Trả sách thành công! Tiền phạt: ${Number(fine).toLocaleString("vi-VN")}đ` : "Trả sách thành công!");
-      fetchHistory();
-    } catch (err) {
-      showToast(err.response?.data?.message || "Trả sách thất bại", "error");
-    } finally { setActionId(null); }
-  };
-
-  const handleExtend = async (borrow) => {
-    if (borrow.renewed_count >= 2) { showToast("Đã đạt giới hạn gia hạn (2 lần)", "error"); return; }
-    setActionId(borrow.id);
-    try {
-      const { data } = await borrowService.extendBorrow(borrow.id);
-      showToast(`Gia hạn thành công! Hạn mới: ${fmt(data.data?.new_due_date)}`);
-      fetchHistory();
-    } catch (err) {
-      showToast(err.response?.data?.message || "Gia hạn thất bại", "error");
-    } finally { setActionId(null); }
-  };
+  // ── Stats config ────────────────────────────────────────────────────────────
+  const stats = [
+    { label: "Active Loans",  value: activeCount,              icon: BookOpen,      bg: "bg-blue-500/10",    color: "text-blue-400"    },
+    { label: "Pending",       value: pendingCount,             icon: Clock,         bg: "bg-amber-500/10",   color: "text-amber-400"   },
+    { label: "Overdue",       value: overdueCount,             icon: AlertTriangle, bg: "bg-red-500/10",     color: "text-red-400"     },
+  ];
 
   return (
-    <div>
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.type === "success" ? "bg-green-600" : "bg-red-600"}`}>
-          {toast.msg}
-        </div>
-      )}
+    <div className="space-y-6">
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[
-          { icon: BookOpen,      label: "Tổng mượn",      value: totalBorrowed,        color: "blue"   },
-          { icon: BookMarked,    label: "Đang mượn",      value: currentBorrowing,     color: "indigo" },
-          { icon: AlertTriangle, label: "Quá hạn",        value: overdueCount,         color: "red"    },
-          { icon: Clock,         label: "Tổng phạt (đ)",  value: totalFines.toLocaleString("vi-VN"), color: "amber" },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-              stat.color === "blue"   ? "bg-blue-100 dark:bg-blue-900/40"   :
-              stat.color === "indigo" ? "bg-indigo-100 dark:bg-indigo-900/40":
-              stat.color === "red"    ? "bg-red-100 dark:bg-red-900/40"     :
-                                        "bg-amber-100 dark:bg-amber-900/40"
-            }`}>
-              <stat.icon className={`w-4 h-4 ${
-                stat.color === "blue"   ? "text-blue-700 dark:text-blue-400"    :
-                stat.color === "indigo" ? "text-indigo-700 dark:text-indigo-400":
-                stat.color === "red"    ? "text-red-600 dark:text-red-400"      :
-                                          "text-amber-600 dark:text-amber-400"
-              }`} />
+      {/* Header */}
+      <div>
+        <h2 className="text-slate-900 dark:text-slate-100 text-xl font-semibold">Dashboard</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          Overview of your library activity
+        </p>
+      </div>
+
+      {/* ── Stats ────────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+              <Skeleton className="w-9 h-9 rounded-xl mb-3" />
+              <Skeleton className="h-7 w-12 mb-1" />
+              <Skeleton className="h-3 w-20" />
             </div>
-            <p className="text-2xl text-gray-900 dark:text-gray-100 font-bold">{stat.value}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{stat.label}</p>
+          ))
+        ) : stats.map(s => (
+          <div key={s.label} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${s.bg}`}>
+              <s.icon className={`w-4 h-4 ${s.color}`} />
+            </div>
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <div className="p-5 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-          <h3 className="text-gray-900 dark:text-gray-100">Lịch sử mượn trả</h3>
-          <span className="text-xs text-gray-400">Tổng {meta.total} lượt</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* ── Due Soon ───────────────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <h3 className="text-slate-900 dark:text-slate-100 font-semibold text-sm">Due Soon</h3>
+              <p className="text-slate-400 text-xs mt-0.5">Books due within 5 days</p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-5 space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="w-10 h-14 rounded-lg shrink-0" />
+                  <div className="flex-1"><Skeleton className="h-3 w-3/4 mb-2" /><Skeleton className="h-3 w-1/2" /></div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : dueSoon.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-5">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 opacity-60 mb-2" />
+              <p className="text-slate-500 dark:text-slate-400 text-sm">No books due soon.</p>
+              <p className="text-slate-400 text-xs mt-1">You're all good!</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+              {dueSoon.map(book => (
+                <div key={book.id} className={`flex items-center gap-3 px-5 py-3.5
+                  ${book.days <= 1 ? 'bg-red-50/50 dark:bg-red-900/10' : book.days <= 3 ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}>
+                  <div className="w-10 h-14 rounded-lg overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-700 shadow-sm">
+                    <img src={book.cover_url || "https://via.placeholder.com/40x56?text=📖"}
+                      alt={book.title} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{book.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Due {fmtDate(book.due_date)}</p>
+                  </div>
+                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    book.days === 0 ? 'bg-red-500/20 text-red-500'
+                    : book.days <= 2 ? 'bg-orange-500/20 text-orange-500'
+                    : 'bg-amber-500/20 text-amber-600'
+                  }`}>
+                    {book.days === 0 ? 'Due today!' : `${book.days}d left`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-          </div>
-        ) : borrows.length === 0 ? (
-          <div className="text-center py-16">
-            <BookOpen className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-gray-400 text-sm">Chưa có lịch sử mượn</p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-700">
-                    {["Tên sách", "Ngày mượn", "Hạn trả", "Trả ngày", "Trạng thái", "Phạt (đ)", "Thao tác"].map(h => (
-                      <th key={h} className="text-left px-5 py-3.5 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
-                  {borrows.map((record) => {
-                    const st       = STATUS_MAP[record.status] || STATUS_MAP.borrowing;
-                    const isActive = ['borrowing','renewed','overdue'].includes(record.status);
-                    const days     = record.due_date ? daysLeft(record.due_date) : null;
-                    const isActing = actionId === record.id;
-                    return (
-                      <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center shrink-0">
-                              <BookOpen className="w-4 h-4 text-blue-700 dark:text-blue-400" />
-                            </div>
-                            <span className="text-sm text-gray-900 dark:text-gray-100 font-medium line-clamp-1">{record.title}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">{fmt(record.borrow_date)}</td>
-                        <td className="px-5 py-4">
-                          <span className={`text-sm ${days !== null && days < 0 ? 'text-red-500 font-medium' : days !== null && days <= 3 ? 'text-amber-500 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
-                            {fmt(record.due_date)}
-                            {days !== null && isActive && (
-                              <span className="block text-xs">
-                                {days < 0 ? `Quá ${Math.abs(days)} ngày` : days === 0 ? 'Hôm nay!' : `Còn ${days} ngày`}
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">{fmt(record.return_date)}</td>
-                        <td className="px-5 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${st.classes}`}>
-                            {st.label}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          {Number(record.fine_amount) > 0 ? (
-                            <span className={`text-sm font-semibold ${record.fine_paid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {Number(record.fine_amount).toLocaleString("vi-VN")}
-                              {record.fine_paid ? ' ✓' : ''}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-gray-400 dark:text-gray-500">—</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4">
-                          {isActive && (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleReturn(record.id)}
-                                disabled={isActing}
-                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20 disabled:opacity-50"
-                              >
-                                {isActing ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                                Trả
-                              </button>
-                              {record.status !== 'overdue' && record.renewed_count < 2 && (
-                                <button
-                                  onClick={() => handleExtend(record)}
-                                  disabled={isActing}
-                                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"
-                                >
-                                  {isActing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                  Gia hạn
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        {/* ── Recent Activity ────────────────────────────────────────────────── */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <h3 className="text-slate-900 dark:text-slate-100 font-semibold text-sm">Recent Activity</h3>
+              <p className="text-slate-400 text-xs mt-0.5">Your latest borrow actions</p>
             </div>
+          </div>
 
-            {/* Mobile cards */}
-            <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
-              {borrows.map((record) => {
-                const st       = STATUS_MAP[record.status] || STATUS_MAP.borrowing;
-                const isActive = ['borrowing','renewed','overdue'].includes(record.status);
-                const isActing = actionId === record.id;
+          {loading ? (
+            <div className="p-5 space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+                  <div className="flex-1"><Skeleton className="h-3 w-3/4 mb-2" /><Skeleton className="h-3 w-1/2" /></div>
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              ))}
+            </div>
+          ) : recentActivity.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center px-5">
+              <BookOpen className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="text-slate-500 dark:text-slate-400 text-sm">No activity yet.</p>
+              <p className="text-slate-400 text-xs mt-1">Start borrowing books!</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+              {recentActivity.map(record => {
+                const cfg = ACTIVITY_CONFIG[record.status] || ACTIVITY_CONFIG.borrowing;
+                const Icon = cfg.icon;
                 return (
-                  <div key={record.id} className="p-4 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <p className="text-sm text-gray-900 dark:text-gray-100 font-medium line-clamp-2">{record.title}</p>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ml-2 shrink-0 font-semibold ${st.classes}`}>{st.label}</span>
+                  <div key={record.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${cfg.bg}`}>
+                      <Icon size={14} className={cfg.color} />
                     </div>
-                    <div className="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
-                      <span>Mượn: {fmt(record.borrow_date)}</span>
-                      <span>Hạn: {fmt(record.due_date)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {record.book_title || record.title}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{cfg.label}</p>
                     </div>
-                    {Number(record.fine_amount) > 0 && (
-                      <span className="text-xs text-red-600 dark:text-red-400 font-semibold">
-                        Phạt: {Number(record.fine_amount).toLocaleString("vi-VN")}đ
-                      </span>
-                    )}
-                    {isActive && (
-                      <div className="flex gap-2 pt-1">
-                        <button onClick={() => handleReturn(record.id)} disabled={isActing}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-green-500/10 text-green-600 hover:bg-green-500/20 disabled:opacity-50">
-                          Trả sách
-                        </button>
-                        {record.status !== 'overdue' && record.renewed_count < 2 && (
-                          <button onClick={() => handleExtend(record)} disabled={isActing}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 disabled:opacity-50">
-                            Gia hạn
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
+                      {timeAgo(record.borrow_date)}
+                    </span>
                   </div>
                 );
               })}
             </div>
-
-            {/* Pagination */}
-            {meta.totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3 p-4 border-t border-gray-200 dark:border-slate-700">
-                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-700">
-                  ← Trước
-                </button>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Trang {page}/{meta.totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(meta.totalPages, p+1))} disabled={page === meta.totalPages}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-slate-700">
-                  Sau →
-                </button>
-              </div>
-            )}
-          </>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* ── Overdue Warning ────────────────────────────────────────────────────── */}
+      {!loading && overdueCount > 0 && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+              You have {overdueCount} overdue {overdueCount === 1 ? 'book' : 'books'}
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
+              Fines are accumulating daily. Please return your books as soon as possible.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pending notice ──────────────────────────────────────────────────── */}
+      {!loading && pendingCount > 0 && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+              {pendingCount} borrow {pendingCount === 1 ? 'request' : 'requests'} awaiting approval
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+              An admin will review and approve your request shortly.
+            </p>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

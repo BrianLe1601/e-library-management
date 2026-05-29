@@ -10,6 +10,7 @@ const authRoutes   = require('./routes/authRoutes');    // TV1
 const bookRoutes   = require('./routes/bookRoutes');    // TV2
 const borrowRoutes = require('./routes/borrowRoutes');  // TV3
 const adminRoutes  = require('./routes/adminRoutes');   // TV4
+const reviewRoutes = require('./routes/reviewRoutes');
 
 // ── Middleware imports ────────────────────────────────────────────────────────
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
@@ -38,8 +39,9 @@ app.get('/', (_req, res) =>
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api', authRoutes);          // /api/auth/*  &  /api/users/*
 app.use('/api/books', bookRoutes);    // /api/books/*
-app.use('/api/borrow', borrowRoutes); // /api/borrow/*
+app.use('/api/borrows', borrowRoutes); // /api/borrows/*
 app.use('/api/admin', adminRoutes);   // /api/admin/*
+app.use('/api/reviews', reviewRoutes); // /api/reviews/*
 
 // ── Error handlers (phải đặt CUỐI) ───────────────────────────────────────────
 app.use(notFound);

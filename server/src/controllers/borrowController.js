@@ -104,10 +104,8 @@ exports.getMyBooks = async (req, res) => {
 // GET /api/borrows/history — lịch sử mượn trả
 exports.getHistory = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const { rows, total } = await borrowModel.findHistoryByUser(
-      req.user.id, { page, limit }
-    );
+    const { page = 1, limit = 20 } = req.query;
+    const { rows, total } = await borrowModel.findHistoryByUser(req.user.id, { page, limit });
     return paginated(res, rows, total, page, limit);
   } catch (err) {
     console.error('[getHistory]', err);
@@ -167,6 +165,58 @@ exports.rejectBorrow = async (req, res) => {
     return success(res, null, 'Đã từ chối yêu cầu mượn');
   } catch (err) {
     console.error('[rejectBorrow]', err);
+    return error(res);
+  }
+};
+
+exports.requestReturn = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Borrow record not found', 404);
+
+    // Chỉ user sở hữu phiếu mới được request return
+    if (req.user.role === 'user' && borrow.user_id !== req.user.id)
+      return error(res, 'Access denied', 403);
+
+    if (!['borrowing','renewed','overdue'].includes(borrow.status))
+      return error(res, 'This borrow cannot be returned at this stage', 400);
+
+    await borrowModel.updateStatus(req.params.id, 'returning', req.user.id);
+    return success(res, null, 'Return request sent. Awaiting admin confirmation.');
+  } catch (err) {
+    console.error('[requestReturn]', err);
+    return error(res);
+  }
+};
+
+// PATCH /api/borrows/lost/:id — Admin/Employee đánh dấu mất sách
+exports.markLost = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Borrow record not found', 404);
+
+    if (borrow.status === 'returned' || borrow.status === 'lost')
+      return error(res, 'Book is already returned or marked as lost', 400);
+
+    await borrowModel.markLost(req.params.id, req.user.id);
+    return success(res, null, 'Book marked as lost. Copy count updated.');
+  } catch (err) {
+    console.error('[markLost]', err);
+    return error(res);
+  }
+};
+
+// GET /api/borrows/:id — chi tiết phiếu mượn
+exports.getBorrowById = async (req, res) => {
+  try {
+    const borrow = await borrowModel.findById(req.params.id);
+    if (!borrow)
+      return error(res, 'Borrow record not found', 404);
+    return success(res, borrow);
+  } catch (err) {
+    console.error('[getBorrowById]', err);
     return error(res);
   }
 };

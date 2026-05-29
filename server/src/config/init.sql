@@ -95,7 +95,7 @@ CREATE TABLE borrows (
     due_date        DATE NOT NULL,
     return_date     DATE DEFAULT NULL,
     renewed_count   TINYINT UNSIGNED NOT NULL DEFAULT 0,
-    status          ENUM('pending', 'borrowing', 'returned', 'overdue', 'renewed', 'cancelled', 'lost') NOT NULL DEFAULT 'pending',
+    status          ENUM('pending', 'borrowing', 'returning', 'returned', 'overdue', 'renewed', 'cancelled', 'lost') NOT NULL DEFAULT 'pending',
     fine_amount     INT UNSIGNED NOT NULL DEFAULT 0,
     fine_paid       TINYINT(1) NOT NULL DEFAULT 0,
     note            TEXT DEFAULT NULL,
