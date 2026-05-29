@@ -188,7 +188,7 @@ function BookCard({
   );
 }
 
-export function SavedBooksTab() {
+export default function SavedBooksTab() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
   const [savedList, setSavedList] = useState(savedBooks);

@@ -641,7 +641,7 @@ function HistoryView() {
 }
 
 // ─── Root Export ──────────────────────────────────────────────────────────────
-export function BorrowedTab() {
+export default function BorrowedTab() {
   const [subTab,      setSubTab]      = useState("active");
   const [activeCnt,   setActiveCnt]   = useState(0);
   const [historyCnt,  setHistoryCnt]  = useState(0);

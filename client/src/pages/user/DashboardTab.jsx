@@ -51,7 +51,7 @@ const Skeleton = ({ className }) => (
 );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function DashboardTab() {
+export default function DashboardTab() {
   const [active,  setActive]  = useState([]);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);

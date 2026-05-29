@@ -1,362 +1,439 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Clock,
-  CheckCircle,
-  BookOpen,
-  AlertTriangle,
-  Info,
-  Trash2,
-  Archive,
-  BellOff,
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
+  Trash2, Archive, ChevronLeft, ChevronRight, RotateCcw, X, 
+  Search, CheckSquare, Square, Plus, Bell, TrendingUp, Users, Check,
+  Loader2
 } from "lucide-react";
-import { mockNotifications } from "../../components/NotificationPopover";
 
-const filterLabels = [
-  { key: "all", label: "All" },
-  { key: "unread", label: "Unread" },
-  { key: "overdue", label: "Overdue" },
-  { key: "system", label: "System" },
-];
+// Import cụm component sạch vừa gộp
+import {
+  StatPill, NotiCard, NotificationDetail, ComposeModal,
+  MobileNotificationHeader, MobileNotificationFilters, MobileTabBar, MobileNotificationList, BulkActionBarMobile
+} from "../../components/admin/NotificationComponents";
 
-const notifIcon = {
-  overdue: { icon: Clock, color: "text-red-500", label: "Overdue" },
-  approved: { icon: CheckCircle, color: "text-emerald-500", label: "Approved" },
-  returned: { icon: BookOpen, color: "text-sky-500", label: "Returned" },
-  fine: { icon: AlertTriangle, color: "text-amber-500", label: "Fine" },
-  system: { icon: Info, color: "text-slate-500", label: "System" },
-};
-
-const typeBadge = {
-  overdue: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
-  approved: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-  returned: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-slate-300",
-  fine: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400",
-  system: "bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400",
-};
-
-const extraNotifications = [
-  {
-    id: "6",
-    type: "overdue",
-    message: 'Book "Tắt Đèn" is overdue by 5 days. Fine accumulating at $0.50/day.',
-    time: "3 days ago",
-    read: false,
-  },
-  {
-    id: "7",
-    type: "approved",
-    message: 'Borrow request for "Nhật Ký Trong Tù" approved for user Hà Linh.',
-    time: "3 days ago",
-    read: true,
-  },
-  {
-    id: "8",
-    type: "fine",
-    message: 'Fine of $12.00 issued to user Văn Toàn.',
-    time: "4 days ago",
-    read: true,
-  },
-  {
-    id: "9",
-    type: "system",
-    message: "Scheduled maintenance completed. Database reindexed successfully.",
-    time: "5 days ago",
-    read: true,
-  },
-  {
-    id: "10",
-    type: "returned",
-    message: 'User Ngọc Bảo returned "Truyện Kiều" one day early.',
-    time: "6 days ago",
-    read: true,
-  },
-];
-
-const initialNotifications = [...mockNotifications, ...extraNotifications];
-const ITEMS_PER_PAGE = 5;
-
-function applyFilter(items, filter) {
-  switch (filter) {
-    case "unread":
-      return items.filter((item) => !item.read);
-    case "overdue":
-      return items.filter((item) => item.type === "overdue" || item.type === "fine");
-    case "system":
-      return items.filter((item) => item.type === "system");
-    default:
-      return items;
-  }
-}
+// API services kết nối trực tiếp cơ sở dữ liệu
+import adminService from "../../services/adminService";
 
 export default function NotificationsPage() {
-  const [viewMode, setViewMode] = useState("active");
+  // ── States điều phối dữ liệu ─────────────────────────────────────────────
+  const [notifications, setNotifications] = useState([]);
+  const [stats, setStats] = useState({ unreadCount: 0, activeCount: 0, archivedCount: 0 });
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // ── States bộ lọc phân trang ──────────────────────────────────────────────
   const [filter, setFilter] = useState("all");
-  const [notifications, setNotifications] = useState(initialNotifications);
-  const [archivedNotifications, setArchivedNotifications] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [toastMessage, setToastMessage] = useState("");
+  const [viewMode, setViewMode] = useState("active"); // "active" | "archived"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
-  const activeList = applyFilter(notifications, filter);
-  const archivedList = applyFilter(archivedNotifications, filter);
-  const currentList = viewMode === "archived" ? archivedList : activeList;
-  const pageCount = Math.max(1, Math.ceil(currentList.length / ITEMS_PER_PAGE));
-  const activePage = Math.min(currentPage, pageCount);
-  const pageItems = currentList.slice((activePage - 1) * ITEMS_PER_PAGE, activePage * ITEMS_PER_PAGE);
+  // ── States Chọn hàng loạt hàng đầu (Select All DB) ───────────────────────
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isSelectAllDatabase, setIsSelectAllDatabase] = useState(false);
+  const [isSelectionModeMobile, setIsSelectionModeMobile] = useState(false);
 
-  const unreadCount = notifications.filter((item) => !item.read).length;
-  const activeCount = notifications.length;
-  const archivedCount = archivedNotifications.length;
+  // ── Detail & Modals States ────────────────────────────────────────────────
+  const [selectedNotifId, setSelectedNotifId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userList, setUserList] = useState([]);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [mobileDetailItem, setMobileDetailItem] = useState(null);
 
-  function showToast(message) {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage(""), 2500);
-  }
+  // Tổng số lượng bản ghi thực tế lấy từ stats dựa theo viewMode
+  const totalRecordsCount = useMemo(() => {
+    return viewMode === "archived" ? stats.archivedCount : stats.activeCount;
+  }, [viewMode, stats]);
 
-  function updatePage(page) {
-    setCurrentPage(page);
-  }
+  // Kiểm tra trạng thái tích chọn trên trang hiện tại
+  const isAllPageSelected = useMemo(() => {
+    return notifications.length > 0 && selectedIds.length === notifications.length;
+  }, [notifications, selectedIds]);
 
-  function setMode(mode) {
-    setViewMode(mode);
-    setFilter("all");
-    setCurrentPage(1);
-  }
+  // Tự động giải phóng bộ chọn khi thay đổi trang, tab hoặc từ khóa kiếm tìm
+  useEffect(() => {
+    setSelectedIds([]);
+    setIsSelectAllDatabase(false);
+  }, [page, filter, viewMode, searchQuery]);
 
-  function markAllRead() {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    showToast("All notifications marked as read.");
-  }
+  // ── FETCH DATA API COORD ──────────────────────────────────────────────────
+  const fetchNotifications = useCallback(async (resetMobileList = false) => {
+    try {
+      if (resetMobileList) {
+        setLoading(true);
+        setPage(1);
+      }
+      
+      const currentPage = resetMobileList ? 1 : page;
+      const res = await adminService.getNotifications({
+        page: currentPage,
+        limit: 10,
+        filter: filter === "all" ? "" : filter,
+        is_archived: viewMode === "archived" ? 1 : 0,
+        search: searchQuery
+      });
 
-  function markRead(id) {
-    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
-  }
+      if (res.data?.success) {
+        const payload = res.data.data.data || res.data.data || [];
+        const statsPayload = res.data.data.stats || res.data.stats || { unreadCount: 0, activeCount: 0, archivedCount: 0 };
+        const serverTotalPages = res.data.data.totalPages || 1;
 
-  function archiveNotification(id) {
-    setNotifications((prev) => {
-      const archivedItem = prev.find((item) => item.id === id);
-      if (!archivedItem) return prev;
-      setArchivedNotifications((prevArchived) => [archivedItem, ...prevArchived]);
-      return prev.filter((item) => item.id !== id);
-    });
-    showToast("Notification archived.");
-  }
+        setStats(statsPayload);
+        setTotalPages(serverTotalPages);
 
-  function restoreNotification(id) {
-    setArchivedNotifications((prev) => {
-      const restoredItem = prev.find((item) => item.id === id);
-      if (!restoredItem) return prev;
-      setNotifications((prevNotifications) => [restoredItem, ...prevNotifications]);
-      return prev.filter((item) => item.id !== id);
-    });
-    showToast("Notification restored.");
-  }
-
-  function deleteNotification(id) {
-    if (viewMode === "archived") {
-      setArchivedNotifications((prev) => prev.filter((item) => item.id !== id));
-      showToast("Archived notification deleted.");
-      return;
+        if (window.innerWidth < 768 && !resetMobileList && currentPage > 1) {
+          // Mobile Infinite Append
+          setNotifications(prev => [...prev, ...payload]);
+        } else {
+          // Desktop Overwrite
+          setNotifications(payload);
+          if (payload.length > 0 && !selectedNotifId) setSelectedNotifId(payload[0].id);
+          else if (payload.length === 0) setSelectedNotifId(null);
+        }
+        setHasMore(currentPage < serverTotalPages);
+      }
+    } catch (err) {
+      console.error("Lỗi lấy danh sách thông báo:", err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
     }
-    setNotifications((prev) => prev.filter((item) => item.id !== id));
-    showToast("Notification deleted.");
-  }
+  }, [page, filter, viewMode, searchQuery, selectedNotifId]);
+
+  useEffect(() => {
+    fetchNotifications(true);
+  }, [filter, viewMode, searchQuery]);
+
+  useEffect(() => {
+    if (page > 1) fetchNotifications(false);
+  }, [page]);
+
+  useEffect(() => {
+    const fetchUsersList = async () => {
+      try {
+        const res = await adminService.getUsers({ page: 1, limit: 500 });
+        if (res.data?.success) {
+          const users = res.data.data.users || res.data.data.rows || res.data.data.data || res.data.data || [];
+          setUserList(users);
+        }
+      } catch (error) { 
+        console.error("Lỗi tải danh sách người dùng:", error); 
+      }
+    };
+
+    if (isModalOpen && userList.length === 0) {
+      fetchUsersList();
+    }
+  }, [isModalOpen, userList.length]);
+
+  const handleLoadMoreMobile = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
+      setLoadingMore(true);
+      setPage(prev => prev + 1);
+    }
+  }, [hasMore, loadingMore, loading]);
+
+  // ── CORE ACTIONS XỬ LÝ ĐƠN LẺ ─────────────────────────────────────────────
+  const selectedNotifData = useMemo(() => {
+    return notifications.find(n => n.id === selectedNotifId) || null;
+  }, [notifications, selectedNotifId]);
+
+  const handleTapItem = useCallback(async (id) => {
+    setSelectedNotifId(id);
+    const target = notifications.find(n => n.id === id);
+    if (target && !target.is_read) {
+      try {
+        await adminService.markNotificationRead(id);
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+        setStats(prev => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
+      } catch (err) { console.error(err); }
+    }
+  }, [notifications]);
+
+  const handleTapItemMobile = useCallback(async (item) => {
+    setMobileDetailItem(item);
+    if (!item.is_read) {
+      try {
+        await adminService.markNotificationRead(item.id);
+        setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, is_read: 1 } : n));
+        setStats(prev => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
+      } catch (err) { console.error(err); }
+    }
+  }, []);
+
+  const handleSingleArchive = useCallback(async (id) => {
+    try {
+      await adminService.archiveNotificationApi(id);
+      fetchNotifications(true);
+    } catch (err) { console.error(err); }
+  }, [fetchNotifications]);
+
+  const handleSingleRestore = useCallback(async (id) => {
+    try {
+      await adminService.restoreNotificationApi(id);
+      fetchNotifications(true);
+    } catch (err) { console.error(err); }
+  }, [fetchNotifications]);
+
+  const handleSingleDelete = useCallback(async (id) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn thông báo này?")) return;
+    try {
+      await adminService.deleteNotificationApi(id);
+      fetchNotifications(true);
+    } catch (err) { console.error(err); }
+  }, [fetchNotifications]);
+
+  // ── BULK ACTIONS XỬ LÝ HÀNG LOẠT (Tích hợp Select All DB) ────────────────
+  const handleToggleSelectPage = useCallback(() => {
+    if (isAllPageSelected) {
+      setSelectedIds([]);
+      setIsSelectAllDatabase(false);
+    } else {
+      setSelectedIds(notifications.map(n => n.id));
+    }
+  }, [isAllPageSelected, notifications]);
+
+  const handleToggleCheckSingle = useCallback((id) => {
+    if (isSelectAllDatabase) {
+      const currentPageIds = notifications.map(n => n.id);
+      setSelectedIds(currentPageIds.filter(i => i !== id));
+      setIsSelectAllDatabase(false);
+    } else {
+      setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    }
+  }, [isSelectAllDatabase, notifications]);
+
+  const handleToggleSelectAllMobile = useCallback(() => {
+    if (isSelectAllDatabase || selectedIds.length === notifications.length) {
+      setSelectedIds([]);
+      setIsSelectAllDatabase(false);
+    } else {
+      setIsSelectAllDatabase(true);
+      setSelectedIds(notifications.map(n => n.id));
+    }
+  }, [isSelectAllDatabase, selectedIds, notifications]);
+
+  const handleBulkAction = useCallback(async (action) => {
+    if (selectedIds.length === 0 && !isSelectAllDatabase) return;
+
+    let confirmMsg = `Bạn có muốn thực hiện hành động này không?`;
+    if (action === "delete") {
+      confirmMsg = isSelectAllDatabase
+        ? `🚨 CẢNH BÁO: Bạn có chắc chắn muốn XÓA VĨNH VIỄN TẤT CẢ ${totalRecordsCount} thông báo trong hệ thống thỏa mãn bộ lọc hiện tại?`
+        : `Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedIds.length} mục đã chọn?`;
+    } else if (action === "archive" && isSelectAllDatabase) {
+      confirmMsg = `Bạn muốn lưu trữ toàn bộ ${totalRecordsCount} mục trong database chứ?`;
+    }
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      // Đóng gói Payload cao cấp gửi lên Backend
+      const payload = {
+        action,
+        isSelectAllDatabase: isSelectAllDatabase,
+        filter: filter === "all" ? "" : filter,
+        is_archived: viewMode === "archived" ? 1 : 0,
+        search: searchQuery
+      };
+
+      // Nếu không kích hoạt chọn toàn bộ DB, gửi danh sách IDs trang hiện tại
+      if (!isSelectAllDatabase) {
+        payload.ids = selectedIds;
+      }
+
+      await adminService.bulkActionNotificationsApi(payload);
+
+      // Giải phóng toàn bộ State chọn hàng loạt
+      setSelectedIds([]);
+      setIsSelectAllDatabase(false);
+      setIsSelectionModeMobile(false);
+      fetchNotifications(true);
+    } catch (err) {
+      console.error("Lỗi xử lý hàng loạt:", err);
+    }
+  }, [selectedIds, isSelectAllDatabase, filter, viewMode, searchQuery, totalRecordsCount, fetchNotifications]);
+
+  const handleCreateNotification = useCallback(async (formData, callback) => {
+    try {
+      setIsSubmittingForm(true);
+      const res = await adminService.createNotificationApi(formData);
+      if (res.data?.success) {
+        if (callback) callback();
+        setIsModalOpen(false);
+        fetchNotifications(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  }, [fetchNotifications]);
 
   return (
-    <div className="min-h-full bg-slate-50 dark:bg-slate-950 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        {toastMessage && (
-          <div className="fixed right-6 top-6 z-50 rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-2xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-            <p className="text-sm font-medium">{toastMessage}</p>
-          </div>
-        )}
+    <div className="h-full w-full flex flex-col md:bg-[#fafbfe] dark:md:bg-[#060a13] md:p-4 overflow-hidden">
+      
+      {/* VIEW LAYOUT CHO THIẾT BỊ DI ĐỘNG (< 768px) */}
+      <MobileNotificationHeader
+        viewMode={viewMode} unreadCount={stats.unreadCount} 
+        isSelectionMode={isSelectionModeMobile} 
+        selectedCount={isSelectAllDatabase ? totalRecordsCount : selectedIds.length}
+        isAllDatabaseSelected={isSelectAllDatabase}
+        onOpenCompose={() => setIsModalOpen(true)}
+        onEnterSelect={() => { setIsSelectionModeMobile(true); setSelectedIds([]); }}
+        onCancelSelect={() => { setIsSelectionModeMobile(false); setSelectedIds([]); setIsSelectAllDatabase(false); }}
+        onSelectAll={handleToggleSelectAllMobile}
+      />
+      <MobileNotificationFilters searchQuery={searchQuery} filter={filter} onSearch={setSearchQuery} onFilter={setFilter} visible={!isSelectionModeMobile} />
+      <MobileTabBar viewMode={viewMode} activeCount={stats.activeCount} archivedCount={stats.archivedCount} onChange={setViewMode} visible={!isSelectionModeMobile} />
+      
+      <div className="md:hidden flex-1 overflow-y-auto bg-[#060a13]">
+        <MobileNotificationList
+          notifications={notifications} loading={loading} loadingMore={loadingMore} hasMore={hasMore}
+          searchQuery={searchQuery} isSelectionMode={isSelectionModeMobile} selectedIds={selectedIds}
+          isAllDatabaseSelected={isSelectAllDatabase} // Ép Tick mọi Checkbox
+          onTap={handleTapItemMobile} onToggleCheck={handleToggleCheckSingle} onLoadMore={handleLoadMoreMobile}
+        />
+      </div>
+      <BulkActionBarMobile
+        selectedCount={isSelectAllDatabase ? totalRecordsCount : selectedIds.length} viewMode={viewMode}
+        visible={isSelectionModeMobile && selectedIds.length > 0}
+        onMarkRead={() => handleBulkAction("read")} onArchive={() => handleBulkAction("archive")}
+        onRestore={() => handleBulkAction("restore")} onDelete={() => handleBulkAction("delete")}
+      />
 
-        <header className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-600 dark:text-indigo-300">Admin notifications</p>
-              <h1 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">Alerts and archive</h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Active notifications are shown here. Archived items stay in the local archive state and can be reviewed in the archived tab.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:auto-cols-min sm:grid-flow-col">
-              <div className="rounded-3xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {unreadCount} unread
-              </div>
-              <div className="rounded-3xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {activeCount} active
-              </div>
-              <div className="rounded-3xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {archivedCount} archived
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setMode("active")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  viewMode === "active"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => setMode("archived")}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  viewMode === "archived"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                Archived
-              </button>
-            </div>
-            <button
-              onClick={markAllRead}
-              className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              Mark all read
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-wrap gap-2">
-            {filterLabels.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => {
-                  setFilter(item.key);
-                  setCurrentPage(1);
-                }}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  filter === item.key
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-                }`}
-              >
-                {item.label}
+      {/* VIEW LAYOUT CHO THIẾT BỊ DESKTOP (>= 768px) */}
+      <div className="hidden md:flex flex-col flex-1 bg-white dark:bg-[#070c16] rounded-2xl border border-slate-100 dark:border-slate-800/60 overflow-hidden shadow-sm">
+        
+        {/* Top Desktop Filter Panel */}
+        <div className="p-4 border-b border-slate-50 dark:border-slate-900/60 flex items-center justify-between gap-4 flex-shrink-0 bg-slate-50/50 dark:bg-[#090f1d]/40">
+          <div className="flex items-center gap-2">
+            {[{ key: "active", label: "Hộp thư đến", count: stats.activeCount, color: "bg-indigo-600" },
+              { key: "archived", label: "Kho lưu trữ", count: stats.archivedCount, color: "bg-slate-500" }
+            ].map(t => (
+              <button key={t.key} onClick={() => setViewMode(t.key)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${viewMode === t.key ? "bg-white dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}>
+                {t.label} <span className="bg-slate-100 dark:bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-md font-black">{t.count}</span>
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-3">
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input type="text" placeholder="Tìm kiếm nhanh tiêu đề..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all" />
+            </div>
+            <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-black text-white shadow-md shadow-indigo-600/10 transition-all active:scale-95"><Plus size={14} /> Gửi thông báo</button>
+          </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                {viewMode === "archived" ? "Archived notifications" : "Active notifications"}
-              </p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                {currentList.length} items — page {activePage} of {pageCount}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => updatePage(Math.max(1, activePage - 1))}
-                disabled={activePage <= 1}
-                className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                onClick={() => updatePage(Math.min(pageCount, activePage + 1))}
-                disabled={activePage >= pageCount}
-                className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <ChevronRight size={16} />
-              </button>
+        {/* Master Selection Controls (Gmail Bar) */}
+        <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-900/60 flex items-center justify-between flex-shrink-0 bg-white dark:bg-[#070c16]">
+          <div className="flex items-center gap-4">
+            <button onClick={handleToggleSelectPage} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors">
+              {isAllPageSelected ? <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" /> : <Square size={16} />}
+            </button>
+            
+            {/* Filter chips horizontal */}
+            <div className="flex items-center gap-1.5 border-l border-slate-100 dark:border-slate-800 pl-4">
+              {[{ key: "all", label: "Tất cả" }, { key: "unread", label: "Chưa đọc" }, { key: "overdue", label: "Quá hạn" }, { key: "system", label: "Hệ thống" }].map(t => (
+                <button key={t.key} onClick={() => setFilter(t.key)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${filter === t.key ? "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}>{t.label}</button>
+              ))}
             </div>
           </div>
 
-          {pageItems.length === 0 ? (
-            <div className="mt-8 rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
-              <BellOff className="mx-auto mb-4 h-10 w-10" />
-              <p className="text-lg font-semibold">No notifications found</p>
-              <p className="mt-2 text-sm">Try a different filter or switch to the other tab.</p>
-            </div>
-          ) : (
-            <div className="space-y-4 mt-6">
-              {pageItems.map((item) => {
-                const meta = notifIcon[item.type] || notifIcon.system;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => viewMode === "active" && markRead(item.id)}
-                    className={`group flex items-start justify-between gap-4 rounded-[1.5rem] border px-5 py-4 transition cursor-pointer ${
-                      item.read
-                        ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
-                        : "bg-indigo-50/70 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-3xl border ${item.read ? "border-slate-200 dark:border-slate-700" : "border-indigo-200 dark:border-indigo-700"}`}>
-                        <meta.icon className={meta.color} size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${typeBadge[item.type]}`}>
-                            {meta.label}
-                          </span>
-                          {!item.read && viewMode === "active" && (
-                            <span className="rounded-full bg-indigo-600 px-2 py-1 text-[11px] font-semibold text-white">New</span>
-                          )}
-                        </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{item.message}</p>
-                        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">{item.time}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 opacity-0 transition group-hover:opacity-100">
-                      {viewMode === "archived" ? (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            restoreNotification(item.id);
-                          }}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
-                          title="Restore"
-                        >
-                          <RotateCcw size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            archiveNotification(item.id);
-                          }}
-                          className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
-                          title="Archive"
-                        >
-                          <Archive size={16} />
-                        </button>
-                      )}
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteNotification(item.id);
-                        }}
-                        className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 hover:text-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Desktop Floating Actions Toolbar */}
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3 animate-in fade-in zoom-in-95 duration-150 bg-indigo-500/5 dark:bg-indigo-400/5 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-950">
+              <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400">{isSelectAllDatabase ? totalRecordsCount : selectedIds.length} đã chọn</span>
+              <div className="h-3 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+              <button onClick={() => handleBulkAction("read")} className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-500"><Check size={13} /> Đánh dấu đọc</button>
+              {viewMode === "active" ? (
+                <button onClick={() => handleBulkAction("archive")} className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500"><Archive size={13} /> Lưu trữ</button>
+              ) : (
+                <button onClick={() => handleBulkAction("restore")} className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-500"><RotateCcw size={13} /> Khôi phục</button>
+              )}
+              <button onClick={() => handleBulkAction("delete")} className="flex items-center gap-1 text-[11px] font-bold text-red-500 hover:text-red-400"><Trash2 size={13} /> Xóa vĩnh viễn</button>
+              <button onClick={() => { setSelectedIds([]); setIsSelectAllDatabase(false); }} className="text-slate-400 hover:text-slate-600"><X size={13} /></button>
             </div>
           )}
+
+          {/* Pagination Controls */}
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+            <span>Trang {page} / {totalPages}</span>
+            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-1 rounded-lg border border-slate-100 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"><ChevronLeft size={14} /></button>
+            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-1 rounded-lg border border-slate-100 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"><ChevronRight size={14} /></button>
+          </div>
         </div>
+
+        {/* GMAIL STYLE INTERACTIVE SELECT ALL DATABASE BANNER */}
+        {isAllPageSelected && totalRecordsCount > notifications.length && (
+          <div className="bg-indigo-50/80 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/30 px-4 py-2 text-center text-[11px] text-slate-700 dark:text-slate-300 transition-all duration-200">
+            {!isSelectAllDatabase ? (
+              <>
+                Đang chọn <span className="font-black text-indigo-600 dark:text-indigo-400">{selectedIds.length}</span> mục trên trang này.{" "}
+                <button onClick={() => setIsSelectAllDatabase(true)} className="text-indigo-600 dark:text-indigo-400 font-extrabold underline hover:text-indigo-500 ml-1">Chọn toàn bộ tất cả {totalRecordsCount} thông báo trong hệ thống</button>
+              </>
+            ) : (
+              <>
+                ✨ Tuyệt vời! Đã chọn <span className="font-black text-indigo-600 dark:text-indigo-400">tất cả {totalRecordsCount}</span> thông báo thỏa mãn bộ lọc hiện tại trong Database.{" "}
+                <button onClick={() => { setSelectedIds([]); setIsSelectAllDatabase(false); }} className="text-red-500 font-black underline hover:text-red-400 ml-1">Hủy chọn</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Workspace Dual-Split Panel */}
+        <div className="flex-1 flex overflow-hidden bg-slate-50/40 dark:bg-[#060a13]/30">
+          {/* Left Column — Notification List */}
+          <div className="w-[420px] border-r border-slate-50 dark:border-slate-900/60 flex flex-col p-3 gap-2 overflow-y-auto bg-white dark:bg-[#070c16]">
+            {loading ? (
+              <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-indigo-600" /></div>
+            ) : notifications.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-xs">Hộp thư trống không có dữ liệu thỏa mãn</div>
+            ) : (
+              notifications.map(item => (
+                <NotiCard
+                  key={item.id} item={item}
+                  isChecked={isSelectAllDatabase || selectedIds.includes(item.id)}
+                  isSelected={selectedNotifId === item.id} onTap={handleTapItem} onToggleCheck={handleToggleCheckSingle}
+                />
+              ))
+            )}
+          </div>
+          {/* Right Column — Content Detail Panel */}
+          <div className="flex-1 p-4 overflow-hidden">
+            <NotificationDetail selectedNotif={selectedNotifData} viewMode={viewMode} onArchive={handleSingleArchive} onRestore={handleSingleRestore} onDelete={handleSingleDelete} />
+          </div>
+        </div>
+
       </div>
+
+      {/* 🔮 MOBILE BOTTOM SHEET DETAIL PANEL MODAL */}
+      {mobileDetailItem && (
+        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200">
+          <div className="bg-[#090f1c] border-t border-white/[0.08] rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-white/[0.05] pb-3">
+              <span className="text-xs font-bold text-slate-400">Chi tiết thông báo</span>
+              <button onClick={() => setMobileDetailItem(null)} className="p-1 rounded-full bg-white/[0.05] text-white"><X size={16} /></button>
+            </div>
+            <h2 className="text-base font-black text-white leading-tight">{mobileDetailItem.title}</h2>
+            <p className="text-[11px] text-slate-500 font-medium">Gửi vào: {new Date(mobileDetailItem.created_at).toLocaleString("vi-VN")}</p>
+            <div className="text-sm text-slate-300 leading-relaxed bg-white/[0.02] border border-white/[0.04] p-4 rounded-2xl whitespace-pre-wrap">{mobileDetailItem.message}</div>
+            
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              {viewMode === "active" ? (
+                <button onClick={() => { handleSingleArchive(mobileDetailItem.id); setMobileDetailItem(null); }} className="py-2.5 rounded-xl border border-white/[0.06] text-xs font-bold text-slate-300 bg-white/[0.02]">Lưu trữ</button>
+              ) : (
+                <button onClick={() => { handleSingleRestore(mobileDetailItem.id); setMobileDetailItem(null); }} className="py-2.5 rounded-xl border border-white/[0.06] text-xs font-bold text-slate-300 bg-white/[0.02]">Khôi phục</button>
+              )}
+              <button onClick={() => { handleSingleDelete(mobileDetailItem.id); setMobileDetailItem(null); }} className="py-2.5 rounded-xl bg-red-600 text-xs font-black text-white">Xóa vĩnh viễn</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ╔═══ COMPOSE MODAL DIALOG (Shared Layout) ══════════════════════════╗ */}
+      <ComposeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} userList={userList} onSubmit={handleCreateNotification} isSubmitting={isSubmittingForm} />
     </div>
   );
 }

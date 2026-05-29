@@ -2,9 +2,10 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Layouts
-import UserLayout from "../layouts/user/UserLayout";
+import HomeLayout from "../layouts/home/HomeLayout";
 import AdminLayout from "../layouts/admin/AdminLayout";
 import AuthLayout from "../layouts/auth/AuthLayout";
+import UserLayout from "../layouts/user/UserLayout";
 
 // Components
 import ProtectedRoute from "../components/ProtectedRoute";
@@ -22,7 +23,12 @@ import BookDetail from "../pages/book/BookDetail";
 import NotFound from "../pages/core/NotFound";
 
 // User pages
-import { DashboardPage as UserDashboard } from "../pages/user/Tab";
+// import DashboardPage from "../pages/user/DashboardPage";
+import  DashboardTab from "../pages/user/DashboardTab";
+import  BorrowedTab  from "../pages/user/BorrowedTab";
+import  SavedBooksTab  from "../pages/user/SavedBooksTab";
+import  NotificationsTab  from "../pages/user/NotificationsTab";
+import  SettingsTab  from "../pages/user/SettingsTab";
 
 // Admin pages
 import Dashboard from "../pages/admin/Dashboard";
@@ -52,14 +58,20 @@ function AppRoutes() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* PUBLIC / USER: Giao diện độc giả */}
-            <Route element={<UserLayout />}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/books" element={<BooksPage />} />
+            <Route element={<HomeLayout />}>
+              <Route path="/"          element={<HomePage />} />
+              <Route path="/books"     element={<BooksPage />} />
               <Route path="/books/:id" element={<BookDetail />} />
-
-              {/* Chỉ user đã đăng nhập mới vào được Dashboard cá nhân */}
+ 
+              {/* Chỉ user đã đăng nhập mới vào được khu vực /user */}
               <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
-                <Route path="/dashboard" element={<UserDashboard />} />
+                <Route element={<UserLayout />}>
+                  <Route index path="/user"                  element={<DashboardTab />} />
+                  <Route path="/user/borrowed"               element={<BorrowedTab />} />
+                  <Route path="/user/saved"                  element={<SavedBooksTab />} />
+                  <Route path="/user/notifications"          element={<NotificationsTab />} />
+                  <Route path="/user/settings"               element={<SettingsTab />} />
+                </Route>
               </Route>
             </Route>
 
@@ -72,10 +84,7 @@ function AppRoutes() {
                 <Route path="/admin/books" element={<BookInventory />} />
                 <Route path="/admin/borrowing" element={<BorrowingReturns />} />
                 <Route path="/admin/reports" element={<Reports />} />
-                <Route
-                  path="/admin/notifications"
-                  element={<NotificationsPage />}
-                />
+                <Route path="/admin/notifications" element={<NotificationsPage />} />
 
                 {/* --- PRIVATE ROUTES (Admin only) --- */}
                 <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
