@@ -26,7 +26,7 @@ import userService from "../../services/userService";
 export default function BookDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-
+  const { user } = useAuth();
   const [book,           setBook]         = useState(null);
   const [bookReviews,  setBookReviews]  = useState([]);
   const [relatedBooks, setRelatedBooks] = useState([]);

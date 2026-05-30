@@ -453,7 +453,7 @@ export default function HomePage() {
             </h2>
           </div>
           <Link
-            to="/books?sort=rating"
+            to="/books?sort=trending"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors font-medium"
           >

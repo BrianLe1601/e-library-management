@@ -35,5 +35,6 @@ router.get('/publishers',  bookController.getPublishers);   // [MỚI] cho Filte
 router.get('/stats',       bookController.dashboardStats);
 router.get('/',            bookController.getBooks);
 router.get('/:id(\\d+)',   bookController.getBookById);
+router.get('/suggest', bookController.getSuggestions);
 
 module.exports = router;

@@ -146,9 +146,11 @@ exports.getAuthors = async (_req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT a.id, a.name, COUNT(b.id) AS book_count
-       FROM authors a
-       LEFT JOIN books b ON b.author_id = a.id
-       GROUP BY a.id ORDER BY a.name`
+      FROM authors a
+      LEFT JOIN books b ON b.author_id = a.id AND b.is_hidden = 0
+      GROUP BY a.id
+      HAVING book_count > 0
+      ORDER BY a.name`
     );
     return success(res, rows);
   } catch (err) {
@@ -162,9 +164,11 @@ exports.getPublishers = async (_req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT p.id, p.name, COUNT(b.id) AS book_count
-       FROM publishers p
-       LEFT JOIN books b ON b.publisher_id = p.id
-       GROUP BY p.id ORDER BY p.name`
+      FROM publishers p
+      LEFT JOIN books b ON b.publisher_id = p.id AND b.is_hidden = 0
+      GROUP BY p.id
+      HAVING book_count > 0
+      ORDER BY p.name`
     );
     return success(res, rows);
   } catch (err) {
@@ -229,5 +233,17 @@ exports.unsaveBook = async (req, res) => {
   } catch (err) {
     console.error('[unsaveBook Error]:', err);
     return error(res, 'Lỗi hệ thống khi bỏ lưu sách', 500);
+  }
+};
+// GET /api/books/suggest?q=...
+exports.getSuggestions = async (req, res) => {
+  try {
+    const { q = '' } = req.query;
+    if (q.trim().length < 2) return success(res, []);
+    const results = await bookModel.searchSuggestions(q, 6);
+    return success(res, results);
+  } catch (err) {
+    console.error('[getSuggestions]', err);
+    return error(res, 'Lỗi gợi ý tìm kiếm');
   }
 };
