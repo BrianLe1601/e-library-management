@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
+import useSWR from "swr";
 import { Link } from "react-router-dom";
 import {
   BookOpen, AlertTriangle, Clock, CheckCircle2,
@@ -50,46 +51,43 @@ const Skeleton = ({ className }) => (
   <div className={`bg-slate-200 dark:bg-slate-700 rounded animate-pulse ${className}`} />
 );
 
+// ─── SWR Fetchers ─────────────────────────────────────────────────────────────
+const fetchActive = async () => {
+  const res = await borrowService.getMyBooks();
+  return res.data?.data || [];
+};
+
+const fetchHistory = async () => {
+  const res = await borrowService.getHistory();
+  return res.data?.data || [];
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DashboardTab() {
-  const [active,  setActive]  = useState([]);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // ── Gọi SWR song song ───────────────────────────────────────────────────────
+  const { data: active = [], isLoading: loadingActive } = useSWR('dashboard_active_books', fetchActive);
+  const { data: history = [], isLoading: loadingHistory } = useSWR('dashboard_history_books', fetchHistory);
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [activeRes, historyRes] = await Promise.all([
-          borrowService.getMyBooks(),
-          borrowService.getHistory(),
-        ]);
-        setActive(activeRes.data.data   || []);
-        setHistory(historyRes.data.data || []);
-      } catch (err) {
-        console.error("[DashboardTab]", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-  }, []);
+  const loading = loadingActive || loadingHistory;
 
-  // ── Computed stats ──────────────────────────────────────────────────────────
-  const activeCount   = active.filter(b => ['borrowing','renewed'].includes(b.status)).length;
-  const pendingCount  = active.filter(b => b.status === 'pending').length;
-  const overdueCount  = active.filter(b => b.status === 'overdue').length;
-  const totalFines    = active.reduce((sum, b) => sum + (Number(b.fine_amount) || 0), 0);
+  // ── Computed stats (Dùng useMemo để tối ưu tính toán) ──────────────────────
+  const { activeCount, pendingCount, overdueCount, totalFines, dueSoon, recentActivity } = useMemo(() => {
+    const actCount = active.filter(b => ['borrowing','renewed'].includes(b.status)).length;
+    const penCount = active.filter(b => b.status === 'pending').length;
+    const overCount = active.filter(b => b.status === 'overdue').length;
+    const fines = active.reduce((sum, b) => sum + (Number(b.fine_amount) || 0), 0);
 
-  // Due soon — sắp hết hạn trong 5 ngày (chỉ borrowing/renewed)
-  const dueSoon = active
-    .filter(b => ['borrowing','renewed'].includes(b.status) && b.due_date)
-    .map(b => ({ ...b, days: daysLeft(b.due_date) }))
-    .filter(b => b.days >= 0 && b.days <= 5)
-    .sort((a, b) => a.days - b.days);
+    const due = active
+      .filter(b => ['borrowing','renewed'].includes(b.status) && b.due_date)
+      .map(b => ({ ...b, days: daysLeft(b.due_date) }))
+      .filter(b => b.days >= 0 && b.days <= 5)
+      .sort((a, b) => a.days - b.days);
 
-  // Recent activity — 5 records gần nhất từ history
-  const recentActivity = history.slice(0, 5);
+    const recent = history.slice(0, 5);
+
+    return { activeCount: actCount, pendingCount: penCount, overdueCount: overCount, totalFines: fines, dueSoon: due, recentActivity: recent };
+  }, [active, history]);
 
   // ── Stats config ────────────────────────────────────────────────────────────
   const stats = [

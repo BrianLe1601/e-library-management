@@ -20,18 +20,26 @@ import bookService from "../../services/bookService";
 import { StarRating } from "../../components/StarRating";
 import borrowService from '../../services/borrowService';
 
+// [THÊM MỚI] Import userService để xử lý Save/Unsave book
+import userService from "../../services/userService";
+
 export default function BookDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [book,         setBook]         = useState(null);
+  const [book,           setBook]         = useState(null);
   const [bookReviews,  setBookReviews]  = useState([]);
   const [relatedBooks, setRelatedBooks] = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [bookmarked,   setBookmarked]   = useState(false);
+  
+  // States cho mượn sách
   const [borrowStatus,  setBorrowStatus]  = useState(null);
   const [borrowLoading, setBorrowLoading] = useState(false);
   const [borrowError,   setBorrowError]   = useState(null);
+
+  // [THÊM MỚI] States cho lưu sách
+  const [bookmarked,      setBookmarked]      = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -65,11 +73,20 @@ export default function BookDetail() {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-          const res = await borrowService.getMyBooks();
-          const existing = (res.data.data || []).find(
+          // 1. Lấy trạng thái mượn sách
+          const borrowRes = await borrowService.getMyBooks();
+          const existingBorrow = (borrowRes.data.data || []).find(
             b => String(b.book_id) === String(id)
           );
-          if (existing) setBorrowStatus(existing.status);
+          if (existingBorrow) setBorrowStatus(existingBorrow.status);
+
+          // 2. [THÊM MỚI] Lấy danh sách sách đã lưu để kiểm tra
+          const savedRes = await userService.getSavedBooks();
+          // Kiểm tra xem ID của sách hiện tại có nằm trong list saved hay không
+          const isSaved = (savedRes.data?.data || []).some(
+            b => String(b.book_id) === String(id) || String(b.id) === String(id)
+          );
+          setBookmarked(isSaved);
         }
       } catch (_) {}
     };
@@ -79,37 +96,39 @@ export default function BookDetail() {
     setBorrowError(null);
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex flex-col items-center justify-center">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
-        <p className="text-gray-500">Loading book details...</p>
-      </div>
-    );
-  }
+  // [THÊM MỚI] Hàm xử lý Save / Unsave sách
+  const handleToggleBookmark = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login'); // Chưa đăng nhập thì đẩy về trang login
+      return;
+    }
 
-  if (!book) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
-          <h2 className="text-gray-700 dark:text-gray-300 mb-2">Book not found</h2>
-          <Link to="/books" className="text-blue-600 hover:text-blue-800 text-sm">← Back to catalog</Link>
-        </div>
-      </div>
-    );
-  }
+    setBookmarkLoading(true);
+    try {
+      if (bookmarked) {
+        // Đang lưu -> Bỏ lưu
+        await userService.unsaveBook(book.id);
+        setBookmarked(false);
+      } else {
+        // Chưa lưu -> Tiến hành lưu
+        await userService.saveBook(book.id);
+        setBookmarked(true);
+      }
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
 
-  // Chỉ cho mượn khi còn sách VÀ user chưa có phiếu mượn nào
-  const canBorrow   = book.availableCopies > 0 && !borrowStatus;
-  const totalCopies = book.totalCopies || 0;
-  const availCopies = book.availableCopies || 0;
+  // ... (Giữ nguyên các logic handleBorrow và config của bạn)
+  const canBorrow   = book?.availableCopies > 0 && !borrowStatus;
+  const totalCopies = book?.totalCopies || 0;
+  const availCopies = book?.availableCopies || 0;
 
-  // Progress bar dựa trên available / total (không phụ thuộc borrowStatus)
-  const availabilityPercentage = totalCopies > 0
-    ? (availCopies / totalCopies) * 100 : 0;
+  const availabilityPercentage = totalCopies > 0 ? (availCopies / totalCopies) * 100 : 0;
 
-  // ── Availability block config theo trạng thái ──────────────────────────────
   const availConfig = (() => {
     if (borrowStatus === 'pending') return {
       bg:    'bg-amber-50 dark:bg-amber-900/20',
@@ -135,7 +154,6 @@ export default function BookDetail() {
       label: `${availCopies}/${totalCopies} copies available — Your copy is overdue`,
       bar:   false,
     };
-    // Chưa mượn — phụ thuộc vào available_copies
     if (availCopies > 0) return {
       bg:    'bg-green-50 dark:bg-green-900/20',
       border:'border-green-200 dark:border-green-800',
@@ -218,6 +236,27 @@ export default function BookDetail() {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-gray-500">Loading book details...</p>
+      </div>
+    );
+  }
+
+  if (!book) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <BookOpen className="w-16 h-16 text-gray-300 dark:text-slate-600 mx-auto mb-4" />
+          <h2 className="text-gray-700 dark:text-gray-300 mb-2">Book not found</h2>
+          <Link to="/books" className="text-blue-600 hover:text-blue-800 text-sm">← Back to catalog</Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Breadcrumb */}
@@ -255,15 +294,24 @@ export default function BookDetail() {
                 <img src={book.coverUrl} alt={book.title} className="w-full h-96 lg:h-[420px] object-cover" />
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setBookmarked(!bookmarked)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm transition-all ${
+                
+                {/* [SỬA ĐỔI] Nút Save / Unsave */}
+                <button 
+                  onClick={handleToggleBookmark}
+                  disabled={bookmarkLoading}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm transition-all disabled:opacity-50 ${
                     bookmarked
                       ? "bg-blue-700 border-blue-700 text-white"
                       : "border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 hover:border-blue-400 hover:text-blue-600"
                   }`}>
-                  <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-current" : ""}`} />
+                  {bookmarkLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-current" : ""}`} />
+                  )}
                   {bookmarked ? "Saved" : "Save"}
                 </button>
+
                 <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-gray-400 text-sm hover:border-blue-400 hover:text-blue-600 transition-all">
                   <Share2 className="w-4 h-4" /> Share
                 </button>
@@ -312,7 +360,7 @@ export default function BookDetail() {
               ))}
             </div>
 
-            {/* Availability — driven by availConfig */}
+            {/* Availability */}
             <div className={`flex items-center gap-3 p-4 rounded-xl border mb-6 ${availConfig.bg} ${availConfig.border}`}>
               {availConfig.icon}
               <div className="flex-1">

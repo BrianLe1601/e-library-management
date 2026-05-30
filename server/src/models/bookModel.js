@@ -216,6 +216,52 @@ const findAllCategories = async () => {
   return rows;
 };
 
+// 1. Lấy danh sách sách đã lưu của User
+const getSavedBooksByUser = async (userId) => {
+    const query = `
+      SELECT 
+          sb.book_id, 
+          sb.saved_at,
+          b.title, 
+          b.cover_url, 
+          b.available_copies,
+          a.name AS author,
+          -- Gom các tên thể loại lại thành 1 chuỗi, cách nhau bằng dấu phẩy
+          GROUP_CONCAT(c.name SEPARATOR ', ') AS category
+      FROM saved_books sb
+      JOIN books b ON sb.book_id = b.id
+      LEFT JOIN authors a ON b.author_id = a.id
+      LEFT JOIN book_categories bc ON b.id = bc.book_id
+      LEFT JOIN categories c ON bc.category_id = c.id
+      WHERE sb.user_id = ?
+      -- BẮT BUỘC có GROUP BY để nhóm các kết quả trùng lặp lại thành 1 dòng
+      GROUP BY 
+          sb.book_id, 
+          sb.saved_at, 
+          b.title, 
+          b.cover_url, 
+          b.available_copies, 
+          a.name
+      ORDER BY sb.saved_at DESC
+    `;
+    const [rows] = await db.query(query, [userId]);
+    return rows;
+};
+
+// 2. Thêm sách vào danh sách lưu (Dùng INSERT IGNORE để tránh lỗi trùng lặp nếu user click đúp)
+const saveBook = async (userId, bookId) => {
+  const query = 'INSERT IGNORE INTO saved_books (user_id, book_id) VALUES (?, ?)';
+  const [result] = await db.query(query, [userId, bookId]);
+  return result;
+};
+
+// 3. Xóa sách khỏi danh sách lưu
+const unsaveBook = async (userId, bookId) => {
+  const query = 'DELETE FROM saved_books WHERE user_id = ? AND book_id = ?';
+  const [result] = await db.query(query, [userId, bookId]);
+  return result;
+};
+
 // ── CRUD (Admin) ──────────────────────────────────────────────────────────────
 const create = async (fields) => {
   const { title, author_id, publisher_id, isbn, publish_year, description, cover_url, total_copies } = fields;
@@ -319,4 +365,4 @@ const getDashboardStats = async () => {
   };
 };
 
-module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher };
+module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, getSavedBooksByUser, saveBook, unsaveBook };

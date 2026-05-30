@@ -191,3 +191,43 @@ exports.dashboardStats = async (req, res) => {
     });
   }
 };
+
+// ── SAVED BOOKS (SÁCH ĐÃ LƯU) ─────────────────────────────────────
+exports.getSavedBooks = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const books = await bookModel.getSavedBooksByUser(userId);
+    return success(res, books, 'Lấy danh sách sách đã lưu thành công');
+  } catch (err) {
+    console.error('[getSavedBooks Error]:', err);
+    return error(res, 'Lỗi hệ thống khi lấy sách đã lưu', 500);
+  }
+};
+
+exports.saveBook = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bookId } = req.body;
+    
+    if (!bookId) return error(res, 'Vui lòng cung cấp bookId', 400);
+
+    await bookModel.saveBook(userId, bookId);
+    return success(res, null, 'Đã lưu sách thành công');
+  } catch (err) {
+    console.error('[saveBook Error]:', err);
+    return error(res, 'Lỗi hệ thống khi lưu sách', 500);
+  }
+};
+
+exports.unsaveBook = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bookId } = req.params;
+
+    await bookModel.unsaveBook(userId, bookId);
+    return success(res, null, 'Đã bỏ lưu sách thành công');
+  } catch (err) {
+    console.error('[unsaveBook Error]:', err);
+    return error(res, 'Lỗi hệ thống khi bỏ lưu sách', 500);
+  }
+};

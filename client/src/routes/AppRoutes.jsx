@@ -71,7 +71,7 @@ function AppRoutes() {
                 <Route element={<UserLayout />}>
                   <Route index path="/user"                  element={<DashboardTab />} />
                   <Route path="/user/borrowed"               element={<BorrowedTab />} />
-                  <Route path="/user/saved"                  element={<SavedBooksTab />} />
+                  <Route path="/user/saved-books"                  element={<SavedBooksTab />} />
                   <Route path="/user/notifications"          element={<NotificationsTab />} />
                   <Route path="/user/settings"               element={<SettingsTab />} />
                 </Route>
