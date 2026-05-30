@@ -44,13 +44,28 @@ const updateProfileRules = [
   body('avatar_url').optional({ nullable: true }).isURL().withMessage('URL không hợp lệ'),
 ];
 
+const resendOtpRules = [
+  body('email').trim().isEmail().withMessage('Email không hợp lệ').normalizeEmail()
+];
+
+const resetPasswordRules = [
+  body('token').notEmpty().withMessage('Token không được để trống'),
+  body('newPassword')
+    .isLength({ min: 8 }).withMessage('Mật khẩu mới tối thiểu 8 ký tự')
+    .matches(/[A-Z]/).withMessage('Phải có ít nhất 1 chữ hoa')
+    .matches(/[0-9]/).withMessage('Phải có ít nhất 1 chữ số'),
+];
+
 // ── Public routes ─────────────────────────────────────────────────────────────
 router.post('/auth/register',         registerRules,       validate, authController.register);
 router.post('/auth/login',            loginRules,          validate, authController.login);
+router.post('/auth/resend-otp', resendOtpRules, validate, authController.resendOtp);
 router.post('/auth/verify-otp',       authController.verifyOtp);
 router.post('/auth/forgot-password', authController.forgotPassword);
 router.post('/auth/verify-forgot-otp', authController.verifyForgotOtp);
-router.post('/auth/reset-password', authController.resetPassword);
+router.post('/auth/reset-password', resetPasswordRules, validate, authController.resetPassword);
+
+router.post('/auth/google', authController.googleLogin);
 
 // ── Protected routes (yêu cầu JWT) ───────────────────────────────────────────
 router.get ('/users/profile',         authenticate, authController.getProfile);

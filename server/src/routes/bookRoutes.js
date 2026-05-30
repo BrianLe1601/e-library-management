@@ -32,8 +32,9 @@ router.get('/newest',      bookController.getNewest);
 router.get('/categories',  bookController.getCategories);
 router.get('/authors',     bookController.getAuthors);      // [MỚI] cho FilterSidebar
 router.get('/publishers',  bookController.getPublishers);   // [MỚI] cho FilterSidebar
+router.get('/stats',       bookController.dashboardStats);
 router.get('/',            bookController.getBooks);
 router.get('/:id(\\d+)',   bookController.getBookById);
-router.get('/stats',       bookController.dashboardStats);
+router.get('/suggest', bookController.getSuggestions);
 
 module.exports = router;
