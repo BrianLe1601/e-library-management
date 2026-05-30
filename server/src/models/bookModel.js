@@ -73,12 +73,9 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
 
   // Xử lý sắp xếp (Khớp với value của sortOptions trong BooksPage.jsx)
   let orderBy = 'ORDER BY b.id DESC'; // mặc định là latest
-  if (sort === 'rating-desc') orderBy = 'ORDER BY rating DESC';
-  if (sort === 'rating-asc') orderBy = 'ORDER BY rating ASC';
-  if (sort === 'title-asc') orderBy = 'ORDER BY b.title ASC';
-  if (sort === 'title-desc') orderBy = 'ORDER BY b.title DESC';
-  if (sort === 'available') orderBy = 'ORDER BY b.available_copies DESC';
-
+  if (sort === 'featured')  orderBy = 'ORDER BY (SELECT COUNT(*) FROM borrows WHERE book_id = b.id) DESC, rating DESC';
+  if (sort === 'trending')  orderBy = 'ORDER BY rating DESC';
+  if (sort === 'newest')    orderBy = 'ORDER BY b.created_at DESC';
   // Câu lệnh SQL chính thức - Ép ALIAS thành CamelCase cho React đọc trực tiếp
   const mainSql = `
     SELECT 

@@ -15,6 +15,7 @@ import {
   Loader2,
   Clock,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 import bookService from "../../services/bookService";
 import { StarRating } from "../../components/StarRating";
 import borrowService from '../../services/borrowService';
@@ -50,6 +51,18 @@ export default function BookDetail() {
           setBook(response.data.data.book);
           setBookReviews(response.data.data.reviews || []);
           setRelatedBooks(response.data.data.relatedBooks || []);
+
+          // Kiểm tra sách đã được lưu chưa (chỉ khi đã đăng nhập)
+          if (user) {
+            bookService
+              .getSavedIds()
+              .then((res) => {
+                if (res.data?.success) {
+                  setBookmarked(res.data.data.includes(Number(id)));
+                }
+              })
+              .catch(() => {});
+          }
         }
       } catch (error) {
         console.error("Error loading book:", error);
@@ -250,11 +263,20 @@ export default function BookDetail() {
       <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <nav className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <Link to="/" className="hover:text-blue-600 transition-colors">Home</Link>
+            <Link to="/" className="hover:text-blue-600 transition-colors">
+              Home
+            </Link>
             <ChevronRight className="w-3 h-3" />
-            <Link to="/books" className="hover:text-blue-600 transition-colors">Catalog</Link>
+            <Link
+              to="/books"
+              className="hover:text-blue-600 transition-colors"
+            >
+              Catalog
+            </Link>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-gray-900 dark:text-gray-100 line-clamp-1">{book.title}</span>
+            <span className="text-gray-900 dark:text-gray-100 line-clamp-1">
+              {book.title}
+            </span>
           </nav>
         </div>
       </div>
@@ -313,7 +335,9 @@ export default function BookDetail() {
             <div className="flex items-center gap-3 mb-6">
               <StarRating rating={book.rating} size="md" showValue />
               <span className="text-sm text-gray-400">|</span>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{bookReviews.length} reviews</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {bookReviews.length} reviews
+              </span>
             </div>
 
             {/* Metadata Grid */}
@@ -351,7 +375,9 @@ export default function BookDetail() {
 
             {/* Description */}
             <div className="mb-8">
-              <h3 className="text-gray-900 dark:text-gray-100 mb-3">Description</h3>
+              <h3 className="text-gray-900 dark:text-gray-100 mb-3">
+                Description
+              </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm whitespace-pre-wrap">
                 {book.description || "No description available."}
               </p>
@@ -382,7 +408,9 @@ export default function BookDetail() {
         <div className="mb-12">
           <div className="flex items-center gap-2 mb-6">
             <div className="w-1 h-6 bg-blue-700 rounded-full" />
-            <h2 className="text-gray-900 dark:text-gray-100 font-bold text-xl">Customer Reviews</h2>
+            <h2 className="text-gray-900 dark:text-gray-100 font-bold text-xl">
+              Customer Reviews
+            </h2>
           </div>
           {bookReviews.length > 0 ? (
             <div className="space-y-4">
@@ -406,7 +434,9 @@ export default function BookDetail() {
             </div>
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-8 text-center">
-              <p className="text-gray-500 dark:text-gray-400 text-sm">No reviews yet. Be the first to review this book!</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
+                No reviews yet. Be the first to review this book!
+              </p>
             </div>
           )}
         </div>
@@ -416,7 +446,9 @@ export default function BookDetail() {
           <div>
             <div className="flex items-center gap-2 mb-6">
               <div className="w-1 h-6 bg-blue-700 rounded-full" />
-              <h2 className="text-gray-900 dark:text-gray-100 font-bold text-xl">More in {book.category}</h2>
+              <h2 className="text-gray-900 dark:text-gray-100 font-bold text-xl">
+                More in {book.category}
+              </h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {relatedBooks.map(b => (
