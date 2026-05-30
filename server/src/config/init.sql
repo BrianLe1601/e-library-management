@@ -167,6 +167,19 @@ CREATE TABLE notifications (
 );
 
 -- ============================================================
+-- 12. SAVED BOOKS
+-- ============================================================
+DROP TABLE IF EXISTS saved_books;
+CREATE TABLE saved_books (
+    user_id INT UNSIGNED NOT NULL,
+    book_id INT UNSIGNED NOT NULL,
+    saved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, book_id),
+    CONSTRAINT fk_saved_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_saved_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+);
+
+-- ============================================================
 -- INDEXES TỐI ƯU TRUY VẤN
 -- ============================================================
 CREATE INDEX idx_users_role        ON users(role);

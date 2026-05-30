@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Clock, CheckCircle, BookOpen, AlertTriangle, Info, X, Bell,
+  Clock, CheckCircle, BookOpen, AlertTriangle, Info, X, Bell, Loader2
 } from "lucide-react";
 
 const NOTIF_CONFIG = {
@@ -13,12 +13,24 @@ const NOTIF_CONFIG = {
 };
 
 const getSmartType = (type, title, message) => {
+  // 1. CHỈ giữ lại 4 loại này để ưu tiên giữ nguyên, BỎ "system" ra khỏi đây
   if (["overdue", "approved", "returned", "fine"].includes(type)) return type;
+  
   const text = ((title || "") + " " + (message || "")).toLowerCase();
+  
+  // 2. Bắt từ khóa "gia hạn" trước tiên -> Trả về system
+  if (text.includes("gia hạn")) return "system";
+  
   if (text.includes("quá hạn")) return "overdue";
-  if (text.includes("trả") || text.includes("hoàn trả")) return "returned";
+  
+  // 3. Bắt từ khóa "trả"
+  if (text.includes("hoàn trả") || text.includes("đã trả") || text.includes("xác nhận trả")) return "returned";
+  
   if (text.includes("duyệt") || text.includes("mượn") || text.includes("thành công")) return "approved";
+  
   if (text.includes("phạt")) return "fine";
+  
+  // Nếu không khớp từ khóa nào thì mới chốt là system
   return "system";
 };
 
@@ -28,6 +40,9 @@ export function NotificationPopover({
   onMarkAllRead,
   onMarkOneRead,
   viewAllPath = "/notifications",
+  hasMore,
+  loadingMore,
+  onLoadMore
 }) {
   const ref         = useRef(null);
   const navigate    = useNavigate();
@@ -40,6 +55,15 @@ export function NotificationPopover({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
+
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    if (scrollHeight - scrollTop <= clientHeight + 10) {
+      if (hasMore && !loadingMore && onLoadMore) {
+        onLoadMore();
+      }
+    }
+  };
 
   const handleItemClick = (n) => {
     if (!n.read && onMarkOneRead) onMarkOneRead(n.id);
@@ -57,6 +81,7 @@ export function NotificationPopover({
     >
       <div className="absolute -top-[7px] right-[18px] w-3.5 h-3.5 rotate-45 rounded-sm bg-white dark:bg-[#0f1629] border-l border-t border-slate-200 dark:border-slate-700/60" />
 
+      {/* HEADER POPOVER */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-700/60">
         <div className="flex items-center gap-2">
           <Bell size={15} className="text-indigo-500" />
@@ -79,15 +104,19 @@ export function NotificationPopover({
         </div>
       </div>
 
-      <div className="max-h-[320px] overflow-y-auto">
-        {notifications.length === 0 ? (
+      <div 
+        className="max-h-[320px] overflow-y-auto overflow-x-hidden scroll-smooth" 
+        onScroll={handleScroll}
+      >
+        {notifications.length === 0 && !loadingMore ? (
           <div className="py-10 text-center">
             <Bell size={28} className="mx-auto mb-2 text-slate-300 dark:text-slate-600" />
             <p className="text-slate-400 dark:text-slate-500 text-xs">No notifications</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-700/40">
-            {notifications.slice(0, 5).map((n) => {
+            {/* Hiển thị TẤT CẢ các thông báo đang có trong mảng */}
+            {notifications.map((n) => {
               const smartType = getSmartType(n.type, n.title, n.message);
               const cfg  = NOTIF_CONFIG[smartType] || NOTIF_CONFIG.system;
               const Icon = cfg.icon;
@@ -124,6 +153,18 @@ export function NotificationPopover({
               );
             })}
           </ul>
+        )}
+
+        {loadingMore && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+          </div>
+        )}
+
+        {!hasMore && notifications.length > 0 && (
+          <div className="text-center py-3 text-[10px] text-slate-400 font-medium bg-slate-50/50 dark:bg-slate-800/30">
+            Đã hiển thị tất cả thông báo
+          </div>
         )}
       </div>
 

@@ -7,7 +7,7 @@ import userService from "../../services/userService";
 const TABS = [
   { path: "/user",               label: "Dashboard",    icon: LayoutDashboard, end: true  },
   { path: "/user/borrowed",      label: "Borrowed",     icon: BookOpen                    },
-  { path: "/user/saved",         label: "Saved Books",  icon: BookMarked                  },
+  { path: "/user/saved-books",         label: "Saved Books",  icon: BookMarked                  },
   { path: "/user/notifications", label: "Notifications",icon: Bell                        },
   { path: "/user/settings",      label: "Settings",     icon: Settings                    },
 ];

@@ -163,6 +163,34 @@ const createForRoleUsers = async ({ scope, type, title, message, book_id }) => {
   );
 };
 
+  // Xóa mềm 1 thông báo
+const softDelete = async (id, userId) => {
+  const query = `
+    UPDATE notifications 
+    SET is_archived = 1 
+    WHERE id = ? AND user_id = ?
+  `;
+  const [result] = await db.execute(query, [id, userId]);
+  return result;
+};
+
+// Xóa mềm NHIỀU thông báo
+const softDeleteMultiple = async (ids, userId) => {
+  // Tạo chuỗi dấu hỏi tương ứng với số lượng ID (VD: "?, ?, ?")
+  const placeholders = ids.map(() => '?').join(',');
+  
+  const query = `
+    UPDATE notifications 
+    SET is_archived = 1 
+    WHERE id IN (${placeholders}) AND user_id = ?
+  `;
+  
+  // Nối mảng ids với userId ở cuối để truyền tham số
+  const params = [...ids, userId];
+  const [result] = await db.query(query, params);
+  return result;
+};
+
 module.exports = {
   findAll,
   getStats,
@@ -176,4 +204,6 @@ module.exports = {
   bulkDelete,
   create,
   createForRoleUsers,
+  softDelete,
+  softDeleteMultiple
 };

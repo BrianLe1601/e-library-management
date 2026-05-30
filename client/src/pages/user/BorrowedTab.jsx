@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import useSWR from "swr"; // [THÊM MỚI] Import SWR
 import {
   Search, BookOpen, Calendar, RefreshCw, Clock,
   AlertTriangle, CheckCircle, Filter, Star,
@@ -72,6 +73,21 @@ function mapHistoryRecord(b) {
   };
 }
 
+// ─── SWR Fetchers ─────────────────────────────────────────────────────────────
+const fetchActiveLoans = async () => {
+  const res = await borrowService.getMyBooks();
+  return (res.data?.data || []).map(mapActiveBorrow);
+};
+
+const fetchHistoryLoans = async ([key, page]) => {
+  const res = await borrowService.getHistory({ page, limit: PAGE_SIZE });
+  const mapped = (res.data?.data || []).map(mapHistoryRecord);
+  return {
+    records: mapped,
+    total: res.data?.pagination?.total || 0
+  };
+};
+
 // ─── Category pills ───────────────────────────────────────────────────────────
 const CATEGORY_COLORS = {
   IT:          "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
@@ -133,33 +149,19 @@ function Toast({ message, type = "success" }) {
 }
 
 // ─── Active Loans View ────────────────────────────────────────────────────────
-function ActiveLoansView() {
-  const [books,        setBooks]        = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState("");
+export function ActiveLoansView() {
+  const [search,        setSearch]        = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [actionId,     setActionId]     = useState(null);
-  const [toast,        setToast]        = useState(null);
+  const [actionId,      setActionId]      = useState(null);
+  const [toast,         setToast]         = useState(null);
+
+  // [SỬA DÙNG SWR ĐỂ FETCH DỮ LIỆU ACTIVE]
+  const { data: books = [], isLoading: loading, mutate } = useSWR('active_loans', fetchActiveLoans);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
-
-  const fetchActive = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await borrowService.getMyBooks();
-      setBooks((res.data.data || []).map(mapActiveBorrow));
-    } catch (err) {
-      console.error("[ActiveLoans]", err);
-      showToast("Failed to load active loans", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchActive(); }, [fetchActive]);
 
   // Gia hạn
   const handleRenew = async (borrowId) => {
@@ -168,11 +170,13 @@ function ActiveLoansView() {
       const res = await borrowService.extendBorrow(borrowId);
       showToast(res.data?.message || "Renewal requested!");
       const newDue = res.data?.data?.new_due_date;
-      setBooks(prev => prev.map(b =>
+      
+      // Cập nhật giao diện ngay lập tức (Optimistic UI)
+      mutate(prev => prev.map(b =>
         b.id === borrowId
           ? { ...b, dueDate: newDue || b.dueDate, renewalCount: b.renewalCount + 1, status: 'renewed' }
           : b
-      ));
+      ), false);
     } catch (err) {
       showToast(err.response?.data?.message || "Renewal failed", "error");
     } finally {
@@ -186,9 +190,11 @@ function ActiveLoansView() {
     try {
       await borrowService.requestReturn(borrowId);
       showToast("Return request sent! Awaiting admin confirmation.");
-      setBooks(prev => prev.map(b =>
+      
+      // Cập nhật giao diện ngay lập tức (Optimistic UI)
+      mutate(prev => prev.map(b =>
         b.id === borrowId ? { ...b, status: 'returning' } : b
-      ));
+      ), false);
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to request return", "error");
     } finally {
@@ -424,43 +430,32 @@ function ConditionBadge({ record }) {
 }
 
 // ─── History View ─────────────────────────────────────────────────────────────
-function HistoryView() {
-  const [records,      setRecords]      = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [total,        setTotal]        = useState(0);
-  const [page,         setPage]         = useState(1);
-  const [ratings,      setRatings]      = useState({});
-  const [ratingTarget, setRatingTarget] = useState(null);
-  const [toast,        setToast]        = useState(null);
+export function HistoryView() {
+  const [page,           setPage]         = useState(1);
+  const [ratings,        setRatings]      = useState({});
+  const [ratingTarget,   setRatingTarget] = useState(null);
+  const [toast,          setToast]        = useState(null);
+
+  // [SỬA DÙNG SWR ĐỂ FETCH HISTORY]
+  const { data, isLoading: loading } = useSWR(['history_loans', page], fetchHistoryLoans);
+  
+  const records = data?.records || [];
+  const total = data?.total || 0;
+
+  useEffect(() => {
+    if (records.length > 0) {
+      const initRatings = {};
+      records.forEach(r => {
+        if (r.userRating) initRatings[r.id] = r.userRating;
+      });
+      setRatings(initRatings);
+    }
+  }, [records]);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
-
-  const fetchHistory = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await borrowService.getHistory({ page, limit: PAGE_SIZE });
-      const mapped = (res.data.data || []).map(mapHistoryRecord);
-      setRecords(mapped);
-      setTotal(res.data.pagination?.total || 0);
-
-      // [SỬA] Set ratings từ DB — override bất kỳ state local nào
-      const initRatings = {};
-      mapped.forEach(r => {
-        if (r.userRating) initRatings[r.id] = r.userRating;
-      });
-      setRatings(initRatings); // ← dùng set thay vì merge để tránh stale state
-    } catch (err) {
-      console.error("[History]", err);
-      showToast("Failed to load history", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
-
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleRating = async (borrowId, bookId, newRating) => {
     setRatings(prev => ({ ...prev, [borrowId]: newRating }));
@@ -618,18 +613,12 @@ function HistoryView() {
               </p>
               <div className="flex items-center gap-1">
                 <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  <ChevronLeft size={14} /> Previous
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50">
+                  <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i+1).map(n => (
-                  <button key={n} onClick={() => setPage(n)}
-                    className={`w-8 h-8 rounded-lg text-sm transition-colors ${n === page ? "bg-indigo-600 text-white font-semibold" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700"}`}>
-                    {n}
-                  </button>
-                ))}
                 <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  Next <ChevronRight size={14} />
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50">
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
@@ -640,25 +629,21 @@ function HistoryView() {
   );
 }
 
-// ─── Root Export ──────────────────────────────────────────────────────────────
+// ─── TỔNG HỢP VÀO COMPONENT CHÍNH ──────────────────────────────────────────────
 export default function BorrowedTab() {
-  const [subTab,      setSubTab]      = useState("active");
-  const [activeCnt,   setActiveCnt]   = useState(0);
-  const [historyCnt,  setHistoryCnt]  = useState(0);
+  const [subTab, setSubTab] = useState("active");
 
-  useEffect(() => {
-    borrowService.getMyBooks()
-      .then(r => setActiveCnt((r.data.data || []).length))
-      .catch(() => {});
-    borrowService.getHistory()
-      .then(r => setHistoryCnt(r.data.data?.length || 0))
-      .catch(() => {});
-  }, []);
+  // Dùng SWR để lấy số đếm (Cache chạy ngầm, không tốn resource)
+  const { data: activeBooks = [] } = useSWR('active_loans', fetchActiveLoans);
+  const { data: historyData } = useSWR(['history_loans', 1], fetchHistoryLoans);
+  
+  const activeCnt = activeBooks.length || 0;
+  const historyCnt = historyData?.total || 0;
 
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-slate-900 dark:text-slate-100 text-xl font-semibold">My Borrowed Books</h2>
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Borrowed Books</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           Manage your active loans and view your borrowing history.
         </p>
@@ -679,7 +664,7 @@ export default function BorrowedTab() {
               {tab.label}
               <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold
                 ${isActive ? "bg-white/20 text-white"
-                : tab.key === "active" ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
+                : tab.key === "active" ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400"
                 : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"}`}>
                 {tab.count}
               </span>
@@ -688,8 +673,7 @@ export default function BorrowedTab() {
         })}
       </div>
 
-      {subTab === "active"  && <ActiveLoansView />}
-      {subTab === "history" && <HistoryView />}
+      {subTab === "active" ? <ActiveLoansView /> : <HistoryView />}
     </div>
   );
 }
