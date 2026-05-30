@@ -306,7 +306,7 @@ export default function SavedBooksTab() {
             >
               <BookCard
                 book={book}
-                onUnsave={handleUnsave}
+                onUnsave={() => handleUnsave(book.id)}
                 onBorrow={handleBorrow}
                 onHold={handleHold}
                 isActionLoading={actionId === book.id}

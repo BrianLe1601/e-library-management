@@ -33,6 +33,8 @@ const bookService = {
   /** Thống kê công khai cho trang chủ (không cần đăng nhập) */
   getPublicStats: () => api.get("/books/stats"),
 
+  // ── Saved books ────────────────────────────────────────────────────────────
+  getSuggestions: (q) => api.get("/books/suggest", { params: { q } }),
 };
 
 export default bookService;
