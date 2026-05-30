@@ -71,3 +71,39 @@ exports.markAllNotificationsAsRead = async (req, res) => {
     return error(res, 'Không thể cập nhật tất cả thông báo', 500);
   }
 };
+
+exports.deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await notificationModel.softDelete(id, userId);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy thông báo hoặc bạn không có quyền xóa." });
+    }
+
+    res.status(200).json({ success: true, message: "Đã xóa thông báo." });
+  } catch (error) {
+    console.error("[deleteNotification] Error:", error);
+    res.status(500).json({ success: false, message: "Lỗi server." });
+  }
+};
+
+exports.deleteMultipleNotifications = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "Danh sách ID không hợp lệ." });
+    }
+
+    const result = await notificationModel.softDeleteMultiple(ids, userId);
+
+    res.status(200).json({ success: true, message: `Đã xóa ${result.affectedRows} thông báo.` });
+  } catch (error) {
+    console.error("[deleteMultipleNotifications] Error:", error);
+    res.status(500).json({ success: false, message: "Lỗi server." });
+  }
+};

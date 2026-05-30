@@ -1,439 +1,601 @@
-﻿import { useState, useEffect, useCallback, useMemo } from "react";
+﻿import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import useSWR from "swr";
 import {
-  Trash2, Archive, ChevronLeft, ChevronRight, RotateCcw, X, 
-  Search, CheckSquare, Square, Plus, Bell, TrendingUp, Users, Check,
-  Loader2
+  Trash2, ChevronLeft, ChevronRight, X,
+  Search, CheckSquare, Square, Plus, Check, Loader2
 } from "lucide-react";
 
-// Import cụm component sạch vừa gộp
 import {
-  StatPill, NotiCard, NotificationDetail, ComposeModal,
-  MobileNotificationHeader, MobileNotificationFilters, MobileTabBar, MobileNotificationList, BulkActionBarMobile
+  NotiCard, NotificationDetail, ComposeModal,
+  MobileNotificationHeader, MobileNotificationFilters,
+  MobileNotificationList, BulkActionBarMobile
 } from "../../components/admin/NotificationComponents";
-
-// API services kết nối trực tiếp cơ sở dữ liệu
 import adminService from "../../services/adminService";
 
+// ─── SWR fetcher ─────────────────────────────────────────────
+const fetcher = async ([, params]) => {
+  const res = await adminService.getNotifications(params);
+  return res.data;
+};
+
+const DESKTOP_LIMIT = 10;
+const MOBILE_LIMIT  = 15; // load theo cụm 15 cho mobile infinite scroll
+
 export default function NotificationsPage() {
-  // ── States điều phối dữ liệu ─────────────────────────────────────────────
-  const [notifications, setNotifications] = useState([]);
-  const [stats, setStats] = useState({ unreadCount: 0, activeCount: 0, archivedCount: 0 });
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
 
-  // ── States bộ lọc phân trang ──────────────────────────────────────────────
-  const [filter, setFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("active"); // "active" | "archived"
-  const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  // ── Bộ lọc chung (Desktop + Mobile) ──────────────────────────────────────────
+  const [filter,          setFilter]          = useState("all");
+  const [searchQuery,     setSearchQuery]     = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // ── States Chọn hàng loạt hàng đầu (Select All DB) ───────────────────────
-  const [selectedIds, setSelectedIds] = useState([]);
+  // ── Desktop pagination ────────────────────────────────────────────────────────
+  const [desktopPage, setDesktopPage] = useState(1);
+
+  // ── Desktop selection ─────────────────────────────────────────────────────────
+  const [selectedIds,         setSelectedIds]         = useState([]);
   const [isSelectAllDatabase, setIsSelectAllDatabase] = useState(false);
+
+  // ── Mobile state ──────────────────────────────────────────────────────────────
   const [isSelectionModeMobile, setIsSelectionModeMobile] = useState(false);
+  const [mobileDetailItem,      setMobileDetailItem]      = useState(null);
 
-  // ── Detail & Modals States ────────────────────────────────────────────────
-  const [selectedNotifId, setSelectedNotifId] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [userList, setUserList] = useState([]);
+  // Mobile infinite scroll: accumulate tất cả items đã tải qua các trang
+  const [mobileItems,    setMobileItems]    = useState([]);
+  const [mobilePage,     setMobilePage]     = useState(1);
+  const [mobileHasMore,  setMobileHasMore]  = useState(true);
+  const [mobileLoading,  setMobileLoading]  = useState(false);
+  // Ref để tránh gọi trùng
+  const mobileLoadingRef = useRef(false);
+
+  // ── Detail & Modal ────────────────────────────────────────────────────────────
+  const [selectedNotifId,  setSelectedNotifId]  = useState(null);
+  const [isModalOpen,      setIsModalOpen]      = useState(false);
+  const [userList,         setUserList]         = useState([]);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
-  const [mobileDetailItem, setMobileDetailItem] = useState(null);
 
-  // Tổng số lượng bản ghi thực tế lấy từ stats dựa theo viewMode
-  const totalRecordsCount = useMemo(() => {
-    return viewMode === "archived" ? stats.archivedCount : stats.activeCount;
-  }, [viewMode, stats]);
+  // ── Debounce search ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setDesktopPage(1);
+      // Reset mobile khi search thay đổi
+      resetMobile();
+    }, 500);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  // Kiểm tra trạng thái tích chọn trên trang hiện tại
-  const isAllPageSelected = useMemo(() => {
-    return notifications.length > 0 && selectedIds.length === notifications.length;
-  }, [notifications, selectedIds]);
-
-  // Tự động giải phóng bộ chọn khi thay đổi trang, tab hoặc từ khóa kiếm tìm
+  // Reset selection + page khi đổi filter
   useEffect(() => {
     setSelectedIds([]);
     setIsSelectAllDatabase(false);
-  }, [page, filter, viewMode, searchQuery]);
+    setDesktopPage(1);
+    resetMobile();
+  }, [filter]);
 
-  // ── FETCH DATA API COORD ──────────────────────────────────────────────────
-  const fetchNotifications = useCallback(async (resetMobileList = false) => {
-    try {
-      if (resetMobileList) {
-        setLoading(true);
-        setPage(1);
-      }
-      
-      const currentPage = resetMobileList ? 1 : page;
-      const res = await adminService.getNotifications({
-        page: currentPage,
-        limit: 10,
-        filter: filter === "all" ? "" : filter,
-        is_archived: viewMode === "archived" ? 1 : 0,
-        search: searchQuery
-      });
+  // ── Helpers reset mobile ──────────────────────────────────────────────────────
+  const resetMobile = () => {
+    setMobileItems([]);
+    setMobilePage(1);
+    setMobileHasMore(true);
+    mobileLoadingRef.current = false;
+  };
 
-      if (res.data?.success) {
-        const payload = res.data.data.data || res.data.data || [];
-        const statsPayload = res.data.data.stats || res.data.stats || { unreadCount: 0, activeCount: 0, archivedCount: 0 };
-        const serverTotalPages = res.data.data.totalPages || 1;
+  // ── SWR (Desktop only) ────────────────────────────────────────────────────────
+  const swrParams = useMemo(() => ({
+    page:        desktopPage,
+    limit:       DESKTOP_LIMIT,
+    filter:      filter === "all" ? "" : filter,
+    is_archived: 0,
+    search:      debouncedSearch,
+  }), [desktopPage, filter, debouncedSearch]);
 
-        setStats(statsPayload);
-        setTotalPages(serverTotalPages);
+  const { data: swrData, mutate, isLoading: swrLoading } = useSWR(
+    ["/admin/notifications", swrParams],
+    fetcher,
+    { keepPreviousData: true }
+  );
 
-        if (window.innerWidth < 768 && !resetMobileList && currentPage > 1) {
-          // Mobile Infinite Append
-          setNotifications(prev => [...prev, ...payload]);
-        } else {
-          // Desktop Overwrite
-          setNotifications(payload);
-          if (payload.length > 0 && !selectedNotifId) setSelectedNotifId(payload[0].id);
-          else if (payload.length === 0) setSelectedNotifId(null);
-        }
-        setHasMore(currentPage < serverTotalPages);
-      }
-    } catch (err) {
-      console.error("Lỗi lấy danh sách thông báo:", err);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+  const desktopNotifications = useMemo(() => swrData?.data?.data || [], [swrData]);
+  const stats       = useMemo(() => swrData?.data?.stats || { unreadCount: 0, activeCount: 0 }, [swrData]);
+  const totalPages  = swrData?.data?.totalPages || 1;
+  const totalCount  = stats.activeCount || 0;
+
+  // Auto-select đầu tiên trên desktop
+  useEffect(() => {
+    if (desktopNotifications.length > 0 && !selectedNotifId && window.innerWidth >= 768) {
+      setSelectedNotifId(desktopNotifications[0].id);
     }
-  }, [page, filter, viewMode, searchQuery, selectedNotifId]);
+  }, [desktopNotifications, selectedNotifId]);
 
+  // ── Mobile: load thêm (infinite scroll) ──────────────────────────────────────
+  const loadMobilePage = useCallback(async (pageToLoad) => {
+    if (mobileLoadingRef.current || !mobileHasMore) return;
+    mobileLoadingRef.current = true;
+    setMobileLoading(true);
+    try {
+      const res = await adminService.getNotifications({
+        page:        pageToLoad,
+        limit:       MOBILE_LIMIT,
+        filter:      filter === "all" ? "" : filter,
+        is_archived: 0,
+        search:      debouncedSearch,
+      });
+      const arr      = res.data?.data?.data || [];
+      const pages    = res.data?.data?.totalPages || 1;
+
+      // [KEY FIX] Append vào mảng tích lũy, không ghi đè
+      setMobileItems(prev => pageToLoad === 1 ? arr : [...prev, ...arr]);
+      setMobileHasMore(pageToLoad < pages);
+      setMobilePage(pageToLoad);
+    } catch (err) {
+      console.error("[Mobile load]", err);
+    } finally {
+      setMobileLoading(false);
+      mobileLoadingRef.current = false;
+    }
+  }, [filter, debouncedSearch, mobileHasMore]);
+
+  // Load lần đầu mobile
   useEffect(() => {
-    fetchNotifications(true);
-  }, [filter, viewMode, searchQuery]);
+    loadMobilePage(1);
+  }, [filter, debouncedSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Callback khi sentinel vào viewport
+  const handleMobileLoadMore = useCallback(() => {
+    if (!mobileLoadingRef.current && mobileHasMore) {
+      loadMobilePage(mobilePage + 1);
+    }
+  }, [mobilePage, mobileHasMore, loadMobilePage]);
+
+  // ── User list cho modal ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (page > 1) fetchNotifications(false);
-  }, [page]);
-
-  useEffect(() => {
-    const fetchUsersList = async () => {
-      try {
-        const res = await adminService.getUsers({ page: 1, limit: 500 });
-        if (res.data?.success) {
-          const users = res.data.data.users || res.data.data.rows || res.data.data.data || res.data.data || [];
-          setUserList(users);
-        }
-      } catch (error) { 
-        console.error("Lỗi tải danh sách người dùng:", error); 
-      }
-    };
-
     if (isModalOpen && userList.length === 0) {
-      fetchUsersList();
+      adminService.getUsers({ page: 1, limit: 500 })
+        .then(res => {
+          if (res.data?.success) setUserList(res.data.data.users || res.data.data.rows || []);
+        })
+        .catch(console.error);
     }
   }, [isModalOpen, userList.length]);
 
-  const handleLoadMoreMobile = useCallback(() => {
-    if (hasMore && !loadingMore && !loading) {
-      setLoadingMore(true);
-      setPage(prev => prev + 1);
-    }
-  }, [hasMore, loadingMore, loading]);
+  // ── Computed ──────────────────────────────────────────────────────────────────
+  const selectedNotifData  = useMemo(() =>
+    desktopNotifications.find(n => n.id === selectedNotifId) || null,
+    [desktopNotifications, selectedNotifId]
+  );
+  const isAllPageSelected  = useMemo(() =>
+    desktopNotifications.length > 0 && selectedIds.length === desktopNotifications.length,
+    [desktopNotifications, selectedIds]
+  );
 
-  // ── CORE ACTIONS XỬ LÝ ĐƠN LẺ ─────────────────────────────────────────────
-  const selectedNotifData = useMemo(() => {
-    return notifications.find(n => n.id === selectedNotifId) || null;
-  }, [notifications, selectedNotifId]);
+  // ── Mutate helper (refresh cả desktop SWR + reset mobile) ────────────────────
+  const refreshAll = () => {
+    mutate(); // SWR desktop
+    resetMobile();
+    loadMobilePage(1);
+  };
 
-  const handleTapItem = useCallback(async (id) => {
+  // ── HANDLERS ─────────────────────────────────────────────────────────────────
+
+  // Đánh dấu đọc 1 (optimistic update cho desktop; mobile chỉ update local)
+  const handleMarkRead = async (id) => {
+    try {
+      await adminService.markNotificationRead(id);
+      // Desktop: optimistic
+      mutate(cur => {
+        const next = structuredClone(cur);
+        const list = next?.data?.data || [];
+        const idx  = list.findIndex(n => n.id === id);
+        if (idx !== -1) list[idx].is_read = 1;
+        if (next?.data?.stats) next.data.stats.unreadCount = Math.max(0, next.data.stats.unreadCount - 1);
+        return next;
+      }, false);
+      // Mobile: update local array
+      setMobileItems(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleTapItem = (id) => {
     setSelectedNotifId(id);
-    const target = notifications.find(n => n.id === id);
-    if (target && !target.is_read) {
-      try {
-        await adminService.markNotificationRead(id);
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
-        setStats(prev => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
-      } catch (err) { console.error(err); }
-    }
-  }, [notifications]);
+    const t = desktopNotifications.find(n => n.id === id);
+    if (t && !t.is_read) handleMarkRead(id);
+  };
 
-  const handleTapItemMobile = useCallback(async (item) => {
+  const handleTapItemMobile = (item) => {
     setMobileDetailItem(item);
-    if (!item.is_read) {
-      try {
-        await adminService.markNotificationRead(item.id);
-        setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, is_read: 1 } : n));
-        setStats(prev => ({ ...prev, unreadCount: Math.max(0, prev.unreadCount - 1) }));
-      } catch (err) { console.error(err); }
-    }
-  }, []);
+    if (!item.is_read) handleMarkRead(item.id);
+  };
 
-  const handleSingleArchive = useCallback(async (id) => {
+  // ── [FIX] XÓA MỀM ĐƠN LẺ — gọi archive (is_archived=1), KHÔNG phải delete ──
+  const handleSingleSoftDelete = async (id) => {
+    if (!window.confirm("Xóa thông báo này? (Có thể khôi phục sau)")) return;
     try {
-      await adminService.archiveNotificationApi(id);
-      fetchNotifications(true);
+      // Gọi API archive thay vì delete — đây là xóa mềm
+      await adminService.archiveNotificatiApi(id);
+      setSelectedNotifId(null);
+      setMobileDetailItem(null);
+      refreshAll();
     } catch (err) { console.error(err); }
-  }, [fetchNotifications]);
+  };
 
-  const handleSingleRestore = useCallback(async (id) => {
-    try {
-      await adminService.restoreNotificationApi(id);
-      fetchNotifications(true);
-    } catch (err) { console.error(err); }
-  }, [fetchNotifications]);
+  // ── Desktop selection ─────────────────────────────────────────────────────────
+  const handleToggleSelectPage = () => {
+    if (isAllPageSelected) { setSelectedIds([]); setIsSelectAllDatabase(false); }
+    else setSelectedIds(desktopNotifications.map(n => n.id));
+  };
 
-  const handleSingleDelete = useCallback(async (id) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa vĩnh viễn thông báo này?")) return;
-    try {
-      await adminService.deleteNotificationApi(id);
-      fetchNotifications(true);
-    } catch (err) { console.error(err); }
-  }, [fetchNotifications]);
-
-  // ── BULK ACTIONS XỬ LÝ HÀNG LOẠT (Tích hợp Select All DB) ────────────────
-  const handleToggleSelectPage = useCallback(() => {
-    if (isAllPageSelected) {
-      setSelectedIds([]);
-      setIsSelectAllDatabase(false);
-    } else {
-      setSelectedIds(notifications.map(n => n.id));
-    }
-  }, [isAllPageSelected, notifications]);
-
-  const handleToggleCheckSingle = useCallback((id) => {
+  const handleToggleCheckSingle = (id) => {
     if (isSelectAllDatabase) {
-      const currentPageIds = notifications.map(n => n.id);
-      setSelectedIds(currentPageIds.filter(i => i !== id));
+      setSelectedIds(desktopNotifications.map(n => n.id).filter(i => i !== id));
       setIsSelectAllDatabase(false);
     } else {
-      setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+      setSelectedIds(prev =>
+        prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+      );
     }
-  }, [isSelectAllDatabase, notifications]);
+  };
 
-  const handleToggleSelectAllMobile = useCallback(() => {
-    if (isSelectAllDatabase || selectedIds.length === notifications.length) {
-      setSelectedIds([]);
-      setIsSelectAllDatabase(false);
-    } else {
-      setIsSelectAllDatabase(true);
-      setSelectedIds(notifications.map(n => n.id));
-    }
-  }, [isSelectAllDatabase, selectedIds, notifications]);
-
-  const handleBulkAction = useCallback(async (action) => {
+  // ── [FIX] BULK ACTION — desktop ───────────────────────────────────────────────
+  // action: "archive" (xóa mềm) | "delete" (xóa thật) | "mark_read"
+  const handleBulkAction = async (action) => {
     if (selectedIds.length === 0 && !isSelectAllDatabase) return;
-
-    let confirmMsg = `Bạn có muốn thực hiện hành động này không?`;
-    if (action === "delete") {
-      confirmMsg = isSelectAllDatabase
-        ? `🚨 CẢNH BÁO: Bạn có chắc chắn muốn XÓA VĨNH VIỄN TẤT CẢ ${totalRecordsCount} thông báo trong hệ thống thỏa mãn bộ lọc hiện tại?`
-        : `Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedIds.length} mục đã chọn?`;
-    } else if (action === "archive" && isSelectAllDatabase) {
-      confirmMsg = `Bạn muốn lưu trữ toàn bộ ${totalRecordsCount} mục trong database chứ?`;
-    }
-
-    if (!window.confirm(confirmMsg)) return;
+    const label = action === "archive" ? "xóa mềm" : action === "delete" ? "xóa vĩnh viễn" : "đánh dấu đọc";
+    if (action === "delete" && !window.confirm(`Bạn chắc chắn muốn ${label} ${isSelectAllDatabase ? "tất cả" : selectedIds.length} thông báo?`)) return;
 
     try {
-      // Đóng gói Payload cao cấp gửi lên Backend
-      const payload = {
+      await adminService.bulkActionNotificatioApi(
         action,
-        isSelectAllDatabase: isSelectAllDatabase,
-        filter: filter === "all" ? "" : filter,
-        is_archived: viewMode === "archived" ? 1 : 0,
-        search: searchQuery
-      };
-
-      // Nếu không kích hoạt chọn toàn bộ DB, gửi danh sách IDs trang hiện tại
-      if (!isSelectAllDatabase) {
-        payload.ids = selectedIds;
-      }
-
-      await adminService.bulkActionNotificationsApi(payload);
-
-      // Giải phóng toàn bộ State chọn hàng loạt
+        isSelectAllDatabase ? [] : selectedIds,
+        isSelectAllDatabase
+          ? {
+              selectAll:   true,
+              filter:      filter === "all" ? "" : filter,
+              is_archived: 0,
+              search:      debouncedSearch,
+            }
+          : {}
+      );
       setSelectedIds([]);
       setIsSelectAllDatabase(false);
-      setIsSelectionModeMobile(false);
-      fetchNotifications(true);
-    } catch (err) {
-      console.error("Lỗi xử lý hàng loạt:", err);
-    }
-  }, [selectedIds, isSelectAllDatabase, filter, viewMode, searchQuery, totalRecordsCount, fetchNotifications]);
+      refreshAll();
+    } catch (err) { console.error(err); }
+  };
 
-  const handleCreateNotification = useCallback(async (formData, callback) => {
+  // ── [FIX] BULK ACTION — mobile ────────────────────────────────────────────────
+  // Trên mobile, selectedIds chứa IDs từ mobileItems (tích lũy)
+  const handleBulkActionMobile = async (action) => {
+    if (selectedIds.length === 0) return;
+    try {
+      await adminService.bulkActionNotificatioApi(action, selectedIds);
+      setSelectedIds([]);
+      setIsSelectionModeMobile(false);
+      refreshAll();
+    } catch (err) { console.error(err); }
+  };
+
+  // Toggle select all (mobile — chọn tất cả items đã tải)
+  const handleToggleSelectAllMobile = () => {
+    if (selectedIds.length === mobileItems.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(mobileItems.map(n => n.id));
+    }
+  };
+
+  // ── [FIX] COMPOSE MODAL SUBMIT ────────────────────────────────────────────────
+  const handleCreateNotification = async (formData, resetForm) => {
+    if (!formData.title?.trim() || !formData.message?.trim()) return;
     try {
       setIsSubmittingForm(true);
-      const res = await adminService.createNotificationApi(formData);
-      if (res.data?.success) {
-        if (callback) callback();
-        setIsModalOpen(false);
-        fetchNotifications(true);
-      }
+
+      // Chuẩn hóa payload trước khi gửi
+      const payload = {
+        scope:     formData.scope,
+        type:      formData.type || "system",
+        title:     formData.title.trim(),
+        message:   formData.message.trim(),
+        // user_id chỉ gửi khi scope = "user"
+        user_id:   formData.scope === "user" ? formData.user_id : null,
+        // borrow_id / book_id: parse int hoặc null để tránh lỗi FK
+        borrow_id: formData.borrow_id ? parseInt(formData.borrow_id) : null,
+        book_id:   formData.book_id   ? parseInt(formData.book_id)   : null,
+      };
+
+      await adminService.createNotificatiApi(payload);
+
+      // Reset form và đóng modal
+      resetForm();
+      setIsModalOpen(false);
+
+      // Refresh data
+      refreshAll();
     } catch (err) {
-      console.error(err);
+      console.error("[createNotification]", err);
     } finally {
       setIsSubmittingForm(false);
     }
-  }, [fetchNotifications]);
+  };
 
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="h-full w-full flex flex-col md:bg-[#fafbfe] dark:md:bg-[#060a13] md:p-4 overflow-hidden">
-      
-      {/* VIEW LAYOUT CHO THIẾT BỊ DI ĐỘNG (< 768px) */}
+
+      {/* ══════════════════════════════════════════════════════════════
+          📱 MOBILE VIEW (< 768px)
+          - Infinite scroll (cụm 15, append khi scroll đến cuối)
+          - Select mode: chọn từng item hoặc chọn tất cả đã tải
+          - Bulk action bar: Archive (xóa mềm) | Xóa vĩnh viễn
+      ══════════════════════════════════════════════════════════════ */}
       <MobileNotificationHeader
-        viewMode={viewMode} unreadCount={stats.unreadCount} 
-        isSelectionMode={isSelectionModeMobile} 
-        selectedCount={isSelectAllDatabase ? totalRecordsCount : selectedIds.length}
-        isAllDatabaseSelected={isSelectAllDatabase}
+        unreadCount={stats.unreadCount}
+        isSelectionMode={isSelectionModeMobile}
+        selectedCount={selectedIds.length}
+        isAllDatabaseSelected={selectedIds.length === mobileItems.length && mobileItems.length > 0}
         onOpenCompose={() => setIsModalOpen(true)}
         onEnterSelect={() => { setIsSelectionModeMobile(true); setSelectedIds([]); }}
-        onCancelSelect={() => { setIsSelectionModeMobile(false); setSelectedIds([]); setIsSelectAllDatabase(false); }}
+        onCancelSelect={() => { setIsSelectionModeMobile(false); setSelectedIds([]); }}
         onSelectAll={handleToggleSelectAllMobile}
       />
-      <MobileNotificationFilters searchQuery={searchQuery} filter={filter} onSearch={setSearchQuery} onFilter={setFilter} visible={!isSelectionModeMobile} />
-      <MobileTabBar viewMode={viewMode} activeCount={stats.activeCount} archivedCount={stats.archivedCount} onChange={setViewMode} visible={!isSelectionModeMobile} />
-      
-      <div className="md:hidden flex-1 overflow-y-auto bg-[#060a13]">
-        <MobileNotificationList
-          notifications={notifications} loading={loading} loadingMore={loadingMore} hasMore={hasMore}
-          searchQuery={searchQuery} isSelectionMode={isSelectionModeMobile} selectedIds={selectedIds}
-          isAllDatabaseSelected={isSelectAllDatabase} // Ép Tick mọi Checkbox
-          onTap={handleTapItemMobile} onToggleCheck={handleToggleCheckSingle} onLoadMore={handleLoadMoreMobile}
-        />
-      </div>
-      <BulkActionBarMobile
-        selectedCount={isSelectAllDatabase ? totalRecordsCount : selectedIds.length} viewMode={viewMode}
-        visible={isSelectionModeMobile && selectedIds.length > 0}
-        onMarkRead={() => handleBulkAction("read")} onArchive={() => handleBulkAction("archive")}
-        onRestore={() => handleBulkAction("restore")} onDelete={() => handleBulkAction("delete")}
+
+      <MobileNotificationFilters
+        searchQuery={searchQuery}
+        filter={filter}
+        onSearch={setSearchQuery}
+        onFilter={setFilter}
+        visible={!isSelectionModeMobile}
       />
 
-      {/* VIEW LAYOUT CHO THIẾT BỊ DESKTOP (>= 768px) */}
+      {/* Mobile list — infinite scroll */}
+      <div className="md:hidden flex-1 overflow-y-auto bg-[#060a13]">
+        <MobileNotificationList
+          notifications={mobileItems}
+          loading={mobileLoading && mobilePage === 1}
+          loadingMore={mobileLoading && mobilePage > 1}
+          hasMore={mobileHasMore}
+          searchQuery={debouncedSearch}
+          isSelectionMode={isSelectionModeMobile}
+          selectedIds={selectedIds}
+          isAllDatabaseSelected={false}
+          onTap={handleTapItemMobile}
+          onToggleCheck={(id) =>
+            setSelectedIds(prev =>
+              prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+            )
+          }
+          onLoadMore={handleMobileLoadMore}
+        />
+      </div>
+
+      {/* Mobile bulk action bar */}
+      <BulkActionBarMobile
+        selectedCount={selectedIds.length}
+        visible={isSelectionModeMobile && selectedIds.length > 0}
+        onMarkRead={() => handleBulkActionMobile("mark_read")}
+        onDelete={() => handleBulkActionMobile("archive")} // "Xóa" trên mobile = xóa mềm
+      />
+
+      {/* ══════════════════════════════════════════════════════════════
+          💻 DESKTOP VIEW (>= 768px)
+          - SWR pagination (10 mục/trang)
+          - Gmail-style select: chọn trang → banner chọn toàn DB
+          - Bulk: mark_read | archive (xóa mềm) | delete (xóa thật)
+      ══════════════════════════════════════════════════════════════ */}
       <div className="hidden md:flex flex-col flex-1 bg-white dark:bg-[#070c16] rounded-2xl border border-slate-100 dark:border-slate-800/60 overflow-hidden shadow-sm">
-        
-        {/* Top Desktop Filter Panel */}
+
+        {/* Top bar */}
         <div className="p-4 border-b border-slate-50 dark:border-slate-900/60 flex items-center justify-between gap-4 flex-shrink-0 bg-slate-50/50 dark:bg-[#090f1d]/40">
           <div className="flex items-center gap-2">
-            {[{ key: "active", label: "Hộp thư đến", count: stats.activeCount, color: "bg-indigo-600" },
-              { key: "archived", label: "Kho lưu trữ", count: stats.archivedCount, color: "bg-slate-500" }
-            ].map(t => (
-              <button key={t.key} onClick={() => setViewMode(t.key)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${viewMode === t.key ? "bg-white dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}>
-                {t.label} <span className="bg-slate-100 dark:bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-md font-black">{t.count}</span>
-              </button>
-            ))}
+            <div className="px-4 py-2 rounded-xl text-xs font-black bg-white dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs flex items-center gap-2">
+              Thông báo
+              <span className="bg-slate-100 dark:bg-slate-800 text-[10px] px-1.5 py-0.5 rounded-md font-black">
+                {stats.activeCount}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative w-64">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" placeholder="Tìm kiếm nhanh tiêu đề..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm nhanh..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
+              />
             </div>
-            <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-black text-white shadow-md shadow-indigo-600/10 transition-all active:scale-95"><Plus size={14} /> Gửi thông báo</button>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-black text-white shadow-md shadow-indigo-600/10 transition-all active:scale-95"
+            >
+              <Plus size={14} /> Phát hành
+            </button>
           </div>
         </div>
 
-        {/* Master Selection Controls (Gmail Bar) */}
+        {/* Selection controls + filters + pagination */}
         <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-900/60 flex items-center justify-between flex-shrink-0 bg-white dark:bg-[#070c16]">
           <div className="flex items-center gap-4">
             <button onClick={handleToggleSelectPage} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors">
-              {isAllPageSelected ? <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" /> : <Square size={16} />}
+              {isAllPageSelected
+                ? <CheckSquare size={16} className="text-indigo-600 dark:text-indigo-400" />
+                : <Square size={16} />}
             </button>
-            
-            {/* Filter chips horizontal */}
             <div className="flex items-center gap-1.5 border-l border-slate-100 dark:border-slate-800 pl-4">
-              {[{ key: "all", label: "Tất cả" }, { key: "unread", label: "Chưa đọc" }, { key: "overdue", label: "Quá hạn" }, { key: "system", label: "Hệ thống" }].map(t => (
-                <button key={t.key} onClick={() => setFilter(t.key)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${filter === t.key ? "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"}`}>{t.label}</button>
+              {[
+                { key: "all",    label: "Tất cả" },
+                { key: "unread", label: "Chưa đọc" },
+                { key: "overdue",label: "Quá hạn" },
+                { key: "system", label: "Hệ thống" },
+              ].map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setFilter(t.key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    filter === t.key
+                      ? "bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400"
+                      : "text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                >
+                  {t.label}
+                </button>
               ))}
             </div>
           </div>
 
-          {/* Desktop Floating Actions Toolbar */}
+          {/* Bulk toolbar (desktop) */}
           {selectedIds.length > 0 && (
             <div className="flex items-center gap-3 animate-in fade-in zoom-in-95 duration-150 bg-indigo-500/5 dark:bg-indigo-400/5 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-950">
-              <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400">{isSelectAllDatabase ? totalRecordsCount : selectedIds.length} đã chọn</span>
+              <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400">
+                {isSelectAllDatabase ? totalCount : selectedIds.length} đã chọn
+              </span>
               <div className="h-3 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
-              <button onClick={() => handleBulkAction("read")} className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-500"><Check size={13} /> Đánh dấu đọc</button>
-              {viewMode === "active" ? (
-                <button onClick={() => handleBulkAction("archive")} className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-amber-500"><Archive size={13} /> Lưu trữ</button>
-              ) : (
-                <button onClick={() => handleBulkAction("restore")} className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-emerald-500"><RotateCcw size={13} /> Khôi phục</button>
-              )}
-              <button onClick={() => handleBulkAction("delete")} className="flex items-center gap-1 text-[11px] font-bold text-red-500 hover:text-red-400"><Trash2 size={13} /> Xóa vĩnh viễn</button>
-              <button onClick={() => { setSelectedIds([]); setIsSelectAllDatabase(false); }} className="text-slate-400 hover:text-slate-600"><X size={13} /></button>
+              <button
+                onClick={() => handleBulkAction("mark_read")}
+                className="flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-500"
+              >
+                <Check size={13} /> Đánh dấu đọc
+              </button>
+              {/* [FIX] Đổi từ "delete" thành "archive" — xóa mềm */}
+              <button
+                onClick={() => handleBulkAction("archive")}
+                className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              >
+                <Trash2 size={13} /> Xóa mềm
+              </button>
+              <button
+                onClick={() => handleBulkAction("delete")}
+                className="flex items-center gap-1 text-[11px] font-bold text-red-500 hover:text-red-400"
+              >
+                <Trash2 size={13} /> Xóa thật
+              </button>
+              <button
+                onClick={() => { setSelectedIds([]); setIsSelectAllDatabase(false); }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={13} />
+              </button>
             </div>
           )}
 
-          {/* Pagination Controls */}
+          {/* Pagination */}
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-            <span>Trang {page} / {totalPages}</span>
-            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="p-1 rounded-lg border border-slate-100 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"><ChevronLeft size={14} /></button>
-            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="p-1 rounded-lg border border-slate-100 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"><ChevronRight size={14} /></button>
+            <span>Trang {desktopPage} / {totalPages}</span>
+            <button
+              disabled={desktopPage === 1}
+              onClick={() => setDesktopPage(p => p - 1)}
+              className="p-1 rounded-lg border border-slate-100 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              disabled={desktopPage === totalPages || totalPages === 0}
+              onClick={() => setDesktopPage(p => p + 1)}
+              className="p-1 rounded-lg border border-slate-100 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"
+            >
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
 
-        {/* GMAIL STYLE INTERACTIVE SELECT ALL DATABASE BANNER */}
-        {isAllPageSelected && totalRecordsCount > notifications.length && (
-          <div className="bg-indigo-50/80 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/30 px-4 py-2 text-center text-[11px] text-slate-700 dark:text-slate-300 transition-all duration-200">
+        {/* Gmail-style "chọn toàn bộ DB" banner */}
+        {isAllPageSelected && totalCount > desktopNotifications.length && (
+          <div className="bg-indigo-50/80 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/30 px-4 py-2 text-center text-[11px] text-slate-700 dark:text-slate-300">
             {!isSelectAllDatabase ? (
               <>
                 Đang chọn <span className="font-black text-indigo-600 dark:text-indigo-400">{selectedIds.length}</span> mục trên trang này.{" "}
-                <button onClick={() => setIsSelectAllDatabase(true)} className="text-indigo-600 dark:text-indigo-400 font-extrabold underline hover:text-indigo-500 ml-1">Chọn toàn bộ tất cả {totalRecordsCount} thông báo trong hệ thống</button>
+                <button
+                  onClick={() => setIsSelectAllDatabase(true)}
+                  className="text-indigo-600 dark:text-indigo-400 font-extrabold underline"
+                >
+                  Chọn toàn bộ tất cả {totalCount} thông báo
+                </button>
               </>
             ) : (
               <>
-                ✨ Tuyệt vời! Đã chọn <span className="font-black text-indigo-600 dark:text-indigo-400">tất cả {totalRecordsCount}</span> thông báo thỏa mãn bộ lọc hiện tại trong Database.{" "}
-                <button onClick={() => { setSelectedIds([]); setIsSelectAllDatabase(false); }} className="text-red-500 font-black underline hover:text-red-400 ml-1">Hủy chọn</button>
+                ✨ Đã chọn <span className="font-black text-indigo-600 dark:text-indigo-400">tất cả {totalCount}</span> thông báo.{" "}
+                <button
+                  onClick={() => { setSelectedIds([]); setIsSelectAllDatabase(false); }}
+                  className="text-red-500 font-black underline"
+                >
+                  Hủy chọn
+                </button>
               </>
             )}
           </div>
         )}
 
-        {/* Workspace Dual-Split Panel */}
+        {/* Dual-split panel */}
         <div className="flex-1 flex overflow-hidden bg-slate-50/40 dark:bg-[#060a13]/30">
-          {/* Left Column — Notification List */}
+          {/* Left: list */}
           <div className="w-[420px] border-r border-slate-50 dark:border-slate-900/60 flex flex-col p-3 gap-2 overflow-y-auto bg-white dark:bg-[#070c16]">
-            {loading ? (
-              <div className="flex items-center justify-center py-20"><Loader2 size={24} className="animate-spin text-indigo-600" /></div>
-            ) : notifications.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-xs">Hộp thư trống không có dữ liệu thỏa mãn</div>
+            {swrLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 size={24} className="animate-spin text-indigo-600" />
+              </div>
+            ) : desktopNotifications.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-xs">Hộp thư rỗng</div>
             ) : (
-              notifications.map(item => (
+              desktopNotifications.map(item => (
                 <NotiCard
-                  key={item.id} item={item}
+                  key={item.id}
+                  item={item}
                   isChecked={isSelectAllDatabase || selectedIds.includes(item.id)}
-                  isSelected={selectedNotifId === item.id} onTap={handleTapItem} onToggleCheck={handleToggleCheckSingle}
+                  isSelected={selectedNotifId === item.id}
+                  onTap={handleTapItem}
+                  onToggleCheck={handleToggleCheckSingle}
                 />
               ))
             )}
           </div>
-          {/* Right Column — Content Detail Panel */}
+
+          {/* Right: detail */}
           <div className="flex-1 p-4 overflow-hidden">
-            <NotificationDetail selectedNotif={selectedNotifData} viewMode={viewMode} onArchive={handleSingleArchive} onRestore={handleSingleRestore} onDelete={handleSingleDelete} />
+            <NotificationDetail
+              selectedNotif={selectedNotifData}
+              onDelete={handleSingleSoftDelete}
+            />
           </div>
         </div>
-
       </div>
 
-      {/* 🔮 MOBILE BOTTOM SHEET DETAIL PANEL MODAL */}
+      {/* ── Mobile bottom sheet detail ──────────────────────────────────────────── */}
       {mobileDetailItem && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200">
-          <div className="bg-[#090f1c] border-t border-white/[0.08] rounded-t-3xl p-5 max-h-[85vh] overflow-y-auto flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-white/[0.05] pb-3">
+        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col justify-end">
+          <div className="bg-[#090f1c] border-t border-white/[0.08] rounded-t-3xl p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+            <div className="flex justify-between border-b border-white/[0.05] pb-3 flex-shrink-0">
               <span className="text-xs font-bold text-slate-400">Chi tiết thông báo</span>
-              <button onClick={() => setMobileDetailItem(null)} className="p-1 rounded-full bg-white/[0.05] text-white"><X size={16} /></button>
+              <button onClick={() => setMobileDetailItem(null)} className="text-white active:opacity-60">
+                <X size={16} />
+              </button>
             </div>
-            <h2 className="text-base font-black text-white leading-tight">{mobileDetailItem.title}</h2>
-            <p className="text-[11px] text-slate-500 font-medium">Gửi vào: {new Date(mobileDetailItem.created_at).toLocaleString("vi-VN")}</p>
-            <div className="text-sm text-slate-300 leading-relaxed bg-white/[0.02] border border-white/[0.04] p-4 rounded-2xl whitespace-pre-wrap">{mobileDetailItem.message}</div>
-            
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {viewMode === "active" ? (
-                <button onClick={() => { handleSingleArchive(mobileDetailItem.id); setMobileDetailItem(null); }} className="py-2.5 rounded-xl border border-white/[0.06] text-xs font-bold text-slate-300 bg-white/[0.02]">Lưu trữ</button>
-              ) : (
-                <button onClick={() => { handleSingleRestore(mobileDetailItem.id); setMobileDetailItem(null); }} className="py-2.5 rounded-xl border border-white/[0.06] text-xs font-bold text-slate-300 bg-white/[0.02]">Khôi phục</button>
-              )}
-              <button onClick={() => { handleSingleDelete(mobileDetailItem.id); setMobileDetailItem(null); }} className="py-2.5 rounded-xl bg-red-600 text-xs font-black text-white">Xóa vĩnh viễn</button>
+            <div className="flex flex-col gap-3">
+              <h2 className="text-base font-black text-white leading-snug">{mobileDetailItem.title}</h2>
+              <p className="text-xs text-slate-400">
+                {new Date(mobileDetailItem.created_at).toLocaleString("vi-VN")}
+              </p>
+              <div className="text-sm text-slate-300 bg-white/[0.03] p-4 rounded-2xl border border-white/[0.05] whitespace-pre-wrap leading-relaxed">
+                {mobileDetailItem.message}
+              </div>
             </div>
+            {/* [FIX] Xóa mềm — gọi archive, không phải delete */}
+            <button
+              onClick={() => { handleSingleSoftDelete(mobileDetailItem.id); }}
+              className="w-full mt-2 py-3 rounded-xl bg-red-600/80 text-xs font-black text-white flex items-center justify-center gap-2 active:bg-red-700"
+            >
+              <Trash2 size={14} /> Xóa thông báo
+            </button>
           </div>
         </div>
       )}
 
-      {/* ╔═══ COMPOSE MODAL DIALOG (Shared Layout) ══════════════════════════╗ */}
-      <ComposeModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} userList={userList} onSubmit={handleCreateNotification} isSubmitting={isSubmittingForm} />
+      {/* ── ComposeModal ────────────────────────────────────────────────────────── */}
+      <ComposeModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        userList={userList}
+        onSubmit={handleCreateNotification}
+        isSubmitting={isSubmittingForm}
+      />
     </div>
   );
 }

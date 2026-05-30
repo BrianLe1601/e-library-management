@@ -107,20 +107,48 @@ exports.returnBook = async (req, res) => {
 // [SỬA] Kiểm tra phiếu có thuộc về user không trước khi gia hạn
 exports.extendBorrow = async (req, res) => {
   try {
+    // 1. Lấy thông tin phiếu mượn
     const borrow = await borrowModel.findById(req.params.id);
-    if (!borrow)
+    if (!borrow) {
       return error(res, 'Không tìm thấy phiếu mượn', 404);
+    }
 
-    // User chỉ gia hạn phiếu của chính mình
-    // Employee/Admin có thể gia hạn thay
-    if (req.user.role === 'user' && borrow.user_id !== req.user.id)
+    // 2. Kiểm tra quyền: User chỉ được gia hạn phiếu của mình, Admin/Employee có quyền gia hạn thay
+    if (req.user.role === 'user' && borrow.user_id !== req.user.id) {
       return error(res, 'Bạn không có quyền gia hạn phiếu này', 403);
+    }
 
+    // 3. Xử lý logic DB (cập nhật ngày, cộng số lượt gia hạn)
     const result = await borrowModel.extendBorrow(req.params.id, req.user.id);
+
+    // 4. Bắn thông báo nội bộ cho Admin/Employee
+    await notificationModel.create({
+      receiver_role: 'admin_employee',
+      borrow_id: borrow.id,
+      book_id: borrow.book_id,
+      type: 'system',
+      title: 'Đã gia hạn sách',
+      message: `Phiếu mượn sách "${borrow.book_title}" của user "${borrow.user_name || 'User'}" đã được gia hạn (Lần ${result.renewed_count}). Hạn trả mới: ${result.new_due_date}.`
+    });
+
+    // 5. Bắn thông báo xác nhận cho User
+    await notificationModel.create({
+      receiver_role: 'user',
+      user_id: borrow.user_id,
+      borrow_id: borrow.id,
+      book_id: borrow.book_id,
+      type: 'system',
+      title: 'Gia hạn thành công',
+      message: `Cuốn sách "${borrow.book_title}" đã được gia hạn thành công. Hạn trả mới của bạn là ${result.new_due_date}.`
+    });
+
+    // 6. Trả về Response chuẩn theo format dự án của bạn
     return success(res, result, `Gia hạn thành công đến ${result.new_due_date}`);
+
   } catch (err) {
-    console.error('[extendBorrow]', err);
-    return error(res, err.message || 'Lỗi server', err.statusCode || 500);
+    console.error('[extendBorrow Error]', err);
+    // Bắt đúng statusCode từ dưới Model ném lên (VD: 409 khi quá 2 lần hoặc quá hạn)
+    return error(res, err.message || 'Lỗi server trong quá trình gia hạn', err.statusCode || 500);
   }
 };
 

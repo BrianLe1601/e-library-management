@@ -1,4 +1,3 @@
-// layouts/admin/Header.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Menu, ChevronLeft, ChevronRight, Bell, Moon, Sun, User } from "lucide-react";
@@ -24,29 +23,56 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
   const [notifications,     setNotifications]     = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const { theme, toggleTheme }  = useTheme();
   const { isAuthenticated, user } = useAuth();
 
   // ── Fetch notifications ───────────────────────────────────────────────────
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (pageNum = 1, isPolling = false) => {
     if (!user?.id) return;
+    if (pageNum > 1) setLoadingMore(true);
+
     try {
-      const res     = await adminService.getNotifications({ page: 1, limit: 5, filter: "", is_archived: 0 });
+      const limit = 10;
+      const res     = await adminService.getNotifications({ page: pageNum, limit, filter: "", is_archived: 0 });
       const payload = res.data?.data?.data || res.data?.data || [];
-      setNotifications(payload.map(normalise));
+      const newItems = payload.map(normalise);
+
+      if (pageNum === 1) {
+        setNotifications(newItems);
+      } else {
+        setNotifications(prev => [...prev, ...newItems]);
+      }
+
+      if (!isPolling) {
+        setHasMore(newItems.length === limit);
+      }
     } catch (err) {
       if (![401, 403].includes(err?.response?.status)) {
         console.error("[AdminHeader] fetchNotifications:", err);
       }
+    } finally {
+      setLoadingMore(false);
     }
   }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) { setNotifications([]); return; }
-    fetchNotifications();
-    const t = setInterval(fetchNotifications, 60_000);
+    fetchNotifications(1);
+    const t = setInterval(() => fetchNotifications(1, true), 60_000);
     return () => clearInterval(t);
   }, [user?.id, fetchNotifications]);
+
+  const handleLoadMore = () => {
+    if (hasMore && !loadingMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchNotifications(nextPage);
+    }
+  };
 
   // ── Mark all read ─────────────────────────────────────────────────────────
   const handleMarkAllRead = async () => {
@@ -101,7 +127,11 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
         {user?.id && (
           <div className="relative">
             <button type="button"
-              onClick={() => { setShowNotifications((p) => !p); if (!showNotifications) fetchNotifications(); }}
+              onClick={() => { 
+                setShowNotifications((p) => !p); 
+                // [SỬA ĐỔI] Gọi trang 1 nếu mở Popover
+                if (!showNotifications) fetchNotifications(1); 
+              }}
               className="relative flex items-center justify-center w-8 h-8 rounded-lg
                 text-slate-500 dark:text-slate-400
                 hover:text-indigo-500 dark:hover:text-indigo-400
@@ -124,6 +154,10 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
                 onMarkAllRead={handleMarkAllRead}
                 onMarkOneRead={handleMarkOneRead}
                 viewAllPath="/admin/notifications"
+                // [THÊM MỚI] Truyền Props Cuộn vô tận
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={handleLoadMore}
               />
             )}
           </div>
