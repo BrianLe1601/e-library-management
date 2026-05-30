@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   Clock, CheckCircle, BookOpen, AlertTriangle, Info, Trash2,
   Check, Square, CheckSquare, X, Users, User, Search,
-  Loader2, Bell, Calendar, Hash, ChevronRight, Plus, Globe
+  Loader2, Bell, Calendar, Hash, ChevronRight, Plus, Globe,
+  PenTool, FileText, ChevronDown
 } from "lucide-react";
+import InputField from "../InputField";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const NOTIF_CONFIG = {
@@ -331,18 +333,22 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Chọn người nhận <span className="text-red-400">*</span>
               </label>
-              <select
-                value={formData.user_id}
-                onChange={e => set("user_id", e.target.value)}
-                className={`w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1527] border rounded-xl text-xs outline-none text-slate-900 dark:text-white focus:border-indigo-500 transition ${
-                  errors.user_id ? "border-red-400" : "border-slate-200 dark:border-slate-800"
-                }`}
-              >
-                <option value="">-- Chọn tài khoản --</option>
-                {filteredUsers.map(u => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
-                ))}
-              </select>
+              <div className="relative">
+                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                <select
+                  value={formData.user_id}
+                  onChange={e => set("user_id", e.target.value)}
+                  className={`w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-[#0d1527] border rounded-xl text-xs outline-none text-slate-900 dark:text-white focus:border-indigo-500 appearance-none cursor-pointer transition ${
+                    errors.user_id ? "border-red-400" : "border-slate-200 dark:border-slate-800"
+                  }`}
+                >
+                  <option value="">-- Chọn tài khoản --</option>
+                  {filteredUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                  ))}
+                </select>
+                <ChevronDown size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
               {errors.user_id && <p className="text-[11px] text-red-400">{errors.user_id}</p>}
             </div>
           )}
@@ -372,38 +378,34 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
           </div>
 
           {/* ── Tiêu đề ── */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Tiêu đề <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="Nhập tiêu đề thông báo..."
-              value={formData.title}
-              onChange={e => set("title", e.target.value)}
-              maxLength={120}
-              className={`w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1527] border rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 dark:text-white transition ${
-                errors.title ? "border-red-400" : "border-slate-200 dark:border-slate-800"
-              }`}
-            />
-            {errors.title && <p className="text-[11px] text-red-400">{errors.title}</p>}
-          </div>
+          <InputField 
+            name="title" 
+            label="Tiêu đề *" 
+            placeholder="Nhập tiêu đề thông báo..." 
+            icon={PenTool} 
+            value={formData.title} 
+            onChange={(e) => set("title", e.target.value)} 
+            fieldErrors={{ title: errors.title }} 
+          />
 
           {/* ── Nội dung ── */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Nội dung <span className="text-red-400">*</span>
             </label>
-            <textarea
-              rows={4}
-              placeholder="Chi tiết thông điệp muốn gửi..."
-              value={formData.message}
-              onChange={e => set("message", e.target.value)}
-              maxLength={500}
-              className={`w-full px-3 py-2 bg-slate-50 dark:bg-[#0d1527] border rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 dark:text-white resize-none leading-relaxed transition ${
-                errors.message ? "border-red-400" : "border-slate-200 dark:border-slate-800"
-              }`}
-            />
+            <div className="relative">
+              <FileText size={15} className="absolute left-3.5 top-2.5 text-slate-400 z-10" />
+              <textarea
+                rows={4}
+                placeholder="Chi tiết thông điệp muốn gửi..."
+                value={formData.message}
+                onChange={e => set("message", e.target.value)}
+                maxLength={500}
+                className={`w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-[#0d1527] border rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 dark:text-white resize-none leading-relaxed transition ${
+                  errors.message ? "border-red-400" : "border-slate-200 dark:border-slate-800"
+                }`}
+              />
+            </div>
             <div className="flex justify-between items-center">
               {errors.message ? <p className="text-[11px] text-red-400">{errors.message}</p> : <span />}
               <span className="text-[10px] text-slate-400 tabular-nums">{formData.message.length}/500</span>
@@ -412,34 +414,32 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
 
           {/* ── Liên kết tùy chọn ── */}
           <div className="grid grid-cols-2 gap-3 bg-slate-50/50 dark:bg-[#070c16]/30 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                Mã phiếu mượn
-                <span className="ml-1 text-slate-300 font-normal">(Tùy chọn)</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                placeholder="VD: 201"
-                value={formData.borrow_id}
-                onChange={e => set("borrow_id", e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                Mã sách
-                <span className="ml-1 text-slate-300 font-normal">(Tùy chọn)</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                placeholder="VD: 89"
-                value={formData.book_id}
-                onChange={e => set("book_id", e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-[#0d1527] border border-slate-200 dark:border-slate-800 rounded-xl text-xs outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
-              />
-            </div>
+            <InputField 
+              name="borrow_id" 
+              label="Mã phiếu mượn (Tùy chọn)" 
+              type="text"
+              placeholder="VD: 201" 
+              icon={Hash} 
+              value={formData.borrow_id} 
+              onChange={(e) =>{ 
+                const val = e.target.value.replace(/\D/g, '');
+                set("borrow_id", val ? Number(val) : "");
+                }}
+              fieldErrors={{}} 
+            />
+            <InputField 
+              name="book_id" 
+              label="Mã sách (Tùy chọn)" 
+              type="text"
+              placeholder="VD: 89" 
+              icon={BookOpen} 
+              value={formData.book_id} 
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                set("book_id", val ? Number(val) : "");
+              }}
+              fieldErrors={{}} 
+            />
           </div>
 
           {/* ── Footer buttons ── */}
@@ -470,7 +470,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
 
 // ─── 5. MobileNotificationHeader ─────────────────────────────────────────────
 export const MobileNotificationHeader = memo(({
-  unreadCount, isSelectionMode, selectedCount, isAllDatabaseSelected,
+  totalCount, unreadCount, isSelectionMode, selectedCount, isAllDatabaseSelected,
   onOpenCompose, onEnterSelect, onCancelSelect, onSelectAll
 }) => (
   <div className="md:hidden sticky top-0 z-40 bg-[#060a13]/95 backdrop-blur-xl border-b border-white/[0.06] safe-top">
@@ -485,6 +485,13 @@ export const MobileNotificationHeader = memo(({
       ) : (
         <div className="flex items-center gap-2">
           <h1 className="text-base font-black text-white">Thông báo</h1>
+          {/* Badge tổng số thông báo của admin */}
+          {totalCount > 0 && (
+            <span className="text-[10px] bg-slate-700 text-slate-300 font-black px-1.5 py-0.5 rounded-full">
+              {totalCount}
+            </span>
+          )}
+          {/* Badge chưa đọc */}
           {unreadCount > 0 && (
             <span className="text-[10px] bg-indigo-600 text-white font-black px-1.5 py-0.5 rounded-full">
               {unreadCount} mới
@@ -712,15 +719,15 @@ export const BulkActionBarMobile = memo(({ selectedCount, visible, onMarkRead, o
               </div>
               <span className="text-[11px] font-bold text-slate-400 text-center">Đánh dấu đọc</span>
             </button>
-            {/* [FIX label] Nút này = archive (xóa mềm) */}
+            
             <button
               onClick={onDelete}
-              className="flex flex-col items-center gap-2 py-3 px-2 rounded-2xl active:bg-red-500/[0.05] transition-all bg-white/[0.02] border border-white/[0.04]"
+              className="flex flex-col items-center gap-2 py-3 px-2 rounded-2xl active:bg-amber-500/[0.05] transition-all bg-white/[0.02] border border-white/[0.04]"
             >
-              <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-                <Trash2 size={18} className="text-red-400" />
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                <Trash2 size={18} className="text-amber-400" />
               </div>
-              <span className="text-[11px] font-bold text-red-400 text-center">Xóa thông báo</span>
+              <span className="text-[11px] font-bold text-amber-400 text-center">Xóa mềm (Lưu trữ)</span>
             </button>
           </div>
         </div>

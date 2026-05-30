@@ -4,7 +4,6 @@ import {
   Trash2, ChevronLeft, ChevronRight, X,
   Search, CheckSquare, Square, Plus, Check, Loader2
 } from "lucide-react";
-
 import {
   NotiCard, NotificationDetail, ComposeModal,
   MobileNotificationHeader, MobileNotificationFilters,
@@ -44,8 +43,10 @@ export default function NotificationsPage() {
   const [mobilePage,     setMobilePage]     = useState(1);
   const [mobileHasMore,  setMobileHasMore]  = useState(true);
   const [mobileLoading,  setMobileLoading]  = useState(false);
-  // Ref để tránh gọi trùng
+  // Ref để tránh gọi trùng và tránh stale closure
   const mobileLoadingRef = useRef(false);
+  const mobileHasMoreRef = useRef(true);   // mirror của mobileHasMore để dùng trong callback
+  const mobilePageRef    = useRef(1);      // mirror của mobilePage để dùng trong callback
 
   // ── Detail & Modal ────────────────────────────────────────────────────────────
   const [selectedNotifId,  setSelectedNotifId]  = useState(null);
@@ -58,7 +59,10 @@ export default function NotificationsPage() {
     const t = setTimeout(() => {
       setDebouncedSearch(searchQuery);
       setDesktopPage(1);
-      // Reset mobile khi search thay đổi
+
+      setSelectedIds([]);
+      setIsSelectAllDatabase(false);
+      
       resetMobile();
     }, 500);
     return () => clearTimeout(t);
@@ -77,7 +81,9 @@ export default function NotificationsPage() {
     setMobileItems([]);
     setMobilePage(1);
     setMobileHasMore(true);
-    mobileLoadingRef.current = false;
+    mobileHasMoreRef.current  = true;
+    mobilePageRef.current     = 1;
+    mobileLoadingRef.current  = false;
   };
 
   // ── SWR (Desktop only) ────────────────────────────────────────────────────────
@@ -109,31 +115,41 @@ export default function NotificationsPage() {
 
   // ── Mobile: load thêm (infinite scroll) ──────────────────────────────────────
   const loadMobilePage = useCallback(async (pageToLoad) => {
-    if (mobileLoadingRef.current || !mobileHasMore) return;
+    // Dùng ref thay vì state để tránh stale closure
+    if (mobileLoadingRef.current) return;
+    if (pageToLoad > 1 && !mobileHasMoreRef.current) return;
+
     mobileLoadingRef.current = true;
     setMobileLoading(true);
+
+    // Snapshot filter/search tại thời điểm gọi để tránh race condition
+    const currentFilter = filter;
+    const currentSearch = debouncedSearch;
+
     try {
       const res = await adminService.getNotifications({
         page:        pageToLoad,
         limit:       MOBILE_LIMIT,
-        filter:      filter === "all" ? "" : filter,
+        filter:      currentFilter === "all" ? "" : currentFilter,
         is_archived: 0,
-        search:      debouncedSearch,
+        search:      currentSearch,
       });
-      const arr      = res.data?.data?.data || [];
-      const pages    = res.data?.data?.totalPages || 1;
+      const arr   = res.data?.data?.data   || [];
+      const pages = res.data?.data?.totalPages || 1;
+      const hasMore = pageToLoad < pages;
 
-      // [KEY FIX] Append vào mảng tích lũy, không ghi đè
       setMobileItems(prev => pageToLoad === 1 ? arr : [...prev, ...arr]);
-      setMobileHasMore(pageToLoad < pages);
+      setMobileHasMore(hasMore);
       setMobilePage(pageToLoad);
+      mobileHasMoreRef.current = hasMore;
+      mobilePageRef.current    = pageToLoad;
     } catch (err) {
       console.error("[Mobile load]", err);
     } finally {
       setMobileLoading(false);
       mobileLoadingRef.current = false;
     }
-  }, [filter, debouncedSearch, mobileHasMore]);
+  }, [filter, debouncedSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load lần đầu mobile
   useEffect(() => {
@@ -142,19 +158,25 @@ export default function NotificationsPage() {
 
   // Callback khi sentinel vào viewport
   const handleMobileLoadMore = useCallback(() => {
-    if (!mobileLoadingRef.current && mobileHasMore) {
-      loadMobilePage(mobilePage + 1);
+    if (!mobileLoadingRef.current && mobileHasMoreRef.current) {
+      loadMobilePage(mobilePageRef.current + 1);
     }
-  }, [mobilePage, mobileHasMore, loadMobilePage]);
-
+  }, [loadMobilePage]);
   // ── User list cho modal ───────────────────────────────────────────────────────
   useEffect(() => {
+    const fetchUsersForModal = async () => {
+      try {
+        const res = await adminService.getUsers({ page: 1, limit: 500 });
+        if (res.data?.success) {
+          setUserList(res.data.data || []);
+        }
+      } catch (error) {
+        console.error("Error fetching users for modal", error);
+      }
+    };
+
     if (isModalOpen && userList.length === 0) {
-      adminService.getUsers({ page: 1, limit: 500 })
-        .then(res => {
-          if (res.data?.success) setUserList(res.data.data.users || res.data.data.rows || []);
-        })
-        .catch(console.error);
+      fetchUsersForModal();
     }
   }, [isModalOpen, userList.length]);
 
@@ -171,8 +193,9 @@ export default function NotificationsPage() {
   // ── Mutate helper (refresh cả desktop SWR + reset mobile) ────────────────────
   const refreshAll = () => {
     mutate(); // SWR desktop
+    // Reset trước, sau đó load page 1 (setTimeout đảm bảo state flush xong mới gọi)
     resetMobile();
-    loadMobilePage(1);
+    setTimeout(() => loadMobilePage(1), 0);
   };
 
   // ── HANDLERS ─────────────────────────────────────────────────────────────────
@@ -322,11 +345,9 @@ export default function NotificationsPage() {
 
       {/* ══════════════════════════════════════════════════════════════
           📱 MOBILE VIEW (< 768px)
-          - Infinite scroll (cụm 15, append khi scroll đến cuối)
-          - Select mode: chọn từng item hoặc chọn tất cả đã tải
-          - Bulk action bar: Archive (xóa mềm) | Xóa vĩnh viễn
       ══════════════════════════════════════════════════════════════ */}
       <MobileNotificationHeader
+        totalCount={totalCount}
         unreadCount={stats.unreadCount}
         isSelectionMode={isSelectionModeMobile}
         selectedCount={selectedIds.length}
@@ -346,7 +367,7 @@ export default function NotificationsPage() {
       />
 
       {/* Mobile list — infinite scroll */}
-      <div className="md:hidden flex-1 overflow-y-auto bg-[#060a13]">
+      <div id="mobile-scroll-container" className="md:hidden flex-1 overflow-y-auto bg-white dark:bg-[#060a13]">
         <MobileNotificationList
           notifications={mobileItems}
           loading={mobileLoading && mobilePage === 1}
@@ -371,7 +392,7 @@ export default function NotificationsPage() {
         selectedCount={selectedIds.length}
         visible={isSelectionModeMobile && selectedIds.length > 0}
         onMarkRead={() => handleBulkActionMobile("mark_read")}
-        onDelete={() => handleBulkActionMobile("archive")} // "Xóa" trên mobile = xóa mềm
+        onDelete={() => handleBulkActionMobile("archive")}
       />
 
       {/* ══════════════════════════════════════════════════════════════
@@ -560,30 +581,23 @@ export default function NotificationsPage() {
 
       {/* ── Mobile bottom sheet detail ──────────────────────────────────────────── */}
       {mobileDetailItem && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col justify-end">
-          <div className="bg-[#090f1c] border-t border-white/[0.08] rounded-t-3xl p-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
-            <div className="flex justify-between border-b border-white/[0.05] pb-3 flex-shrink-0">
-              <span className="text-xs font-bold text-slate-400">Chi tiết thông báo</span>
-              <button onClick={() => setMobileDetailItem(null)} className="text-white active:opacity-60">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <h2 className="text-base font-black text-white leading-snug">{mobileDetailItem.title}</h2>
-              <p className="text-xs text-slate-400">
-                {new Date(mobileDetailItem.created_at).toLocaleString("vi-VN")}
-              </p>
-              <div className="text-sm text-slate-300 bg-white/[0.03] p-4 rounded-2xl border border-white/[0.05] whitespace-pre-wrap leading-relaxed">
-                {mobileDetailItem.message}
-              </div>
-            </div>
-            {/* [FIX] Xóa mềm — gọi archive, không phải delete */}
-            <button
-              onClick={() => { handleSingleSoftDelete(mobileDetailItem.id); }}
-              className="w-full mt-2 py-3 rounded-xl bg-red-600/80 text-xs font-black text-white flex items-center justify-center gap-2 active:bg-red-700"
+        <div className="md:hidden fixed inset-0 z-[60] bg-white dark:bg-[#060a13] flex flex-col animate-in slide-in-from-right-2 duration-200">
+          <div className="flex items-center gap-3 h-14 px-4 bg-white/95 dark:bg-[#060a13]/95 backdrop-blur-xl border-b border-slate-100 dark:border-white/[0.06] sticky top-0 z-10 safe-top">
+            <button 
+              onClick={() => setMobileDetailItem(null)} 
+              className="p-1 -ml-1 text-slate-500 dark:text-slate-400 active:text-indigo-600 dark:active:text-white transition-colors"
             >
-              <Trash2 size={14} /> Xóa thông báo
+              <ChevronLeft size={24} />
             </button>
+            <h2 className="text-[15px] font-black text-slate-800 dark:text-white">Chi tiết</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {/* Truyền item vào NotificationDetail để tái sử dụng component hiện có của bạn */}
+            <NotificationDetail 
+              item={mobileDetailItem} 
+              onClose={() => setMobileDetailItem(null)} 
+              isMobile={true} 
+            />
           </div>
         </div>
       )}
