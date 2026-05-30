@@ -23,7 +23,7 @@ export default function OtpVerification() {
 
   useEffect(() => {
     if (timer > 0) {
-      const interval = setInterval(() => setTimer((prev) => prev - 1), 100);
+      const interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
       return () => clearInterval(interval);
     }
   }, [timer]);
