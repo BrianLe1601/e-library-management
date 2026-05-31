@@ -31,7 +31,7 @@ router.delete('/books/:id',             authorize('admin', 'employee'),         
 router.patch ('/books/:id/toggle-hide', authorize('admin', 'employee'),                         adminController.toggleHide);
 router.post  ('/authors',               authorize('admin', 'employee'),                         adminController.createAuthor);
 router.post  ('/publishers',            authorize('admin', 'employee'),                         adminController.createPublisher);
-
+router.post  ('/categories',            authorize('admin', 'employee'),                         adminController.createCategory);
 // ── Dashboard & Reports (admin + employee) ────────────────────────────────────
 router.get('/stats',                authorize('admin', 'employee'), adminController.getStats);
 router.get('/reports',              authorize('admin', 'employee'), adminController.getReports);

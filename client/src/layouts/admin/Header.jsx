@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import ProfileDropdown from "../../components/ProfileDropdown";
 import { NotificationPopover } from "../../components/NotificationPopover";
 import adminService from "../../services/adminService";
+import { mutate } from "swr";
 
 // ── Chuẩn hoá payload ─────────────────────────────────────────────────────────
 const normalise = (n) => ({
@@ -63,7 +64,15 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
     if (!user?.id) { setNotifications([]); return; }
     fetchNotifications(1);
     const t = setInterval(() => fetchNotifications(1, true), 60_000);
-    return () => clearInterval(t);
+    const handleSync = () => {
+      fetchNotifications(1, true);
+    }
+
+    window.addEventListener("sync_notifications", handleSync);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("sync_notifications", handleSync);
+    };
   }, [user?.id, fetchNotifications]);
 
   const handleLoadMore = () => {
@@ -79,6 +88,7 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
     try {
       await adminService.markAllNotificationsRead();
       setNotifications((p) => p.map((n) => ({ ...n, read: true })));
+      window.dispatchEvent(new Event("sync_notifications"));
     } catch (err) { console.error("[AdminHeader] markAllRead:", err); }
   };
 
@@ -87,6 +97,7 @@ export default function Header({ collapsed, setCollapsed, setMobileOpen }) {
     try {
       await adminService.markNotificationRead(id);
       setNotifications((p) => p.map((n) => (String(n.id) === String(id) ? { ...n, read: true } : n)));
+      window.dispatchEvent(new Event("sync_notifications"));
     } catch (err) { console.error("[AdminHeader] markOneRead:", err); }
   };
 
