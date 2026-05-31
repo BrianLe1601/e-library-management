@@ -67,18 +67,17 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     SELECT COUNT(DISTINCT b.id) AS total
     FROM books b
     JOIN authors a ON a.id = b.author_id
+    LEFT JOIN publishers p ON p.id = b.publisher_id
     ${where}
   `;
   const [[{ total }]] = await db.query(countSql, params);
 
   // Xử lý sắp xếp (Khớp với value của sortOptions trong BooksPage.jsx)
   let orderBy = 'ORDER BY b.id DESC'; // mặc định là latest
-  if (sort === 'rating-desc') orderBy = 'ORDER BY rating DESC';
-  if (sort === 'rating-asc') orderBy = 'ORDER BY rating ASC';
-  if (sort === 'title-asc') orderBy = 'ORDER BY b.title ASC';
-  if (sort === 'title-desc') orderBy = 'ORDER BY b.title DESC';
-  if (sort === 'available') orderBy = 'ORDER BY b.available_copies DESC';
-
+  if (sort === 'default')   orderBy = 'ORDER BY b.id ASC';
+  if (sort === 'featured')  orderBy = 'ORDER BY (SELECT COUNT(*) FROM borrows WHERE book_id = b.id) DESC, rating DESC';
+  if (sort === 'trending')  orderBy = 'ORDER BY rating DESC';
+  if (sort === 'newest')    orderBy = 'ORDER BY b.created_at DESC';
   // Câu lệnh SQL chính thức - Ép ALIAS thành CamelCase cho React đọc trực tiếp
   const mainSql = `
     SELECT 
@@ -206,15 +205,16 @@ const findNewest = async (limit = 10) => {
 const findAllCategories = async () => {
   const [rows] = await db.query(
     `SELECT 
-    c.id, 
-    c.name, 
-    c.description, 
-    COUNT(bc.book_id) AS book_count
-    FROM categories c
-    LEFT JOIN book_categories bc 
-       ON bc.category_id = c.id
-    GROUP BY c.id, c.name, c.description
-    ORDER BY book_count DESC`
+       c.id,
+       c.name,
+       c.description,
+       COUNT(DISTINCT b.id) AS book_count
+     FROM categories c
+     LEFT JOIN book_categories bc ON bc.category_id = c.id
+     LEFT JOIN books b ON b.id = bc.book_id AND b.is_hidden = 0
+     GROUP BY c.id, c.name, c.description
+     HAVING book_count > 0
+     ORDER BY book_count DESC`
   );
   return rows;
 };
@@ -368,4 +368,32 @@ const getDashboardStats = async () => {
   };
 };
 
-module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, getSavedBooksByUser, saveBook, unsaveBook };
+// ── Gợi ý tìm kiếm (autocomplete) ────────────────────────────────────────────
+const searchSuggestions = async (keyword, limit = 6) => {
+  if (!keyword || keyword.trim().length < 2) return [];
+  const q = `%${keyword.trim()}%`;
+  const [rows] = await db.query(
+    `SELECT 
+       b.id,
+       b.title,
+       b.cover_url  AS coverUrl,
+       a.name       AS author,
+       (SELECT c.name FROM categories c
+        JOIN book_categories bc ON bc.category_id = c.id
+        WHERE bc.book_id = b.id LIMIT 1) AS category,
+       COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating,
+       b.available_copies AS availableCopies
+     FROM books b
+     JOIN authors a ON a.id = b.author_id
+     WHERE b.is_hidden = 0
+       AND (b.title LIKE ? OR a.name LIKE ?)
+     ORDER BY
+       CASE WHEN b.title LIKE ? THEN 0 ELSE 1 END,
+       b.title ASC
+     LIMIT ?`,
+    [q, q, `${keyword.trim()}%`, Number(limit)]
+  );
+  return rows;
+};
+
+module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook};

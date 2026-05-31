@@ -5,10 +5,12 @@ import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
 import InputField from "../../components/InputField";
 import AuthLayout from "../../layouts/auth/AuthLayout"; 
+import { useToast } from "../../context/ToastContext";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { isLoading, isAuthenticated } = useAuth();
+  const toast = useToast();
 
   const [showPass, setShowPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
@@ -47,7 +49,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length > 0) return setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return setFieldErrors(errs), toast.error("Validation Error", "Please fix the errors in the form.");
 
     setLoading(true);
     setError("");
@@ -55,9 +57,11 @@ export default function RegisterPage() {
       const response = await authService.register({
         full_name: form.full_name, email: form.email, password: form.password, phone: form.phone || undefined, role: "user",
       });
+      toast.success("Success", "Account created successfully! Please check your email for the OTP.");
       navigate("/verify-otp", { state: { email: form.email, debugOtp: response.data?.debugOtp } });
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed. Please try again.");
+      toast.error("Error", err.response?.data?.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }

@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Mail, BookOpen, CheckCircle, X } from "lucide-react";
-import { useNavigate } from "react-router-dom"; // MỚI
-import authService from "../../services/authService"; // MỚI
+import { useNavigate } from "react-router-dom";
+import authService from "../../services/authService"; 
+import { useToast } from "../../context/ToastContext";
 
 export default function ForgotPasswordModal({ isOpen, onClose }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
+
+  const toast = useToast();
 
   if (!isOpen) return null;
 
@@ -20,6 +23,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
       const res = await authService.forgotPassword(email);
       if (res.data?.success) {
         onClose();
+        toast.success("Success", "A 6-digit OTP has been sent to your email. Please check your email.");
         navigate("/verify-otp", { 
           state: { 
             email: email, 
@@ -29,7 +33,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
         });
       }
     } catch (error) {
-      alert(error.response?.data?.message || "Error sending to your email. Please try again.");
+      toast.error("Error", error.response?.data?.message || "Error sending to your email. Please try again.");
     } finally {
       setLoading(false);
     }

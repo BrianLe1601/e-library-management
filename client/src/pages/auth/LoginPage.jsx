@@ -5,6 +5,11 @@ import { useAuth } from "../../context/AuthContext";
 import authService from "../../services/authService";
 import AuthLayout from "../../layouts/auth/AuthLayout";
 import ForgotPasswordModal from "./ForgotPasswordPage";
+import { useToast } from "../../context/ToastContext";
+
+// --- THÊM IMPORT NÀY CHO GOOGLE AUTH ---
+import { useGoogleLogin } from "@react-oauth/google";
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isLoading, isAuthenticated } = useAuth();
@@ -16,8 +21,8 @@ export default function LoginPage() {
     password: "",
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const toast = useToast();
 
-  // Điều hướng bảo vệ: Nếu đã đăng nhập thành công, không cho quay lại trang login
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       navigate("/", { replace: true });
@@ -38,6 +43,7 @@ export default function LoginPage() {
     e.preventDefault();
     if (!formData.email || !formData.password) {
       setError("Please enter both email and password");
+      toast.warning("Please enter both email and password");
       return;
     }
     try {
@@ -45,27 +51,60 @@ export default function LoginPage() {
       setError("");
 
       const response = await authService.login(formData);
-      const { token, user } = response.data.data; // Đọc thông tin user & token từ backend trả về
+      const { token, user } = response.data.data;
 
-      // Lưu session đăng nhập vào Context toàn cục của hệ thống
       login(token, user);
+      toast.success("Login successful!", 'Welcome back, ' + user.full_name);
 
-      // LOGIC ĐIỀU HƯỚNG CHUYÊN SÂU THEO VAI TRÒ (ROLE-BASED REDIRECTION)
       if (user && (user.role === "admin" || user.role === "employee")) {
-        // Đưa Admin và Nhân viên thư viện thẳng vào Dashboard trang quản trị hệ thống
         navigate("/admin", { replace: true });
       } else {
-        // Đưa độc giả thông thường về trang chủ của UserLayout để tìm và mượn sách
         navigate("/", { replace: true });
       }
     } catch (error) {
       const message = error.response?.data?.message || "Login failed";
       setError(message);
-      console.error("Login failed:", error.response?.data || error.message);
+      toast.error("Login failed", message);
     } finally {
       setLoading(false);
     }
   };
+
+  // ── HOOK KÍCH HOẠT POPUP VÀ XỬ LÝ ĐĂNG NHẬP GOOGLE ──────────────────────────
+  const handleGoogleLoginSuccess = async (tokenResponse) => {
+    try {
+      setLoading(true);
+      setError("");
+
+      // Bắn access_token nhận từ popup Google lên Backend của bạn
+      const response = await authService.loginWithGoogle(tokenResponse.access_token);
+      const { token, user } = response.data.data;
+
+      // Lưu trạng thái đăng nhập vào ứng dụng
+      login(token, user);
+      toast.success("Google Login successful!", 'Welcome back, ' + user.full_name);
+
+      // Điều hướng theo vai trò chuẩn xác tương tự form thường
+      if (user && (user.role === "admin" || user.role === "employee")) {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
+    } catch (error) {
+      const message = error.response?.data?.message || "Google Authentication failed";
+      setError(message);
+      toast.error("Google Login failed", message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const triggerGoogleLogin = useGoogleLogin({
+    onSuccess: handleGoogleLoginSuccess,
+    onError: () => {
+      toast.error("Google Authentication error", "Could not authorize via Google account.");
+    }
+  });
 
   if (isLoading) {
     return (
@@ -76,7 +115,6 @@ export default function LoginPage() {
   }
 
   return (
-    // BỌC TOÀN BỘ TRONG AUTHLAYOUT
     <>
       <div className="mb-6">
         <h1 className="text-slate-900 dark:text-white font-bold text-2xl">
@@ -100,10 +138,7 @@ export default function LoginPage() {
             Email Address
           </label>
           <div className="relative">
-            <Mail
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
+            <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="email"
               name="email"
@@ -123,9 +158,6 @@ export default function LoginPage() {
             <label className="text-xs text-slate-500 dark:text-slate-400 font-medium">
               Password
             </label>
-            {/* <Link to="/forgot-password" className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors">
-              Forgot password?
-            </Link> */}
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
@@ -135,10 +167,7 @@ export default function LoginPage() {
             </button>
           </div>
           <div className="relative">
-            <Lock
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
+            <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type={showPass ? "text" : "password"}
               name="password"
@@ -178,30 +207,34 @@ export default function LoginPage() {
           )}
         </button>
       </form>
-          <ForgotPasswordModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-      />
+
+      <ForgotPasswordModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+
       {/* Divider */}
       <div className="flex items-center gap-3 my-5">
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-        <span className="text-slate-400 text-xs font-medium">
-          or continue with
-        </span>
+        <span className="text-slate-400 text-xs font-medium">or continue with</span>
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
       </div>
 
-      {/* Social */}
-      <div className="grid grid-cols-2 gap-3">
-        {["Google", "Facebook"].map((p) => (
-          <button
-            key={p}
-            type="button"
-            className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
-          >
-            {p}
-          </button>
-        ))}
+      {/* Social Login */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => triggerGoogleLogin()}
+          className="w-full flex items-center justify-center gap-3 px-4 py-2.5 
+                    rounded-lg border border-slate-300 dark:border-slate-700 
+                    bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 
+                    text-sm font-medium shadow-sm hover:bg-slate-50 
+                    dark:hover:bg-slate-700 transition-colors"
+        >
+          <img
+            src="https://www.svgrepo.com/show/475656/google-color.svg"
+            alt="Google"
+            className="w-5 h-5"
+          />
+          <span>Login with Google</span>
+        </button>
       </div>
 
       <p className="text-center text-slate-500 dark:text-slate-400 text-sm mt-6">

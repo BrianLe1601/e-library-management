@@ -17,20 +17,49 @@ import HeroCarousel from "../../components/HeroCarousel";
 import BookCard from "../../components/BookCard";
 import bookService from "../../services/bookService";
 
-/* ─── Skeleton ─────────────────────────────────────────────────────────────── */
 function BookSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 overflow-hidden animate-pulse flex flex-col">
-      <div className="w-full aspect-[3/4] bg-gray-200 dark:bg-slate-700" />
-      <div className="p-3 space-y-2">
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-4/5" />
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/2" />
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-1/3 mt-1" />
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700/60 overflow-hidden animate-pulse flex flex-col w-full">
+      {/* Khối ảnh tỷ lệ 3:4 */}
+      <div className="w-full aspect-[3/4] bg-slate-200 dark:bg-slate-700" />
+      {/* Khối thông tin chữ */}
+      <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+        <div className="space-y-1.5">
+          <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded-md w-11/12" />
+          <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-md w-2/3" />
+        </div>
+        <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-md w-1/3 mt-2" />
       </div>
     </div>
   );
 }
 
+// 2. Khung xương cho hàng Categories (Danh mục)
+function CategoryListSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-16 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700/60 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 animate-pulse"
+        >
+          <div className="h-3.5 bg-slate-200 dark:bg-slate-700 rounded w-3/4" />
+          <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 3. Khung xương cho thanh số liệu liên kết thư viện (Stats)
+function StatsSkeleton() {
+  return (
+    <div className="space-y-2 flex flex-col items-center w-full">
+      <div className="h-6 bg-blue-800/80 dark:bg-slate-800 rounded-lg w-16 animate-pulse" />
+      <div className="h-3 bg-blue-800/40 dark:bg-slate-800/40 rounded-md w-28 animate-pulse" />
+    </div>
+  );
+}
 export function BookRow({ books, loading, emptyMessage }) {
   const rowRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -223,6 +252,7 @@ export default function HomePage() {
   const [newest, setNewest] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryBooks, setCategoryBooks] = useState([]);
+  const [discoverCategory, setDiscoverCategory] = useState(null);
   const [systemStats, setSystemStats] = useState({
     totalBooks: 0,
     activeMembers: 0,
@@ -268,10 +298,17 @@ export default function HomePage() {
         if (categoriesRes.data?.success) {
           const allCats = categoriesRes.data.data || [];
           setCategories(allCats.slice(0, 8));
-          const firstCat = allCats.find((c) => c.book_count > 0);
-          if (firstCat) {
+          const eligibleCats = allCats.filter((c) => c.book_count > 0);
+          if (eligibleCats.length > 0) {
+            // Seed từ ngày hôm nay → cùng ngày luôn ra cùng category, sang ngày mới đổi
+            const seed = new Date().toDateString()
+              .split("")
+              .reduce((acc, c) => acc + c.charCodeAt(0), 0);
+            const todayCat = eligibleCats[seed % eligibleCats.length];
+            setDiscoverCategory(todayCat);
+
             const catBooksRes = await bookService
-              .getBooks({ category: firstCat.id, limit: 10 })
+              .getBooks({ category: todayCat.id, limit: 12 })
               .catch(() => ({ data: { success: false } }));
             if (catBooksRes.data?.success)
               setCategoryBooks(catBooksRes.data.data || []);
@@ -416,7 +453,7 @@ export default function HomePage() {
             </h2>
           </div>
           <Link
-            to="/books?sort=rating"
+            to="/books?sort=trending"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors font-medium"
           >
@@ -470,8 +507,8 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-1 h-6 bg-emerald-500 rounded-full" />
-                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold">
-                  Spotlight: {spotlightCat?.name || "Genre Collections"}
+                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+                  📚 Today's Spotlight · {discoverCategory?.name || "Genre Collections"}
                 </span>
               </div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -479,7 +516,7 @@ export default function HomePage() {
               </h2>
             </div>
             <Link
-              to={`/books?category=${spotlightCat?.id}`}
+              to={`/books?category=${discoverCategory?.id}`}
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors font-medium"
             >

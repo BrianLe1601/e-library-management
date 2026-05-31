@@ -9,11 +9,11 @@ import UserLayout from "../layouts/user/UserLayout";
 
 // Components
 import ProtectedRoute from "../components/ProtectedRoute";
+import OtpVerification from "../components/OTP-Verification";
 
 // Auth pages
 import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
-import OtpVerification from "../components/OTP-Verification";
 import { ResetPasswordPage } from "../pages/auth/ResetPasswordPage";
 
 // Core / Book pages
@@ -42,28 +42,31 @@ import SettingsPage from "../pages/admin/SettingsPage";
 // Context Providers
 import { ThemeProvider } from "../context/ThemeContext";
 import { AuthProvider } from "../context/AuthContext";
+import { ToastProvider } from "../context/ToastContext";
 
 function AppRoutes() {
   return (
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <Routes>
-            {/* ── Tuyến công khai (Public) ── */}
-            <Route element={<AuthLayout />}>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-            </Route>
-            <Route path="/verify-otp" element={<OtpVerification />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
+          {/* MỞ THẺ TOASTPROVIDER Ở ĐÂY ĐỂ BỌC TOÀN BỘ ROUTE */}
+          <ToastProvider>
+            <Routes>
+              {/* ── Tuyến công khai (Public) ── */}
+              <Route element={<AuthLayout />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+              </Route>
+              <Route path="/verify-otp" element={<OtpVerification />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* PUBLIC / USER: Giao diện độc giả */}
             <Route element={<HomeLayout />}>
-              <Route path="/"          element={<HomePage />} />
-              <Route path="/books"     element={<BooksPage />} />
+              <Route path="/" element={<HomePage />} />
+              <Route path="/books" element={<BooksPage />} />
               <Route path="/books/:id" element={<BookDetail />} />
- 
-              {/* Chỉ user đã đăng nhập mới vào được khu vực /user */}
+
+              {/* Chỉ user đã đăng nhập mới vào được Dashboard cá nhân */}
               <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
                 <Route element={<UserLayout />}>
                   <Route index path="/user"                  element={<DashboardTab />} />
@@ -76,9 +79,7 @@ function AppRoutes() {
             </Route>
 
             {/* --- PRIVATE ROUTES (Admin & Employee) --- */}
-            <Route
-              element={<ProtectedRoute allowedRoles={["admin", "employee"]} />}
-            >
+            <Route element={<ProtectedRoute allowedRoles={["admin", "employee"]} />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<Dashboard />} />
                 <Route path="/admin/books" element={<BookInventory />} />
@@ -86,18 +87,19 @@ function AppRoutes() {
                 <Route path="/admin/reports" element={<Reports />} />
                 <Route path="/admin/notifications" element={<NotificationsPage />} />
 
-                {/* --- PRIVATE ROUTES (Admin only) --- */}
-                <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-                  <Route path="/admin/users" element={<UserManagement />} />
-                  <Route path="/admin/settings" element={<SettingsPage />} />
+                  {/* --- PRIVATE ROUTES (Admin only) --- */}
+                  <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                    <Route path="/admin/users" element={<UserManagement />} />
+                    <Route path="/admin/settings" element={<SettingsPage />} />
+                  </Route>
                 </Route>
               </Route>
-            </Route>
 
-            {/* ── Xử lý các tuyến đường không tồn tại ── */}
-            <Route path="/404" element={<NotFound />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
-          </Routes>
+              {/* ── Xử lý các tuyến đường không tồn tại ── */}
+              <Route path="/404" element={<NotFound />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+          </ToastProvider> 
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
