@@ -3,6 +3,55 @@
 const db = require('../config/db');
 
 // Hàm dùng riêng cho đăng nhập (Cần lấy trường password để đối chiếu bcrypt)
+const findAllForAdmin = async ({ role, status, search, page = 1, limit = 10 }) => {
+  const conds  = [];
+  const params = [];
+
+  if (role)    { conds.push('u.role = ?');   params.push(role); }
+  if (status)  { conds.push('u.status = ?'); params.push(status); }
+  if (search)  { 
+    // Giữ nguyên như getUsers, chỉ thêm u.phone LIKE ?
+    conds.push('(u.full_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)'); 
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`); 
+  }
+
+  const where  = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const limitN = Math.min(100, Number(limit));
+
+  // 1. Đếm tổng số user (theo bộ lọc) để chia trang
+  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM users u ${where}`, params);
+  
+  // 2. Lấy dữ liệu user cho trang hiện tại
+  const [rows] = await db.query(
+    `SELECT u.id, u.full_name, u.email, u.phone, u.avatar_url, u.role, u.status, u.created_at,
+            (SELECT COUNT(*) FROM borrows b WHERE b.user_id = u.id) AS total_borrows
+    FROM users u
+    ${where}
+    ORDER BY u.created_at DESC
+    LIMIT ? OFFSET ?`,
+    [...params, limitN, offset]
+  );
+  
+  // 3. THÊM MỚI: Truy vấn đếm tổng số liệu trên TOÀN BỘ Database (Không bị ảnh hưởng bởi bộ lọc)
+  const statsSql = `
+    SELECT 
+      CAST(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS UNSIGNED) AS activeCount,
+      CAST(SUM(CASE WHEN status = 'banned' THEN 1 ELSE 0 END) AS UNSIGNED) AS lockedCount,
+      CAST(SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) AS UNSIGNED) AS adminCount,
+      CAST(SUM(CASE WHEN role = 'employee' THEN 1 ELSE 0 END) AS UNSIGNED) AS employeeCount
+    FROM users
+  `;
+  const [[globalStats]] = await db.query(statsSql);
+
+  // Trả về kèm theo biến stats
+  return { 
+    data: rows, 
+    totalItems: Number(total),
+    stats: globalStats 
+  };
+};
+
 const findCredentialsByEmail = async (email) => {
   const [rows] = await db.query(
     'SELECT id, email, password, role, status FROM users WHERE email = ?', 
@@ -96,8 +145,7 @@ const toggleUserStatus = async (id) => {
   const [[user]] = await db.query('SELECT id, role, status FROM users WHERE id = ?', [id]);
   if (!user) throw Object.assign(new Error('Người dùng không tồn tại'), { statusCode: 404 });
   if (user.role === 'admin') throw Object.assign(new Error('Không thể khóa tài khoản admin'), { statusCode: 403 });
-  
-  // Toggle giữa 'active' và 'banned'
+
   const newStatus = user.status === 'banned' ? 'active' : 'banned';
   await db.query('UPDATE users SET status = ? WHERE id = ?', [newStatus, id]);
   return { id, status: newStatus };
@@ -122,6 +170,10 @@ const updateUserRole = async (id, role) => {
   return result.affectedRows > 0;
 }
 
+const updateUserStatus = async (id, status) => {
+  await db.query('UPDATE users SET status = ? WHERE id = ?', [status, id]);
+  return { id, status };
+};
 const createUserByAdmin = async ({ full_name, email, password, phone, role }) => {
   const [result] = await db.query(
     `INSERT INTO users (full_name, email, password, phone, role, status)
@@ -132,7 +184,9 @@ const createUserByAdmin = async ({ full_name, email, password, phone, role }) =>
   return result.insertId;
 };
 
+
 module.exports = { 
+  findAllForAdmin,
   findCredentialsByEmail, 
   findByEmail, 
   findById, 

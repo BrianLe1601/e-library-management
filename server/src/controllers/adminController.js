@@ -44,22 +44,36 @@ exports.getStats = async (_req, res) => {
 // ── GET /api/admin/books ──────────────────────────────────────────────────────
 exports.getBooks = async (req, res) => {
   try {
-    const { 
-      search = '', category = '', author = '', publisher = '', 
-      availability = 'all', sort = 'latest', page = 1, limit = 20 
-    } = req.query;
+    // 1. Lấy các tham số phân trang và bộ lọc từ query string bypass
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const category = req.query.category || 'All';
+    const author = req.query.author || ''; // <--- Nhận thêm bộ lọc tác giả gửi từ Frontend
 
-    const { rows, total } = await bookModel.findAll({ 
-      search, category, author, publisher, availability, sort, 
-      page: Number(page), 
-      limit: Number(limit),
-      includeHidden: true
+    // 2. Gọi hàm model xử lý Database riêng biệt cho Admin (đã có bộ lọc tác giả)
+    const { data, totalItems } = await bookModel.findAllForAdmin({
+      search,
+      category,
+      author,
+      page,
+      limit
     });
 
-    return paginated(res, rows, total, Number(page), Number(limit));
+    // 3. Sử dụng helper success có sẵn trong utils/response để trả về cho React
+    return success(res, {
+      data,
+      pagination: {
+        totalItems,                           // Tổng số sách tìm thấy sau khi lọc
+        currentPage: page,                    // Trang hiện tại
+        limit,                                // Số lượng sách trên 1 trang
+        totalPages: Math.ceil(totalItems / limit) // Tổng số trang tự động tính toán
+      }
+    }, 'Fetch book inventory successfully');
+
   } catch (err) {
-    console.error('[adminGetBooks] Error:', err);
-    return error(res, 'System Error while fetching books', 500);
+    console.error('[getBooks error]', err);
+    return error(res, 'Internal Server Error', 500);
   }
 };
 
@@ -67,7 +81,7 @@ exports.getBooks = async (req, res) => {
 exports.getPublishers = async (req, res) => {
   try {
     const publishers = await bookModel.findAllPublishers();
-    return success(res, publishers, 'Lấy danh sách nhà xuất bản thành công');
+    return success(res, publishers, 'Fetch publishers successfully');
   } catch (err) {
     console.error('[getPublishers] Error:', err);
     return error(res, 'System Error while fetching publishers', 500);
@@ -201,6 +215,23 @@ exports.createPublisher = async (req, res) => {
   }
 };
 
+// ── POST /api/admin/categories ────────────────────────────────────────────────
+exports.createCategory = async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    if (!name || !name.trim()) return error(res, 'Category name is required', 400);
+
+    const newCategory = await bookModel.createCategory(name.trim(), description ? description.trim() : null);
+    return success(res, newCategory, 'Category created successfully', 201);
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return error(res, 'Category already exists', 409);
+    }
+    console.error('[createCategory]', err);
+    return error(res, 'System Error while creating category', 500);
+  }
+};
+
 // ── PATCH /api/admin/books/:id/toggle-hide ──────────────────────
 exports.toggleHide = async (req, res) => {
   try {
@@ -223,12 +254,27 @@ exports.toggleHide = async (req, res) => {
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
 exports.getUsers = async (req, res) => {
   try {
-    const { role, status, search, page = 1, limit = 20 } = req.query;
-    const { rows, total } = await userModel.getUsers({ role, status, search, page, limit });
-    return paginated(res, rows, total, page, limit);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const role = req.query.role || '';
+    const status = req.query.status || '';
+
+    const { data, totalItems, stats } = await userModel.findAllForAdmin({ search, role, status, page, limit });
+
+    return success(res, {
+      data,
+      stats, // <--- TRUYỀN STATS RA API CHO FRONTEND (SWR SẼ NHẬN ĐƯỢC)
+      pagination: {
+        totalItems,
+        currentPage: page,
+        limit,
+        totalPages: Math.ceil(totalItems / limit)
+      }
+    }, 'Fetch user list successfully');
   } catch (err) {
-    console.error('[getUsers]', err);
-    return error(res, 'System Error while fetching users', 500);
+    console.error(err);
+    return error(res, 'Internal Server Error', 500);
   }
 };
 
@@ -305,7 +351,6 @@ exports.createUser = async (req, res) => {
     return success(res, { id: newUserId }, 'User created successfully', 201);
     
   } catch (err) {
-    // Bắt lỗi trùng Email (Mã lỗi của MySQL khi vi phạm UNIQUE constraint)
     if (err.code === 'ER_DUP_ENTRY') {
       return error(res, 'Email already exists', 409);
     }
@@ -356,7 +401,7 @@ exports.exportReport = async (req, res) => {
      */
     return res.json({
       success:     true,
-      message:     `[Mockup] Sẽ xuất ${format.toUpperCase()} trong production`,
+      message:     `[Mockup] will export ${format.toUpperCase()} file of ${rows.length} records`,
       export_info: { format, total_records: rows.length, filter: { from, to, type }, generated_at: new Date().toISOString() },
       preview:     rows.slice(0, 5),
     });
@@ -383,23 +428,32 @@ exports.getNotifications = async (req, res) => {
       limit       = 10,
       search      = '',
     } = req.query;
- 
-    const result = await notificationModel.findAll({
-      receiver_role:  'admin_employee',
+
+    const parsedArchived = Number(is_archived);
+    const parsedPage     = Number(page);
+    const parsedLimit    = Number(limit);
+
+    // [FIX] Không hardcode receiver_role='admin_employee' vì sẽ bỏ sót:
+    //   - Thông báo broadcast scope='all' có receiver_role='admin_employee' ✓
+    //   - Thông báo tự động từ hệ thống (approve/return) cũng cần admin xem
+    //   - Truyền receiver_role=null để lấy TẤT CẢ thông báo dành cho hộp thư admin
+    //   - Cụ thể: lọc receiver_role IN ('admin_employee') hoặc là thông báo hệ thống
+    const result = await notificationModel.findAllForAdmin({
       filter,
-      is_archived:    Number(is_archived),
-      page:           Number(page),
-      limit:          Number(limit),
+      is_archived: parsedArchived,
+      page:        parsedPage,
+      limit:       parsedLimit,
       search,
     });
- 
-    const stats = await notificationModel.getStats();
- 
+
+    // [FIX] Stats phải đếm đúng scope admin (cùng filter với findAllForAdmin)
+    const stats = await notificationModel.getStatsForAdmin();
+
     return success(res, {
       data:       result.rows,
       total:      result.total,
-      page:       Number(page),
-      totalPages: Math.ceil(result.total / Number(limit)) || 1,
+      page:       parsedPage,
+      totalPages: Math.ceil(result.total / parsedLimit) || 1,
       stats,
     });
   } catch (err) {
@@ -487,8 +541,7 @@ exports.bulkActionNotifications = async (req, res) => {
  
     // If selectAll=true, fetch all matching ids from DB
     if (selectAll) {
-      const result = await notificationModel.findAll({
-        receiver_role: 'admin_employee',
+      const result = await notificationModel.findAllForAdmin({
         filter,
         is_archived: Number(is_archived),
         page:  1,

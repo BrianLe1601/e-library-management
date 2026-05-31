@@ -59,6 +59,66 @@ const findAll = async ({ receiver_role = null, user_id = null, filter = 'all', i
 };
 
 // ─────────────────────────────────────────────────────────────
+// [MỚI] Lấy thông báo dành cho hộp thư Admin/Employee
+//
+// Logic hiển thị đúng: Admin cần thấy
+//   1. Thông báo broadcast toàn hệ thống (receiver_role = 'admin_employee')
+//   2. Thông báo hệ thống tự động (approved, returned, overdue, fine)
+//      mà không gắn với 1 user cụ thể (user_id IS NULL)
+//   → Dùng OR thay vì AND để không bỏ sót
+//
+// [FIX] filter 'system' (Activity) bao gồm approved + returned + system
+//       vì đây là các sự kiện mượn/trả/gia hạn mà admin cần theo dõi
+// ─────────────────────────────────────────────────────────────
+const findAllForAdmin = async ({ filter = 'all', is_archived = 0, page = 1, limit = 10, search = '' }) => {
+  let query = `
+    SELECT n.*, u.full_name AS user_name 
+    FROM notifications n 
+    LEFT JOIN users u ON n.user_id = u.id 
+    WHERE n.is_archived = ?
+      AND (
+        n.receiver_role = 'admin_employee'
+        OR (n.receiver_role = 'user' AND n.user_id IS NULL)
+      )
+  `;
+  const params = [is_archived];
+
+  // Bộ lọc theo tab
+  if (filter === 'unread') {
+    query += ' AND n.is_read = 0';
+  } else if (filter === 'overdue') {
+    // Tab "Alerts": quá hạn + phạt tiền
+    query += " AND n.type IN ('overdue', 'fine')";
+  } else if (filter === 'system') {
+    // Tab "Activity": mượn/trả/gia hạn + hệ thống
+    query += " AND n.type IN ('approved', 'returned', 'system')";
+  }
+  // filter === 'all': không thêm điều kiện type
+
+  if (search && search.trim()) {
+    query += ' AND (n.title LIKE ? OR n.message LIKE ?)';
+    const keyword = `%${search.trim()}%`;
+    params.push(keyword, keyword);
+  }
+
+  // Đếm tổng
+  const countQuery = query.replace(
+    'SELECT n.*, u.full_name AS user_name',
+    'SELECT COUNT(*) AS total'
+  );
+  const [[countRow]] = await db.query(countQuery, params);
+  const total = countRow.total || 0;
+
+  // Phân trang
+  const offset = (Number(page) - 1) * Number(limit);
+  query += ' ORDER BY n.created_at DESC LIMIT ? OFFSET ?';
+  params.push(Number(limit), offset);
+
+  const [rows] = await db.query(query, params);
+  return { rows, total };
+};
+
+// ─────────────────────────────────────────────────────────────
 // Đếm số lượng để làm Badge
 // ─────────────────────────────────────────────────────────────
 const getStats = async () => {
@@ -68,6 +128,32 @@ const getStats = async () => {
   return {
     unreadCount:  unread.count   || 0,
     activeCount:  active.count   || 0,
+    archivedCount: archived.count || 0,
+  };
+};
+
+// ─────────────────────────────────────────────────────────────
+// [MỚI] Đếm thống kê CHỈ cho hộp thư Admin
+// Phải khớp chính xác với điều kiện WHERE của findAllForAdmin
+// để badge và totalPages tính đúng
+// ─────────────────────────────────────────────────────────────
+const getStatsForAdmin = async () => {
+  const adminScope = `
+    (receiver_role = 'admin_employee' OR (receiver_role = 'user' AND user_id IS NULL))
+  `;
+
+  const [[unread]] = await db.query(
+    `SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0 AND is_archived = 0 AND ${adminScope}`
+  );
+  const [[active]] = await db.query(
+    `SELECT COUNT(*) AS count FROM notifications WHERE is_archived = 0 AND ${adminScope}`
+  );
+  const [[archived]] = await db.query(
+    `SELECT COUNT(*) AS count FROM notifications WHERE is_archived = 1 AND ${adminScope}`
+  );
+  return {
+    unreadCount:   unread.count   || 0,
+    activeCount:   active.count   || 0,
     archivedCount: archived.count || 0,
   };
 };
@@ -83,7 +169,6 @@ const remove     = async (id) => db.query('DELETE FROM notifications WHERE id = 
 
 // ─────────────────────────────────────────────────────────────
 // Bulk actions
-// [FIX] Thêm bulkRestore — trước đây thiếu, khiến route /bulk với action='restore' không hoạt động
 // ─────────────────────────────────────────────────────────────
 const bulkArchive = async (ids) =>
   db.query('UPDATE notifications SET is_archived = 1, is_read = 1 WHERE id IN (?)', [ids]);
@@ -191,9 +276,27 @@ const softDeleteMultiple = async (ids, userId) => {
   return result;
 };
 
+const markAsReadForUser = async (notifId, userId) => {
+  const [result] = await db.query(
+    'UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ? AND receiver_role = "user"',
+    [notifId, userId]
+  );
+  return result;
+};
+
+const markAllAsReadForUser = async (userId) => {
+  const [result] = await db.query(
+    'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND receiver_role = "user" AND is_read = 0',
+    [userId]
+  );
+  return result;
+};
+
 module.exports = {
   findAll,
+  findAllForAdmin,
   getStats,
+  getStatsForAdmin,
   markRead,
   markAllRead,
   archive,
@@ -204,6 +307,9 @@ module.exports = {
   bulkDelete,
   create,
   createForRoleUsers,
+  getBorrowDetailsForNoti,
   softDelete,
-  softDeleteMultiple
+  softDeleteMultiple,
+  markAsReadForUser,
+  markAllAsReadForUser
 };

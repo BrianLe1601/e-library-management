@@ -113,6 +113,75 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
   return { rows: formattedRows, total: Number(total) };
 };
 
+const findAllForAdmin = async ({ search = '', category = 'All', author = '', page = 1, limit = 10 }) => {
+  let conditions = [];
+  let params = [];
+
+  // 1. Tìm kiếm từ khóa (Tiêu đề, Tác giả, Nhà xuất bản, hoặc ISBN)
+  if (search) {
+    conditions.push('(b.title LIKE ? OR a.name LIKE ? OR p.name LIKE ? OR b.isbn LIKE ?)');
+    const q = `%${search}%`;
+    params.push(q, q, q, q);
+  }
+
+  // 2. Lọc theo Danh mục (Dựa theo Tên danh mục từ thanh cuộn)
+  if (category && category !== 'All') {
+    conditions.push('b.id IN (SELECT bc.book_id FROM book_categories bc JOIN categories c ON bc.category_id = c.id WHERE c.name = ?)');
+    params.push(category);
+  }
+
+  // 3. BỔ SUNG: Lọc theo Tác giả (Chấp nhận ID đơn lẻ hoặc chuỗi ID "1,2,3")
+  if (author) {
+    const authorIds = String(author).split(',').map(Number).filter(Boolean);
+    if (authorIds.length > 0) {
+      conditions.push(`b.author_id IN (${authorIds.map(() => '?').join(',')})`);
+      params.push(...authorIds);
+    }
+  }
+
+  // Gom các điều kiện lọc lại với nhau
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // 4. ĐẾM TỔNG SỐ DÒNG THỰC TẾ TRONG HỆ THỐNG SAU KHI LỌC
+  const countSql = `
+    SELECT COUNT(DISTINCT b.id) as totalItems
+    FROM books b
+    LEFT JOIN authors a ON a.id = b.author_id
+    LEFT JOIN publishers p ON p.id = b.publisher_id
+    ${whereClause}
+  `;
+  const [[{ totalItems }]] = await db.query(countSql, params);
+
+  // 5. LẤY DỮ LIỆU CỦA TRANG HIỆN TẠI (Sử dụng LIMIT và OFFSET động)
+  const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const mainSql = `
+    SELECT 
+      b.id, b.title, b.isbn, b.publish_year AS year, b.description,
+      b.cover_url AS coverUrl, b.total_copies AS totalCopies, 
+      b.available_copies AS availableCopies,
+      b.is_hidden,
+      a.name AS author, p.name AS publisher,
+      (SELECT c.name FROM categories c JOIN book_categories bc ON bc.category_id = c.id WHERE bc.book_id = b.id LIMIT 1) AS category,
+      b.author_id, b.publisher_id,
+      (SELECT bc.category_id FROM book_categories bc WHERE bc.book_id = b.id LIMIT 1) AS category_id
+    FROM books b
+    LEFT JOIN authors a ON a.id = b.author_id
+    LEFT JOIN publishers p ON p.id = b.publisher_id
+    ${whereClause}
+    GROUP BY b.id
+    ORDER BY b.created_at DESC
+    LIMIT ? OFFSET ?
+  `;
+  
+  // Nối params lọc với [limit, offset] vào câu lệnh SQL chính thức
+  const [books] = await db.query(mainSql, [...params, Number(limit), offset]);
+
+  return { 
+    data: books, 
+    totalItems: Number(totalItems) 
+  };
+};
+
 // ── Tìm kiếm chi tiết một cuốn sách ──
 const findById = async (id) => {
   const sql = `
@@ -338,6 +407,11 @@ const createPublisher = async (name, country) => {
   return { id: result.insertId, name };
 };
 
+// ── Thêm nhanh thể loại mới ──────────────────────────────────────────────────
+const createCategory = async (name, description) => {
+  const [result] = await db.query('INSERT INTO categories (name, description) VALUES (?, ?)', [name, description || null]);
+  return { id: result.insertId, name };
+};
 
 // ── Dashboard Statistics ─────────────────────────────────────
 const getDashboardStats = async () => {
@@ -396,4 +470,4 @@ const searchSuggestions = async (keyword, limit = 6) => {
   return rows;
 };
 
-module.exports = { findAll, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook};
+module.exports = { findAll, findAllForAdmin, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, createCategory, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook};
