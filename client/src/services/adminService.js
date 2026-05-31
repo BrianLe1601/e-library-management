@@ -50,7 +50,7 @@ const adminService = {
   getTopBooks        : (limit = 10)                  => api.get(`/admin/reports/top-books?limit=${limit}`),
   getBorrowChartData : (year = new Date().getFullYear()) => api.get(`/admin/reports/borrow-chart?year=${year}`),
   getCategoryChartData : () => api.get("/admin/reports/category-chart"),
-
+  getBorrowChart: (year) => api.get(`/admin/reports/borrow-chart?year=${year}`),
 
 // ─────────────────────────────────────────────────────────────
 //  NOTIFICATIONS — Thông báo
