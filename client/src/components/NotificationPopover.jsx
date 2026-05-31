@@ -53,7 +53,8 @@ export function NotificationPopover({
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    return () => 
+      document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
 
   const handleScroll = (e) => {
@@ -74,7 +75,7 @@ export function NotificationPopover({
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-3 w-[350px] z-50 rounded-2xl shadow-2xl
+      className="absolute right-0 top-full mt-3 w-[280px] sm:w-[350px] z-50 rounded-2xl shadow-2xl
         bg-white dark:bg-[#0f1629] border border-slate-200 dark:border-slate-700/60
         animate-in fade-in slide-in-from-top-2 duration-150"
       style={{ filter: "drop-shadow(0 8px 32px rgba(0,0,0,0.18))" }}

@@ -3,8 +3,10 @@ import {
   Plus, Search, Edit2, Trash2, EyeOff, Eye, X, Upload,
   BookOpen, Hash, Package, PenTool, Building, Tag, FileText, ChevronDown, Layers
 } from 'lucide-react';
+import useSWR from 'swr';
 import adminService from '../../services/adminService';
 import InputField from '../../components/InputField';
+import Pagination from '../../components/Pagination';
 
 // 100% English Status Configuration
 const statusConfig = {
@@ -25,7 +27,6 @@ const emptyForm = {
 };
 
 export default function BookInventory() {
-  const [books, setBooks] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -35,6 +36,10 @@ export default function BookInventory() {
   const [isSavingAuth, setIsSavingAuth] = useState(false);
   const [authorOptions, setAuthorOptions] = useState([]);
 
+  const [isAddingCat, setIsAddingCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatDesc, setNewCatDesc] = useState('');
+  const [isSavingCat, setIsSavingCat] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState([]);
 
   const [isAddingPub, setIsAddingPub] = useState(false);
@@ -44,51 +49,32 @@ export default function BookInventory() {
   const [publisherOptions, setPublisherOptions] = useState([]);
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterCat, setFilterCat] = useState('All');
+  const [filterAuthor, setFilterAuthor] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [editBook, setEditBook] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteId, setDeleteId] = useState(null);
 
-  const [loadingData, setLoadingData] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const fetchBooks = async () => {
-    try {
-      setLoadingData(true);
-      const response = await adminService.getBooks();
-      const bookData = response.data.data;
-      if (Array.isArray(bookData)) {
-        const formattedBooks = bookData.map(book => {
-          let computedStatus = 'available';
-          if (book.availableCopies === 0) {
-            computedStatus = 'out_of_stock';
-          } else if (book.availableCopies <= 2) {
-            computedStatus = 'low_stock';
-          }
-
-          return {
-            ...book,
-            cover: book.coverUrl || 'https://placehold.co/300x450/e2e8f0/475569?text=No+Cover',
-            stock: book.totalCopies || 0,
-            status: computedStatus,
-            author: book.author || 'Unknown Author',
-            category: book.category || 'Uncategorized',
-            hidden: book.is_hidden,
-          };
-        });
-        setBooks(formattedBooks);
-      } else {
-        setBooks([]);
-      }
-    } catch (error) {
-      console.error("Error fetching books:", error);
-    } finally {
-      setLoadingData(false);
-    }
+  const fetcher = async ([, params]) => {
+    const response = await adminService.getBooks(params);
+    return response.data.data; // Trả về payload { data: [...], pagination: {...} }
   };
 
+  // 2. GOM CÁC THAM SỐ LỌC (SWR sẽ tự động gọi lại API khi params này đổi)
+  const queryParams = useMemo(() => ({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: debouncedSearch,
+    category: filterCat === 'All' ? '' : filterCat,
+    author: filterAuthor === 'All' ? '' : filterAuthor,
+  }), [currentPage, debouncedSearch, filterCat, filterAuthor]);
+
   useEffect(() => {
-    fetchBooks();
     Promise.all([adminService.getAuthors(), adminService.getCategories(), adminService.getPublishers()]).then(([resAuth, resCat, resPub]) => {
       setAuthorOptions(resAuth.data?.data || resAuth.data || []);
       setCategoryOptions(resCat.data?.data || resCat.data || []);
@@ -96,20 +82,53 @@ export default function BookInventory() {
     }).catch(err => console.error("Error fetching Select Options:", err));
   }, []);
 
-  const filtered = useMemo(() => {
-    const safeBooks = Array.isArray(books) ? books : [];
-    const searchLower = search.toLowerCase();
-    
-    return safeBooks.filter(b => {
-      const matchSearch = 
-        (b.title || '').toLowerCase().includes(searchLower) ||
-        (b.author || '').toLowerCase().includes(searchLower) ||
-        (b.publisher || '').toLowerCase().includes(searchLower);
-      const matchCat = filterCat === 'All' || b.category === filterCat;
-      return matchSearch && matchCat;
-    });
-  }, [books, search, filterCat]);
+  // 3. GỌI SWR (Bí quyết nằm ở keepPreviousData: true)
+  const { data: payload, isValidating, mutate } = useSWR(
+    ['/admin/books', queryParams], 
+    fetcher, 
+    { 
+      keepPreviousData: true, // Giữ data cũ trên màn hình trong lúc fetch data mới
+      revalidateOnFocus: false // Đỡ bị gọi lại API liên tục khi chuyển tab trình duyệt
+    }
+  );
 
+  // 4. FORMAT LẠI DỮ LIỆU SÁCH MỖI KHI PAYLOAD ĐỔI
+  const books = useMemo(() => {
+    if (!payload?.data) return [];
+    return payload.data.map(book => {
+      let computedStatus = 'available';
+      if (book.availableCopies === 0) computedStatus = 'out_of_stock';
+      else if (book.availableCopies <= 2) computedStatus = 'low_stock';
+
+      return {
+        ...book,
+        cover: book.coverUrl || 'https://placehold.co/300x450/e2e8f0/475569?text=No+Cover',
+        stock: book.totalCopies || 0,
+        status: computedStatus,
+        author: book.author || 'Unknown Author',
+        publisher: book.publisher || 'Unknown Publisher',
+        category: book.category || 'Uncategorized',
+        hidden: book.is_hidden,
+      };
+    });
+  }, [payload]);
+
+  // 5. LẤY SỐ LIỆU PHÂN TRANG
+  const totalPages = payload?.pagination?.totalPages || 1;
+  const totalBooks = payload?.pagination?.totalItems || 0;
+  
+  // Trạng thái loading toàn màn hình (chỉ xảy ra lần ĐẦU TIÊN khi chưa có bất kỳ data nào)
+  const isInitialLoading = !payload && isValidating;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+  
+  // Khi tìm kiếm hoặc đổi filter -> Đưa về trang 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filterCat, filterAuthor]);
   const openAddModal = () => {
     setEditBook(null);
     setForm(emptyForm);
@@ -169,7 +188,7 @@ export default function BookInventory() {
       }
 
       setShowModal(false);
-      fetchBooks();
+      mutate();
 
     } catch (error) {
       console.error("Save book error:", error);
@@ -181,11 +200,8 @@ export default function BookInventory() {
 
   const toggleHide = async (id) => {
     try {
-      const response = await adminService.toggleHideBook(id);
-      const newHiddenState = response.data.data.is_hidden;
-      setBooks(prev => prev.map(b => 
-        b.id === id ? { ...b, hidden: !!newHiddenState } : b
-      ));
+      await adminService.toggleHideBook(id);
+      mutate();
     } catch (error) {
       console.error("Error when toggling book visibility:", error);
       alert(error.response?.data?.message || "Cannot change book visibility status.");
@@ -195,8 +211,8 @@ export default function BookInventory() {
   const handleDelete = async (id) => {
     try {
       await adminService.deleteBook(id);
-      setBooks(prev => prev.filter(b => b.id !== id));
       setDeleteId(null);
+      mutate();
     } catch (error) {
       console.error("Delete book error:", error);
       alert(error.response?.data?.message || "Error deleting book!");
@@ -243,6 +259,27 @@ export default function BookInventory() {
     }
   };
 
+  const handleQuickAddCategory = async () => {
+    if (!newCatName.trim()) return;
+    setIsSavingCat(true);
+    try {
+      // Gọi API thêm category (cần đảm bảo adminService.createCategory đã được khai báo)
+      const res = await adminService.createCategory({ name: newCatName.trim(), description: newCatDesc.trim() });
+      if (res.data?.success) {
+        const newCat = res.data.data;
+        setCategoryOptions(prev => [...prev, newCat]);
+        setForm(prev => ({ ...prev, categoryIds: [newCat.id] }));
+        setNewCatName('');
+        setNewCatDesc('');
+        setIsAddingCat(false);
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || "Error adding category!");
+    } finally {
+      setIsSavingCat(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#080d1a] text-slate-900 dark:text-slate-100 px-4 py-6 sm:px-6 lg:px-8 font-sans antialiased transition-colors duration-200 pb-24">
       <div className="mx-auto max-w-[1400px] space-y-6">
@@ -254,7 +291,7 @@ export default function BookInventory() {
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight mt-1">Book Inventory</h1>
             <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed flex items-center gap-2">
               <Layers size={14} className="text-indigo-500" />
-              Total of {books.length} books in system.
+              Total of {totalBooks} books in system.
             </p>
           </div>
           
@@ -282,7 +319,7 @@ export default function BookInventory() {
           </div>
 
           {/* Categories Horizontal Scrollbar */}
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x touch-pan-x">
+          <div className="flex gap-2 overflow-x-auto pb-2 snap-x touch-pan-x max-md:[scrollbar-width:none] max-md:[-ms-overflow-style:none] [&::-webkit-scrollbar]:max-md:hidden">
             <button
               onClick={() => setFilterCat('All')}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all snap-start ${
@@ -309,23 +346,23 @@ export default function BookInventory() {
           </div>
         </div>
 
-        {/* LOADING & EMPTY STATE */}
-        {loadingData ? (
+        {/* CHỈ SHOW LOADING TRÒN Ở LẦN ĐẦU TIÊN */}
+        {isInitialLoading ? (
           <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-[#0d1527]/40 rounded-3xl border border-slate-200 dark:border-slate-800/60">
             <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent mb-4" />
             <p className="text-slate-500 font-medium text-sm">Loading book inventory...</p>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : books.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-16 bg-white dark:bg-[#0d1527]/40 rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 text-center">
             <BookOpen size={48} strokeWidth={1} className="text-slate-300 dark:text-slate-600 mb-4" />
             <h3 className="text-slate-900 dark:text-white font-bold mb-1">No Books Found</h3>
             <p className="text-slate-500 dark:text-slate-400 text-sm max-w-sm">No books match your filters or search keywords.</p>
           </div>
         ) : (
-          <>
+          <div className={`transition-opacity duration-200 ${isValidating ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
             {/* VIEW MOBILE (BOOK CARDS) */}
             <div className="grid grid-cols-1 gap-4 sm:hidden">
-              {filtered.map(book => (
+              {books.map(book => (
                 <div key={book.id} className={`bg-white dark:bg-[#0d1527] rounded-2xl p-3 border border-slate-200 dark:border-slate-800/80 shadow-sm flex gap-3 transition-opacity ${book.hidden ? 'opacity-60 grayscale-[30%]' : ''}`}>
                   <div className="w-20 h-28 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 relative">
                     <img src={book.cover} alt={book.title} className="w-full h-full object-cover" loading="lazy" />
@@ -364,20 +401,21 @@ export default function BookInventory() {
             {/* VIEW DESKTOP (TABLE) */}
             <div className="hidden sm:block bg-white dark:bg-[#0d1527]/60 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[800px]">
+                <table className="w-full text-left border-collapse min-w-[800px] table-fixed">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#0a101f]/50 text-[11px] font-black text-slate-400 uppercase tracking-wider">
-                      <th className="py-4 px-6 w-20">Cover</th>
-                      <th className="py-4 px-6">Book Info</th>
-                      <th className="py-4 px-6">Author</th>
-                      <th className="py-4 px-6">Category</th>
-                      <th className="py-4 px-6 text-center">Stock</th>
-                      <th className="py-4 px-6 text-center">Status</th>
-                      <th className="py-4 px-6 text-right">Actions</th>
+                      <th className="py-4 px-6 w-[9%]">Cover</th>
+                      <th className="py-4 px-6 w-[16%]">Book Info</th>
+                      <th className="py-4 px-6 w-[16%]">Author</th>
+                      <th className="py-4 px-6 w-[16%]">Publisher</th>
+                      <th className="py-4 px-6 w-[12%]">Category</th>
+                      <th className="py-4 px-6 w-[11%] text-center">Stock</th>
+                      <th className="py-4 px-6 w-[8%] text-center">Status</th>
+                      <th className="py-4 px-6 w-[12%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
-                    {filtered.map(book => (
+                    {books.map(book => (
                       <tr key={book.id} className={`group hover:bg-slate-50/50 dark:hover:bg-[#10192e]/40 transition-colors ${book.hidden ? 'opacity-50 grayscale-[20%]' : ''}`}>
                         <td className="py-3 px-6">
                           <div className="w-11 h-14 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
@@ -395,6 +433,7 @@ export default function BookInventory() {
                           </div>
                         </td>
                         <td className="py-3 px-6 text-slate-600 dark:text-slate-300 font-medium truncate max-w-[150px]">{book.author}</td>
+                        <td className="py-3 px-6 text-slate-600 dark:text-slate-300 font-medium truncate max-w-[150px]">{book.publisher}</td>
                         <td className="py-3 px-6">
                           <span className="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400 text-xs font-bold px-2.5 py-1 rounded-lg truncate block w-fit max-w-[120px]">
                             {book.category}
@@ -422,7 +461,14 @@ export default function BookInventory() {
                 </table>
               </div>
             </div>
-          </>
+
+            {/* HIỂN THỊ COMPONENT PHÂN TRANG */}
+            <Pagination 
+              currentPage={currentPage} 
+              totalPages={totalPages} 
+              onPageChange={setCurrentPage} 
+            />
+          </div>
         )}
 
         {/* MODAL ADD / EDIT BOOK */}
@@ -527,16 +573,34 @@ export default function BookInventory() {
                   </div>
                 </div>
 
+                {/* Category */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-400">Category *</label>
-                  <div className="relative">
-                    <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                    <select required value={form.categoryIds?.[0] || ""} onChange={e => setForm(p => ({ ...p, categoryIds: [Number(e.target.value)] }))} className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-[#0a101f] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer">
-                      <option value="">Select Category</option>
-                      {categoryOptions.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
-                    </select>
-                    <ChevronDown size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <div className="flex justify-between items-center">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-400">Category *</label>
+                    {!isAddingCat ? (
+                      <button type="button" onClick={() => setIsAddingCat(true)} className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer">+ Add New</button>
+                    ) : (
+                      <button type="button" onClick={() => { setIsAddingCat(false); setNewCatName(''); setNewCatDesc(''); }} className="text-xs text-slate-500 font-bold hover:underline cursor-pointer">Cancel</button>
+                    )}
                   </div>
+                  {!isAddingCat ? (
+                    <div className="relative">
+                      <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                      <select required value={form.categoryIds?.[0] || ""} onChange={e => setForm(p => ({ ...p, categoryIds: [Number(e.target.value)] }))} className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl bg-slate-50 dark:bg-[#0a101f] border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer">
+                        <option value="">Select Category</option>
+                        {categoryOptions.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                      </select>
+                      <ChevronDown size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 p-3 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/50 dark:bg-indigo-900/10">
+                      <input type="text" autoFocus placeholder="Category Name *" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="w-full px-3 py-2 text-xs font-bold rounded-lg bg-white dark:bg-[#080d1a] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-indigo-500" />
+                      <input type="text" placeholder="Description (Optional)..." value={newCatDesc} onChange={(e) => setNewCatDesc(e.target.value)} className="w-full px-3 py-2 text-xs font-bold rounded-lg bg-white dark:bg-[#080d1a] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white outline-none focus:border-indigo-500" />
+                      <button type="button" disabled={isSavingCat || !newCatName.trim()} onClick={handleQuickAddCategory} className="w-full py-2 bg-indigo-600 text-white font-bold text-xs rounded-lg disabled:opacity-50">
+                        {isSavingCat ? 'Saving...' : 'Save Category'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

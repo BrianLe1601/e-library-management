@@ -10,21 +10,21 @@ import InputField from "../InputField";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const NOTIF_CONFIG = {
-  overdue:  { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",     label: "Quá hạn" },
-  approved: { icon: CheckCircle,   color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-900/50", label: "Duyệt mượn" },
-  returned: { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",         border: "border-sky-200 dark:border-sky-900/50",     label: "Trả sách" },
-  fine:     { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20",     border: "border-amber-200 dark:border-amber-900/50", label: "Phạt" },
-  system:   { icon: Info,          color: "text-indigo-500",  bg: "bg-indigo-50 dark:bg-indigo-950/20",   border: "border-indigo-200 dark:border-indigo-900/50", label: "Hệ thống" },
+  overdue:  { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",     label: "Overdue" },
+  approved: { icon: CheckCircle,   color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-900/50", label: "Approved" },
+  returned: { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",         border: "border-sky-200 dark:border-sky-900/50",     label: "Returned" },
+  fine:     { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20",     border: "border-amber-200 dark:border-amber-900/50", label: "Fine" },
+  system:   { icon: Info,          color: "text-indigo-500",  bg: "bg-indigo-50 dark:bg-indigo-950/20",   border: "border-indigo-200 dark:border-indigo-900/50", label: "System" },
 };
 
 const getSmartType = (type, title, message) => {
   if (["overdue", "approved", "returned", "fine"].includes(type)) return type;
   const text = ((title || "") + " " + (message || "")).toLowerCase();
-  if (text.includes("gia hạn")) return "system";
-  if (text.includes("quá hạn")) return "overdue";
-  if (text.includes("hoàn trả") || text.includes("đã trả") || text.includes("xác nhận trả")) return "returned";
-  if (text.includes("duyệt") || text.includes("mượn") || text.includes("thành công")) return "approved";
-  if (text.includes("phạt")) return "fine";
+  if (text.includes("extend") || text.includes("renew")) return "system";
+  if (text.includes("overdue")) return "overdue";
+  if (text.includes("return") || text.includes("returned")) return "returned";
+  if (text.includes("approve") || text.includes("borrow") || text.includes("success")) return "approved";
+  if (text.includes("fine") || text.includes("penalty")) return "fine";
   return "system";
 };
 
@@ -78,7 +78,7 @@ export const NotiCard = memo(({ item, isChecked, isSelected, onTap, onToggleChec
       <div className="flex-1 min-w-0 pr-4">
         <div className="flex items-center justify-between gap-2 mb-0.5">
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
-          <span className="text-[10px] text-slate-400 shrink-0">{new Date(item.created_at).toLocaleDateString("vi-VN")}</span>
+          <span className="text-[10px] text-slate-400 shrink-0">{new Date(item.created_at).toLocaleDateString("en-GB")}</span>
         </div>
         <h4 className={`text-xs leading-snug text-slate-900 dark:text-white truncate ${!item.is_read ? "font-black" : "font-medium"}`}>
           {item.title}
@@ -100,7 +100,7 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
     return (
       <div className="h-full border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center p-8 text-center text-slate-400 dark:text-slate-600 bg-slate-50/30 dark:bg-[#070c16]/30">
         <Bell size={32} className="stroke-[1.5] mb-2 text-slate-300 dark:text-slate-700 animate-pulse" />
-        <p className="text-xs font-medium">Chọn một thông báo để hiển thị nội dung chi tiết</p>
+        <p className="text-xs font-medium">Select a notification to view its details</p>
       </div>
     );
   }
@@ -130,7 +130,7 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
           {/* [FIX label] Nút này gọi handleSingleSoftDelete = archive, hiển thị "Xóa mềm" cho rõ */}
           <button
             onClick={() => onDelete(selectedNotif.id)}
-            title="Xóa mềm (có thể khôi phục)"
+            title="Soft delete (can be restored)"
             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl transition-all"
           >
             <Trash2 size={16} />
@@ -140,7 +140,7 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
 
       <div className="flex flex-col gap-2">
         <span className="text-xs text-slate-400 font-semibold">
-          Thời gian gửi: {new Date(selectedNotif.created_at).toLocaleString("vi-VN")}
+          Sent time: {new Date(selectedNotif.created_at).toLocaleString("en-GB")}
         </span>
         <h2 className="text-lg font-black text-slate-900 dark:text-white leading-tight">{selectedNotif.title}</h2>
         <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50/50 dark:bg-[#0d1425] p-4 rounded-xl border border-slate-100 dark:border-slate-800/50 whitespace-pre-wrap mt-2">
@@ -151,15 +151,15 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
       <div className="pt-4 border-t border-slate-50 dark:border-slate-900/60 flex flex-col gap-2.5 bg-slate-50/30 dark:bg-[#070c15]/30 p-3 rounded-xl text-xs">
         <div className="flex items-center gap-2">
           <Calendar size={14} className="text-slate-400" />
-          <span className="text-slate-400 font-medium w-20 shrink-0">Ngày tạo:</span>
-          <span className="text-slate-700 dark:text-slate-300 font-bold">{new Date(selectedNotif.created_at).toLocaleDateString("vi-VN")}</span>
+          <span className="text-slate-400 font-medium w-20 shrink-0">Created at:</span>
+          <span className="text-slate-700 dark:text-slate-300 font-bold">{new Date(selectedNotif.created_at).toLocaleDateString("en-GB")}</span>
         </div>
         <div className="flex items-center gap-2">
           <User size={14} className="text-slate-400" />
-          <span className="text-slate-400 font-medium w-20 shrink-0">Đối tượng:</span>
+          <span className="text-slate-400 font-medium w-20 shrink-0">Recipient:</span>
           <span className="text-slate-700 dark:text-slate-300 font-bold">
             {isPublic
-              ? "Tất cả người dùng"
+              ? "All users"
               : selectedNotif.user_name
                 ? `${selectedNotif.user_name} (ID: ${selectedNotif.user_id})`
                 : `User ID: ${selectedNotif.user_id}`}
@@ -168,14 +168,14 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
         {selectedNotif.borrow_id && (
           <div className="flex items-center gap-2">
             <Hash size={14} className="text-slate-400" />
-            <span className="text-slate-400 font-medium w-20 shrink-0">Phiếu mượn:</span>
+            <span className="text-slate-400 font-medium w-20 shrink-0">Borrow ID:</span>
             <span className="text-indigo-600 dark:text-indigo-400 font-bold">#{selectedNotif.borrow_id}</span>
           </div>
         )}
         {selectedNotif.book_id && (
           <div className="flex items-center gap-2">
             <BookOpen size={14} className="text-slate-400" />
-            <span className="text-slate-400 font-medium w-20 shrink-0">Mã sách:</span>
+            <span className="text-slate-400 font-medium w-20 shrink-0">Book ID:</span>
             <span className="text-indigo-600 dark:text-indigo-400 font-bold">#{selectedNotif.book_id}</span>
           </div>
         )}
@@ -186,7 +186,7 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
           onClick={handleNavigate}
           className="flex items-center justify-between w-full gap-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-5 py-3 text-xs font-black text-white shadow-md shadow-indigo-600/20 transition-all group mt-auto"
         >
-          <span>{selectedNotif.borrow_id ? "Đến quản lý Phiếu mượn" : "Đến Kho sách"}</span>
+          <span>{selectedNotif.borrow_id ? "Go to Borrow Management" : "Go to Book Inventory"}</span>
           <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
         </button>
       )}
@@ -197,12 +197,12 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
 // ─── 4. ComposeModal ──────────────────────────────────────────────────────────
 /**
  * [FIX] Các vấn đề cũ:
- *  1. Form không reset sau submit — form tưởng đóng nhưng state còn dữ liệu cũ
- *  2. onSubmit callback nhận resetForm nhưng không gọi đúng
- *  3. scope='all' cần gửi cho cả admin_employee (xử lý ở backend đã đúng, 
- *     chỉ cần đảm bảo payload gửi đúng scope)
- *  4. scope='users_only' → user_id phải là null
- *  5. borrow_id / book_id bỏ trống → gửi null thay vì "" (tránh lỗi FK)
+ * 1. Form không reset sau submit — form tưởng đóng nhưng state còn dữ liệu cũ
+ * 2. onSubmit callback nhận resetForm nhưng không gọi đúng
+ * 3. scope='all' cần gửi cho cả admin_employee (xử lý ở backend đã đúng, 
+ * chỉ cần đảm bảo payload gửi đúng scope)
+ * 4. scope='users_only' → user_id phải là null
+ * 5. borrow_id / book_id bỏ trống → gửi null thay vì "" (tránh lỗi FK)
  */
 export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmitting }) => {
   const [formData, setFormData] = useState(INITIAL_FORM);
@@ -226,9 +226,9 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
   // Validate nội bộ trước khi submit
   const validate = () => {
     const e = {};
-    if (!formData.title.trim())   e.title   = "Vui lòng nhập tiêu đề";
-    if (!formData.message.trim()) e.message = "Vui lòng nhập nội dung";
-    if (formData.scope === "user" && !formData.user_id) e.user_id = "Vui lòng chọn người nhận";
+    if (!formData.title.trim())   e.title   = "Please enter a title";
+    if (!formData.message.trim()) e.message = "Please enter a message";
+    if (formData.scope === "user" && !formData.user_id) e.user_id = "Please select a recipient";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -250,8 +250,9 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
     onClose();
   };
 
-  // Lọc danh sách user: khi scope=user chỉ cho chọn role=user
-  const filteredUsers = userList.filter(u => u.role === "user");
+  // Lọc danh sách user: Kiểm tra an toàn xem userList có phải là mảng không trước khi filter
+  const safeUserList = Array.isArray(userList) ? userList : [];
+  const filteredUsers = safeUserList.filter(u => u.role === "user");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -260,8 +261,8 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#0b1222]">
           <div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white">Phát hành thông báo mới</h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">Tạo thông báo gửi đến toàn hệ thống, nhóm độc giả hoặc cá nhân</p>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Publish New Notification</h3>
+            <p className="text-[10px] text-slate-400 mt-0.5">Create a notification for the entire system, a user group, or an individual</p>
           </div>
           <button onClick={handleClose} className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <X size={16} className="text-slate-400" />
@@ -272,7 +273,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
 
           {/* ── Scope ── */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đối tượng nhận</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recipient Scope</label>
             <div className="flex gap-2">
               {/* Toàn hệ thống */}
               <button
@@ -286,7 +287,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
               >
                 <Globe size={15} className="text-indigo-500" />
                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 text-center leading-tight">
-                  Toàn hệ thống
+                  Entire System
                 </span>
                 <span className="text-[9px] text-slate-400 text-center leading-tight">Admin + User</span>
               </button>
@@ -303,7 +304,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
               >
                 <Users size={15} className="text-indigo-500" />
                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 text-center leading-tight">
-                  Chỉ độc giả
+                  Users Only
                 </span>
                 <span className="text-[9px] text-slate-400 text-center leading-tight">role = user</span>
               </button>
@@ -320,9 +321,9 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
               >
                 <User size={15} className="text-indigo-500" />
                 <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 text-center leading-tight">
-                  Cá nhân
+                  Individual
                 </span>
-                <span className="text-[9px] text-slate-400 text-center leading-tight">1 người dùng</span>
+                <span className="text-[9px] text-slate-400 text-center leading-tight">1 user</span>
               </button>
             </div>
           </div>
@@ -331,7 +332,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
           {formData.scope === "user" && (
             <div className="flex flex-col gap-1.5 animate-in fade-in duration-150">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Chọn người nhận <span className="text-red-400">*</span>
+                Select recipient <span className="text-red-400">*</span>
               </label>
               <div className="relative">
                 <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
@@ -342,7 +343,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
                     errors.user_id ? "border-red-400" : "border-slate-200 dark:border-slate-800"
                   }`}
                 >
-                  <option value="">-- Chọn tài khoản --</option>
+                  <option value="">-- Select account --</option>
                   {filteredUsers.map(u => (
                     <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
                   ))}
@@ -355,7 +356,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
 
           {/* ── Loại thông báo ── */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phân loại</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Category</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {Object.entries(NOTIF_CONFIG).map(([key, opt]) => (
                 <button
@@ -380,8 +381,8 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
           {/* ── Tiêu đề ── */}
           <InputField 
             name="title" 
-            label="Tiêu đề *" 
-            placeholder="Nhập tiêu đề thông báo..." 
+            label="Title *" 
+            placeholder="Enter notification title..." 
             icon={PenTool} 
             value={formData.title} 
             onChange={(e) => set("title", e.target.value)} 
@@ -391,13 +392,13 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
           {/* ── Nội dung ── */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Nội dung <span className="text-red-400">*</span>
+              Message <span className="text-red-400">*</span>
             </label>
             <div className="relative">
               <FileText size={15} className="absolute left-3.5 top-2.5 text-slate-400 z-10" />
               <textarea
                 rows={4}
-                placeholder="Chi tiết thông điệp muốn gửi..."
+                placeholder="Message details..."
                 value={formData.message}
                 onChange={e => set("message", e.target.value)}
                 maxLength={500}
@@ -416,9 +417,9 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
           <div className="grid grid-cols-2 gap-3 bg-slate-50/50 dark:bg-[#070c16]/30 p-3 rounded-xl border border-slate-100 dark:border-slate-800/40">
             <InputField 
               name="borrow_id" 
-              label="Mã phiếu mượn (Tùy chọn)" 
+              label="Borrow ID (Optional)" 
               type="text"
-              placeholder="VD: 201" 
+              placeholder="e.g., 201" 
               icon={Hash} 
               value={formData.borrow_id} 
               onChange={(e) =>{ 
@@ -429,9 +430,9 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
             />
             <InputField 
               name="book_id" 
-              label="Mã sách (Tùy chọn)" 
+              label="Book ID (Optional)" 
               type="text"
-              placeholder="VD: 89" 
+              placeholder="e.g., 89" 
               icon={BookOpen} 
               value={formData.book_id} 
               onChange={(e) => {
@@ -450,7 +451,7 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
               onClick={handleClose}
               className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#080d1a] px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
             >
-              Hủy
+              Cancel
             </button>
             <button
               type="submit"
@@ -458,8 +459,8 @@ export const ComposeModal = memo(({ isOpen, onClose, userList, onSubmit, isSubmi
               className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-5 py-2 text-xs font-black text-white shadow-md shadow-indigo-600/20 transition disabled:opacity-50"
             >
               {isSubmitting
-                ? <><Loader2 size={13} className="animate-spin" /> Đang gửi...</>
-                : <><Bell size={13} /> Phát hành ngay</>}
+                ? <><Loader2 size={13} className="animate-spin" /> Sending...</>
+                : <><Bell size={13} /> Publish Now</>}
             </button>
           </div>
         </form>
@@ -480,11 +481,11 @@ export const MobileNotificationHeader = memo(({
           <button onClick={onCancelSelect} className="text-slate-400 active:text-white transition-colors">
             <X size={20} />
           </button>
-          <span className="text-sm font-black text-white">{selectedCount} đã chọn</span>
+          <span className="text-sm font-black text-white">{selectedCount} selected</span>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <h1 className="text-base font-black text-white">Thông báo</h1>
+          <h1 className="text-base font-black text-white">Notifications</h1>
           {/* Badge tổng số thông báo của admin */}
           {totalCount > 0 && (
             <span className="text-[10px] bg-slate-700 text-slate-300 font-black px-1.5 py-0.5 rounded-full">
@@ -494,7 +495,7 @@ export const MobileNotificationHeader = memo(({
           {/* Badge chưa đọc */}
           {unreadCount > 0 && (
             <span className="text-[10px] bg-indigo-600 text-white font-black px-1.5 py-0.5 rounded-full">
-              {unreadCount} mới
+              {unreadCount} new
             </span>
           )}
         </div>
@@ -534,7 +535,7 @@ export const MobileNotificationFilters = memo(({ searchQuery, filter, onSearch, 
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
-            placeholder="Tìm kiếm tiêu đề, nội dung..."
+            placeholder="Search titles, messages..."
             value={searchQuery}
             onChange={e => onSearch(e.target.value)}
             className="w-full pl-9 pr-9 py-1.5 bg-white/[0.05] border border-white/[0.08] rounded-2xl text-[13px] text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-all"
@@ -548,10 +549,10 @@ export const MobileNotificationFilters = memo(({ searchQuery, filter, onSearch, 
       </div>
       <div className="flex items-center gap-2 px-4 pb-2.5 overflow-x-auto scrollbar-none">
         {[
-          { key: "all",    label: "Tất cả" },
-          { key: "unread", label: "Chưa đọc" },
-          { key: "overdue",label: "Quá hạn" },
-          { key: "system", label: "Hệ thống" },
+          { key: "all",    label: "All" },
+          { key: "unread", label: "Unread" },
+          { key: "overdue",label: "Alerts" },
+          { key: "system", label: "Activity" },
         ].map(lbl => (
           <button
             key={lbl.key}
@@ -601,7 +602,7 @@ export const NotificationCardMobile = memo(({ item, isChecked, isSelectionMode, 
         <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2 mb-1.5">{item.message}</p>
         <div className="flex items-center gap-2 text-[10px]">
           <span className="text-slate-600 tabular-nums">
-            {new Date(item.created_at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+            {new Date(item.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
           </span>
           <span className="text-slate-700">·</span>
           <span className={`font-bold px-1.5 py-0.5 rounded-md ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
@@ -650,9 +651,9 @@ export const MobileNotificationList = memo(({
         <div className="w-14 h-14 rounded-full bg-white/[0.02] border border-white/[0.05] flex items-center justify-center mb-3">
           <Bell size={22} className="text-slate-600" />
         </div>
-        <p className="text-sm font-bold text-slate-300">Không có thông báo</p>
+        <p className="text-sm font-bold text-slate-300"></p>
         <p className="text-[11px] text-slate-500 mt-1">
-          {searchQuery ? `Không tìm thấy từ khóa "${searchQuery}"` : "Hộp thư rỗng"}
+          {searchQuery ? `Cannot find any notifications matching "${searchQuery}"` : "You don't have any notifications yet."}
         </p>
       </div>
     );
@@ -678,14 +679,14 @@ export const MobileNotificationList = memo(({
       {loadingMore && (
         <div className="flex items-center justify-center py-4 gap-2">
           <Loader2 size={16} className="animate-spin text-indigo-500" />
-          <span className="text-[11px] text-slate-500">Đang tải thêm...</span>
+          <span className="text-[11px] text-slate-500">Loading...</span>
         </div>
       )}
 
       {/* End of list */}
       {!hasMore && notifications.length > 0 && (
         <div className="text-center py-4 text-[10px] text-slate-600 font-medium">
-          ✓ Đã hiển thị tất cả {notifications.length} thông báo
+          ✓ You've seen all {notifications.length} notifications
         </div>
       )}
     </div>
@@ -706,8 +707,8 @@ export const BulkActionBarMobile = memo(({ selectedCount, visible, onMarkRead, o
       >
         <div className="mx-3 mb-3 bg-[#111827] border border-white/[0.08] shadow-2xl rounded-3xl p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-            <span className="text-[12px] font-black text-slate-300">Thao tác hàng loạt</span>
-            <span className="text-[11px] text-indigo-400 font-black">{selectedCount} mục đã chọn</span>
+            <span className="text-[12px] font-black text-slate-300">Bulk Actions</span>
+            <span className="text-[11px] text-indigo-400 font-black">{selectedCount} selected</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -717,7 +718,7 @@ export const BulkActionBarMobile = memo(({ selectedCount, visible, onMarkRead, o
               <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
                 <Check size={18} className="text-indigo-400" />
               </div>
-              <span className="text-[11px] font-bold text-slate-400 text-center">Đánh dấu đọc</span>
+              <span className="text-[11px] font-bold text-slate-400 text-center">Mark as read</span>
             </button>
             
             <button
@@ -727,7 +728,7 @@ export const BulkActionBarMobile = memo(({ selectedCount, visible, onMarkRead, o
               <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
                 <Trash2 size={18} className="text-amber-400" />
               </div>
-              <span className="text-[11px] font-bold text-amber-400 text-center">Xóa mềm (Lưu trữ)</span>
+              <span className="text-[11px] font-bold text-amber-400 text-center">Delete</span>
             </button>
           </div>
         </div>

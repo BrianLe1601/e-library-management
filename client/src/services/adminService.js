@@ -7,6 +7,7 @@
  *  - Nếu TV1 chưa xong interceptor, dùng getAuthHeader() tạm thời
  */
 
+import { create } from 'axios';
 import api from './api';
 
 const adminService = {
@@ -29,7 +30,7 @@ const adminService = {
   toggleHideBook   : (id)          => api.patch(`/admin/books/${id}/toggle-hide`),
   createAuthor     : (data)        => api.post('/admin/authors', data),
   createPublisher  : (data)        => api.post('/admin/publishers', data),
-
+  createCategory   : (data)        => api.post('/admin/categories', data),
 
 // ─────────────────────────────────────────────────────────────
 //  USER MANAGEMENT — Quản lý người dùng
