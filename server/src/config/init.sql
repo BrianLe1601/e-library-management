@@ -121,14 +121,16 @@ CREATE TABLE reviews (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id     INT UNSIGNED NOT NULL,
     book_id     INT UNSIGNED NOT NULL,
+    borrow_id   INT UNSIGNED DEFAULT NULL ,
     rating      TINYINT UNSIGNED NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment     TEXT DEFAULT NULL,
     is_visible  TINYINT(1) NOT NULL DEFAULT 1,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_user_book (user_id, book_id),
+    UNIQUE KEY uq_user_borrow (user_id, borrow_id),
     CONSTRAINT fk_review_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_review_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    CONSTRAINT fk_review_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    CONSTRAINT fk_review_borrow FOREIGN KEY (borrow_id) REFERENCES borrows(id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -245,6 +247,8 @@ INSERT INTO borrows (user_id, book_id, handled_by, borrow_date, due_date, status
 (4, 10, 3, '2026-05-16', '2026-05-30', 'borrowing'),
 (5, 12, 2, '2026-05-17', '2026-05-31', 'borrowing');
 
-INSERT INTO reviews (user_id, book_id, rating, comment) VALUES
-(4, 1, 5, 'Rất hay'), (5, 1, 4, 'Kết buồn'), (6, 2, 5, 'Tuyệt vời'), 
-(4, 4, 5, 'Bổ ích'), (5, 5, 4, 'Sâu sắc'), (6, 6, 5, 'Kinh điển');
+
+
+INSERT INTO reviews (user_id, book_id, borrow_id, rating, comment) VALUES
+(4, 1, 1, 5, 'Rất hay'), (5, 1, 2, 4, 'Kết buồn'), (6, 2, 3, 5, 'Tuyệt vời'), 
+(4, 4, 4, 5, 'Bổ ích'), (5, 5, 5, 4, 'Sâu sắc'), (6, 6, 6, 5, 'Kinh điển');
