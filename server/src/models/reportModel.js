@@ -16,6 +16,12 @@ const getStats = async () => {
   const [[{ activeBorrows }]] = await db.query(
     `SELECT COUNT(*) AS activeBorrows FROM borrows WHERE status IN ('borrowing','renewed','overdue')`
   );
+  const [[{ pendingBorrows }]] = await db.query(
+    `SELECT COUNT(*) AS pendingBorrows FROM borrows WHERE status = 'pending'`
+  );
+  const [[{ overdueBorrows }]] = await db.query(
+    `SELECT COUNT(*) AS overdueBorrows FROM borrows WHERE status = 'overdue'`
+  );
   const [[{ newUsersThisMonth }]] = await db.query(
     `SELECT COUNT(*) AS newUsersThisMonth FROM users
      WHERE YEAR(created_at) = YEAR(CURRENT_DATE) AND MONTH(created_at) = MONTH(CURRENT_DATE) AND role = 'user'`
@@ -35,6 +41,8 @@ const getStats = async () => {
     totalUsers:        Number(totalUsers),
     totalFine:         Number(totalFine),
     unpaidFine:        Number(unpaidFine),
+    pendingBorrows:    Number(pendingBorrows),
+    overdueBorrows:    Number(overdueBorrows),
   };
 };
 

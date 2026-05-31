@@ -461,7 +461,7 @@ export function HistoryView() {
     setRatings(prev => ({ ...prev, [borrowId]: newRating }));
     setRatingTarget(null);
     try {
-      await reviewService.submitRating({ book_id: bookId, rating: newRating });
+      await reviewService.submitRating({ book_id: bookId, borrow_id: borrowId, rating: newRating });
       showToast("Rating saved!");
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to save rating", "error");
