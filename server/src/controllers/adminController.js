@@ -598,6 +598,40 @@ exports.createNotificationApi = async (req, res) => {
   }
 };
 
+exports.getBorrowChart = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const db   = require('../config/db');
+
+    const [rows] = await db.query(`
+      SELECT
+        MONTH(borrow_date) AS month,
+        COUNT(*) AS borrows,
+        SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returns
+      FROM borrows
+      WHERE YEAR(borrow_date) = ?
+      GROUP BY MONTH(borrow_date)
+      ORDER BY month ASC
+    `, [year]);
+
+    // Fill tháng thiếu với 0
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const chart  = MONTHS.map((name, i) => {
+      const found = rows.find(r => r.month === i + 1);
+      return {
+        month:   name,
+        borrows: Number(found?.borrows) || 0,
+        returns: Number(found?.returns) || 0,
+      };
+    });
+
+    return res.json({ success: true, data: chart });
+  } catch (err) {
+    console.error('[getBorrowChart]', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // ── Borrow admin endpoints (re-export từ borrowController – TV3) ──────────────
 exports.getAllBorrows  = borrowCtrl.getAllBorrows;
 exports.getOverdue    = borrowCtrl.getOverdue;

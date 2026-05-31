@@ -37,6 +37,7 @@ router.get('/stats',                authorize('admin', 'employee'), adminControl
 router.get('/reports',              authorize('admin', 'employee'), adminController.getReports);
 router.get('/reports/top-books',    authorize('admin', 'employee'), adminController.getTopBooks);
 router.get('/reports/export',       authorize('admin', 'employee'), adminController.exportReport);
+router.get('/reports/borrow-chart', authorize('admin', 'employee'), adminController.getBorrowChart);
 
 // ── User management (admin only) ──────────────────────────────────────────────
 router.get   ('/users',             authorize('admin', 'employee'), adminController.getUsers);
