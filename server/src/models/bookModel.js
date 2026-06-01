@@ -53,6 +53,10 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     conditions.push('b.available_copies = 0');
   }
 
+  if (sort === 'featured') {
+    conditions.push('b.available_copies > 0');
+  }
+
   if (!includeHidden) {
     conditions.push('b.is_hidden = 0');
   }
