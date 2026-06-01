@@ -64,8 +64,8 @@ startCronJobs();
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`E-Library API  →  http://localhost:${PORT}`);
-  console.log(`ENV: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`E-Library API running on port ${PORT}`);
+  console.log(`ENV: ${process.env.NODE_ENV}`);
 });
 
 module.exports = app;
