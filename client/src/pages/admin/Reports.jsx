@@ -281,54 +281,90 @@ export default function Reports() {
 
   const handleApply = () => { fetchSummary(); fetchCategory(); fetchDetail(1); };
 
+  // Hàm hỗ trợ chuyển đổi ArrayBuffer của file font sang Base64
+const arrayBufferToBase64 = (buffer) => {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+};
+
   // ── Export PDF ──────────────────────────────────────────────────────────────
   const handleExportPDF = async () => {
     setExporting('pdf');
     try {
-      // Lấy toàn bộ data (không phân trang)
-      const res  = await adminService.getReports(dateFrom, dateTo, statusFilter);
-      const data = res?.data;
-      const rows = data?.data?.rows ?? data?.rows ?? (Array.isArray(data?.data) ? data.data : []);
+      // 1. Tải thư viện và khởi tạo
+      const jsPDF = await getJsPDF();
+      // QUAN TRỌNG: Thêm tham số 'landscape' để quay ngang tờ giấy A4, vì 12 cột rất dài
+      const doc = new jsPDF('landscape'); 
 
-      // Load jsPDF qua script tag rồi đọc từ window
-      const JsPDF = await getJsPDF();
-      if (!JsPDF) throw new Error('jsPDF not available on window');
-
-      const doc = new JsPDF({ orientation: 'landscape' });
+      // 2. Tạo tiêu đề báo cáo
       doc.setFontSize(16);
-      doc.setTextColor(99, 102, 241);
-      doc.text('Borrow Records Report', 14, 16);
-      doc.setFontSize(9);
+      doc.setFont(undefined, 'bold');
+      doc.text("LIBRARY STATISTIC REPORT", 14, 22); 
+      
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
       doc.setTextColor(100);
-      doc.text(`Period: ${dateFrom} - ${dateTo}   |   Generated: ${new Date().toLocaleString('en-GB')}   |   Total: ${rows.length} records`, 14, 23);
+      doc.text(`Period: ${dateFrom} to ${dateTo}`, 14, 30);
 
+      // 3. CHUẨN BỊ DỮ LIỆU ĐỘNG TỪ API
+      const tableColumn = [
+        '#', 
+        'Reader Name', 
+        'Email', 
+        'Book Title', 
+        'Borrow Date', 
+        'Due Date', 
+        'Return Date', 
+        'Status', 
+        'Renewals', 
+        'Fine (VND)', 
+        'Paid', 
+        'Handled By'
+      ];
+
+      // Map đúng thứ tự 12 cột như tableColumn
+      const tableRows = detailRows.map(r => [
+        r.id,
+        viToAscii(r.user_name || ''),
+        r.email || '',
+        viToAscii(r.book_title || ''),
+        fmtDate(r.borrow_date),
+        fmtDate(r.due_date),
+        fmtDate(r.return_date),
+        viToAscii(STATUS_META[r.status]?.label || r.status),
+        r.renewed_count || 0,
+        r.fine_amount ? fmt(r.fine_amount) : '0',
+        r.fine_amount > 0 ? (r.fine_paid ? 'Yes' : 'No') : '-',
+        viToAscii(r.handled_by || '-')
+      ]);
+
+      // 4. Vẽ bảng
       doc.autoTable({
-        startY: 28,
-        head: [['#', 'Reader', 'Email', 'Book Title', 'Borrow Date', 'Due Date', 'Return Date', 'Status', 'Renewals', 'Fine', 'Paid', 'Handled By']],
-        body: rows.map(r => [
-          r.id,
-          r.user_name,
-          r.email,
-          r.book_title,
-          fmtDate(r.borrow_date),
-          fmtDate(r.due_date),
-          fmtDate(r.return_date),
-          STATUS_META[r.status]?.label || r.status,
-          r.renewed_count || 0,
-          r.fine_amount > 0 ? `${r.fine_amount}d` : '-',
-          r.fine_amount > 0 ? (r.fine_paid ? 'Yes' : 'No') : '-',
-          r.handled_by || '-',
-        ]),
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [99, 102, 241], textColor: 255, fontSize: 7 },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 26 }, 2: { cellWidth: 36 }, 3: { cellWidth: 40 } },
+        startY: 36,
+        head: [tableColumn],
+        body: tableRows,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak'
+        },
+        headStyles: {
+          fillColor: [79, 70, 229],
+          textColor: 255,
+          fontStyle: 'bold',
+        }
       });
 
-      doc.save(`borrow-report_${dateFrom}_${dateTo}.pdf`);
-    } catch (e) {
-      console.error('[exportPDF]', e);
-      alert(`Export PDF failed: ${e.message}`);
+      doc.save(`Report_${dateFrom}_${dateTo}.pdf`);
+
+    } catch (error) {
+      console.error("Error when exporting PDF:", error);
+      alert("Failed to export PDF. Please try again.");
     } finally {
       setExporting(null);
     }
@@ -390,7 +426,7 @@ export default function Reports() {
         XLSX.utils.book_append_sheet(wb, ws3, 'Summary');
       }
 
-      XLSX.writeFile(wb, `borrow-report_${dateFrom}_${dateTo}.xlsx`);
+      XLSX.writeFile(wb, `Report_${dateFrom}_${dateTo}.xlsx`);
     } catch (e) {
       console.error('[exportExcel]', e);
       alert(`Export Excel failed: ${e.message}`);
