@@ -46,7 +46,7 @@ const getStats = async () => {
   };
 };
 
-// ── Báo cáo mượn trả ─────────────────────────────────────────────────────────
+// ── Báo cáo mượn trả (có filter ngày + status) ──────────────────────────────
 const getReports = async ({ from, to, type, page = 1, limit = 20 }) => {
   const conds  = [];
   const params = [];
@@ -75,12 +75,12 @@ const getReports = async ({ from, to, type, page = 1, limit = 20 }) => {
   return { rows, total: Number(total) };
 };
 
-// ── Top sách được mượn nhiều ──────────────────────────────────────────────────
+// ── Top sách được mượn nhiều ─────────────────────────────────────────────────
 const getTopBooks = async (limit = 10) => {
   const [rows] = await db.query(
     `SELECT bk.id, bk.title, bk.cover_url,
             a.name AS author,
-            COUNT(b.id)           AS borrow_count,
+            COUNT(b.id)                AS borrow_count,
             COALESCE(AVG(r.rating), 0) AS avg_rating
      FROM books bk
      LEFT JOIN borrows b ON b.book_id = bk.id
@@ -94,4 +94,110 @@ const getTopBooks = async (limit = 10) => {
   return rows;
 };
 
-module.exports = { getStats, getReports, getTopBooks };
+// ── [MỚI] Thống kê tổng hợp cho trang Reports ───────────────────────────────
+// Trả về: totalBorrows, totalReturns, totalNewUsers, totalFinesCollected
+// Có thể lọc theo khoảng ngày
+const getReportSummary = async ({ from, to }) => {
+  const dateConds  = [];
+  const dateParams = [];
+  if (from) { dateConds.push('borrow_date >= ?'); dateParams.push(from); }
+  if (to)   { dateConds.push('borrow_date <= ?'); dateParams.push(to);   }
+  const whereDate = dateConds.length ? `WHERE ${dateConds.join(' AND ')}` : '';
+
+  const [[borrowStats]] = await db.query(
+    `SELECT
+       COUNT(*) AS totalBorrows,
+       SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS totalReturns,
+       COALESCE(SUM(CASE WHEN fine_paid = 1 THEN fine_amount ELSE 0 END), 0) AS totalFinesCollected
+     FROM borrows
+     ${whereDate}`,
+    dateParams
+  );
+
+  // New users: lọc theo ngày tạo (dùng created_at) trong cùng khoảng
+  const userConds  = ["role = 'user'"];
+  const userParams = [];
+  if (from) { userConds.push('created_at >= ?'); userParams.push(from); }
+  if (to)   { userConds.push('created_at <= ?'); userParams.push(to + ' 23:59:59'); }
+
+  const [[{ totalNewUsers }]] = await db.query(
+    `SELECT COUNT(*) AS totalNewUsers FROM users WHERE ${userConds.join(' AND ')}`,
+    userParams
+  );
+
+  return {
+    totalBorrows:        Number(borrowStats.totalBorrows)        || 0,
+    totalReturns:        Number(borrowStats.totalReturns)        || 0,
+    totalFinesCollected: Number(borrowStats.totalFinesCollected) || 0,
+    totalNewUsers:       Number(totalNewUsers)                   || 0,
+  };
+};
+
+// ── [MỚI] Biểu đồ lượt mượn/trả theo tháng ─────────────────────────────────
+// Trả về 12 tháng của năm, điền 0 cho tháng không có dữ liệu
+const getBorrowChart = async (year) => {
+  const [rows] = await db.query(
+    `SELECT
+       MONTH(borrow_date) AS month,
+       COUNT(*) AS borrows,
+       SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returns,
+       COUNT(DISTINCT user_id) AS uniqueUsers
+     FROM borrows
+     WHERE YEAR(borrow_date) = ?
+     GROUP BY MONTH(borrow_date)
+     ORDER BY month ASC`,
+    [Number(year)]
+  );
+
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MONTHS.map((name, i) => {
+    const found = rows.find(r => Number(r.month) === i + 1);
+    return {
+      month:       `${name} ${year}`,
+      borrows:     Number(found?.borrows)     || 0,
+      returns:     Number(found?.returns)     || 0,
+      uniqueUsers: Number(found?.uniqueUsers) || 0,
+    };
+  });
+};
+
+// ── [MỚI] Thống kê theo danh mục sách ───────────────────────────────────────
+// Trả về mỗi category: tổng mượn, tổng trả, tổng quá hạn
+const getCategoryReport = async ({ from, to }) => {
+  const dateConds  = [];
+  const dateParams = [];
+  if (from) { dateConds.push('b.borrow_date >= ?'); dateParams.push(from); }
+  if (to)   { dateConds.push('b.borrow_date <= ?'); dateParams.push(to);   }
+  const whereDate = dateConds.length ? `AND ${dateConds.join(' AND ')}` : '';
+
+  const [rows] = await db.query(
+    `SELECT
+       c.name AS category,
+       COUNT(b.id) AS borrowed,
+       SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END) AS returned,
+       SUM(CASE WHEN b.status IN ('overdue') THEN 1 ELSE 0 END) AS overdue
+     FROM categories c
+     LEFT JOIN book_categories bc ON bc.category_id = c.id
+     LEFT JOIN books bk            ON bk.id = bc.book_id
+     LEFT JOIN borrows b            ON b.book_id = bk.id ${whereDate}
+     GROUP BY c.id, c.name
+     ORDER BY borrowed DESC`,
+    dateParams
+  );
+
+  return rows.map(r => ({
+    category: r.category,
+    borrowed: Number(r.borrowed) || 0,
+    returned: Number(r.returned) || 0,
+    overdue:  Number(r.overdue)  || 0,
+  }));
+};
+
+module.exports = {
+  getStats,
+  getReports,
+  getTopBooks,
+  getReportSummary,
+  getBorrowChart,
+  getCategoryReport,
+};
