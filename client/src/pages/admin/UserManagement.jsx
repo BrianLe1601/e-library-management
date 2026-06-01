@@ -18,8 +18,9 @@ const avatarColors = [
 ];
 
 const statusConfig = {
-  active: { label: 'Active', className: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' },
-  banned: { label: 'Locked', className: 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20' },
+  active:  { label: 'Active',  dot: 'bg-emerald-500 animate-pulse', className: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' },
+  banned:  { label: 'Locked',  dot: 'bg-rose-500',                  className: 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20' },
+  pending: { label: 'Pending', dot: 'bg-amber-400',                  className: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20' },
 };
 
 export default function UserManagement() {
@@ -52,7 +53,7 @@ export default function UserManagement() {
     limit: itemsPerPage,
     search: debouncedSearch,
     role: filterRole === "All" ? "" : filterRole.toLowerCase(),
-    status: filterStatus === "All" ? "" : filterStatus === "Locked" ? "banned" : "active"
+    status: filterStatus === "All" ? "" : filterStatus === "Locked" ? "banned" : filterStatus === "Pending" ? "pending" : "active"
   }), [currentPage, debouncedSearch, filterRole, filterStatus]);
 
   // 3. Gọi API với useSWR
@@ -283,7 +284,7 @@ export default function UserManagement() {
             <div className="w-full h-px sm:w-px sm:h-6 bg-slate-200 dark:bg-slate-800 hidden sm:block shrink-0" />
 
             <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-none snap-x touch-pan-x w-full sm:w-auto">
-              {["All", "Active", "Locked"].map((s) => (
+              {["All", "Active", "Pending", "Locked"].map((s) => (
                 <button key={s} onClick={() => setFilterStatus(s)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all snap-start ${
                     filterStatus === s 
@@ -317,10 +318,11 @@ export default function UserManagement() {
               {usersData.map((user, idx) => {
                 const colorGradient = avatarColors[idx % avatarColors.length];
                 const isBanned = user.status === "banned";
-                const statusData = statusConfig[isBanned ? 'banned' : 'active'];
+                const isPending = user.status === "pending";
+                const statusData = statusConfig[user.status] || statusConfig.active;
 
                 return (
-                  <div key={user.id} className={`bg-white dark:bg-[#0d1527] rounded-2xl p-4 border border-slate-200 dark:border-slate-800/80 shadow-sm flex flex-col gap-3 transition-opacity ${isBanned ? 'opacity-60 grayscale-[20%]' : ''}`}>
+                  <div key={user.id} className={`bg-white dark:bg-[#0d1527] rounded-2xl p-4 border border-slate-200 dark:border-slate-800/80 shadow-sm flex flex-col gap-3 transition-opacity ${isBanned ? 'opacity-60 grayscale-[20%]' : isPending ? 'opacity-75' : ''}`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${colorGradient} flex items-center justify-center text-white text-sm font-black shrink-0 shadow-md`}>
                         {user.full_name ? user.full_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() : <User size={18} />}
@@ -357,7 +359,7 @@ export default function UserManagement() {
                         </select>
 
                         <span className={`inline-flex w-fit items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${statusData.className}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${isBanned ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} />
+                          <span className={`h-1.5 w-1.5 rounded-full ${statusData.dot}`} />
                           {statusData.label}
                         </span>
                       </div>
@@ -367,13 +369,13 @@ export default function UserManagement() {
                         <button 
                           onClick={() => toggleLock(user.id)}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
-                            isBanned 
+                            isBanned || isPending
                               ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" 
                               : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
                           }`}
                         >
-                          {isBanned ? <Unlock size={12} /> : <Lock size={12} />}
-                          {isBanned ? 'Unlock' : 'Lock'}
+                          {isBanned || isPending ? <Unlock size={12} /> : <Lock size={12} />}
+                          {isBanned ? 'Unlock' : isPending ? 'Activate' : 'Lock'}
                         </button>
                       </div>
                     </div>
@@ -400,10 +402,11 @@ export default function UserManagement() {
                     {usersData.map((user, idx) => {
                       const colorGradient = avatarColors[idx % avatarColors.length];
                       const isBanned = user.status === "banned";
-                      const statusData = statusConfig[isBanned ? 'banned' : 'active'];
+                      const isPending = user.status === "pending";
+                      const statusData = statusConfig[user.status] || statusConfig.active;
                       
                       return (
-                        <tr key={user.id} className={`group hover:bg-slate-50/50 dark:hover:bg-[#10192e]/40 transition-colors ${isBanned ? 'opacity-60 grayscale-[20%]' : ''}`}>
+                        <tr key={user.id} className={`group hover:bg-slate-50/50 dark:hover:bg-[#10192e]/40 transition-colors ${isBanned ? 'opacity-60 grayscale-[20%]' : isPending ? 'opacity-75' : ''}`}>
                           <td className="py-3 px-6">
                             <div className="flex items-center gap-3">
                               <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${colorGradient} flex items-center justify-center font-black text-white text-xs shadow-md shrink-0`}>
@@ -444,7 +447,7 @@ export default function UserManagement() {
 
                           <td className="py-3 px-6 text-center">
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${statusData.className}`}>
-                              <span className={`h-1.5 w-1.5 rounded-full ${isBanned ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} /> 
+                              <span className={`h-1.5 w-1.5 rounded-full ${statusData.dot}`} /> 
                               {statusData.label}
                             </span>
                           </td>
@@ -461,11 +464,15 @@ export default function UserManagement() {
                               className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold border transition-all active:scale-95 ${
                                 user.status === "active" 
                                   ? "bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100/70"
+                                  : user.status === "pending"
+                                  ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100/70"
                                   : "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100/70"
                               }`}
                             >
                               {user.status === "active" ? (
                                 <><Lock size={13} /> Lock Access</>
+                              ) : user.status === "pending" ? (
+                                <><Unlock size={13} /> Activate</>
                               ) : (
                                 <><Unlock size={13} /> Unlock Access</>
                               )}

@@ -146,7 +146,9 @@ const toggleUserStatus = async (id) => {
   if (!user) throw Object.assign(new Error('Người dùng không tồn tại'), { statusCode: 404 });
   if (user.role === 'admin') throw Object.assign(new Error('Không thể khóa tài khoản admin'), { statusCode: 403 });
 
-  const newStatus = user.status === 'banned' ? 'active' : 'banned';
+  const newStatus = user.status === 'banned' ? 'active'
+                : user.status === 'pending' ? 'active'
+                : 'banned';
   await db.query('UPDATE users SET status = ? WHERE id = ?', [newStatus, id]);
   return { id, status: newStatus };
 };

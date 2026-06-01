@@ -410,7 +410,46 @@ exports.exportReport = async (req, res) => {
     return error(res, 'System Error while exporting report', 500);
   }
 };
-
+// ── GET /api/admin/reports/summary ───────────────────────────────────────────
+// Trả về tổng hợp: totalBorrows, totalReturns, totalNewUsers, totalFinesCollected
+// Params: ?from=2026-01-01&to=2026-05-31
+exports.getReportSummary = async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const data = await reportModel.getReportSummary({ from, to });
+    return success(res, data);
+  } catch (err) {
+    console.error('[getReportSummary]', err);
+    return error(res, 'Server error', 500);
+  }
+};
+ 
+// ── GET /api/admin/reports/category ──────────────────────────────────────────
+// Thống kê mượn/trả/quá hạn theo danh mục sách
+// Params: ?from=2026-01-01&to=2026-05-31
+exports.getCategoryReport = async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const data = await reportModel.getCategoryReport({ from, to });
+    return success(res, data);
+  } catch (err) {
+    console.error('[getCategoryReport]', err);
+    return error(res, 'Server error', 500);
+  }
+};
+ 
+// ── GET /api/admin/reports/borrow-chart ──────────────────────────────────────
+// Thay thế hàm getBorrowChart cũ — thêm trường uniqueUsers
+exports.getBorrowChart = async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const data = await reportModel.getBorrowChart(year);
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('[getBorrowChart]', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 
 // ─────────────────────────────── NOTIFICATIONS ───────────────────────────────
  
