@@ -53,6 +53,10 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     conditions.push('b.available_copies = 0');
   }
 
+  if (sort === 'featured') {
+    conditions.push('b.available_copies > 0');
+  }
+
   if (!includeHidden) {
     conditions.push('b.is_hidden = 0');
   }
@@ -75,9 +79,10 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
   // Xử lý sắp xếp (Khớp với value của sortOptions trong BooksPage.jsx)
   let orderBy = 'ORDER BY b.id DESC'; // mặc định là latest
   if (sort === 'default')   orderBy = 'ORDER BY b.id ASC';
-  if (sort === 'featured')  orderBy = 'ORDER BY (SELECT COUNT(*) FROM borrows WHERE book_id = b.id) DESC, rating DESC';
+  if (sort === 'featured')  orderBy = 'ORDER BY borrow_count DESC, rating DESC';
   if (sort === 'trending')  orderBy = 'ORDER BY rating DESC';
   if (sort === 'newest')    orderBy = 'ORDER BY b.created_at DESC';
+
   // Câu lệnh SQL chính thức - Ép ALIAS thành CamelCase cho React đọc trực tiếp
   const mainSql = `
     SELECT 
@@ -87,7 +92,8 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
       b.author_id,
       b.publisher_id,
       b.is_hidden,
-      (SELECT bc.category_id FROM book_categories bc WHERE bc.book_id = b.id LIMIT 1) AS category_id, -- Bổ sung ID thể loại
+      (SELECT bc.category_id FROM book_categories bc WHERE bc.book_id = b.id LIMIT 1) AS category_id,
+      (SELECT COUNT(*) FROM borrows WHERE book_id = b.id) AS borrow_count,
       a.name AS author, p.name AS publisher,
       (SELECT c.name FROM categories c JOIN book_categories bc ON bc.category_id = c.id WHERE bc.book_id = b.id LIMIT 1) AS category,
       COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating,
@@ -225,7 +231,8 @@ const findFeatured = async (limit = 10) => {
   );
   return rows;
 };
-// ── THÊM findTopRated ─────────────────────────────────────────────────────────
+
+// ── findTopRated ─────────────────────────────────────────────────────────────
 const findTopRated = async (limit = 10) => {
   const [rows] = await db.query(
     `SELECT
@@ -248,7 +255,7 @@ const findTopRated = async (limit = 10) => {
   return rows;
 };
 
-// ── THÊM findNewest ───────────────────────────────────────────────────────────
+// ── findNewest ───────────────────────────────────────────────────────────────
 const findNewest = async (limit = 10) => {
   const [rows] = await db.query(
     `SELECT
@@ -298,7 +305,6 @@ const getSavedBooksByUser = async (userId) => {
           b.cover_url, 
           b.available_copies,
           a.name AS author,
-          -- Gom các tên thể loại lại thành 1 chuỗi, cách nhau bằng dấu phẩy
           GROUP_CONCAT(c.name SEPARATOR ', ') AS category
       FROM saved_books sb
       JOIN books b ON sb.book_id = b.id
@@ -306,7 +312,6 @@ const getSavedBooksByUser = async (userId) => {
       LEFT JOIN book_categories bc ON b.id = bc.book_id
       LEFT JOIN categories c ON bc.category_id = c.id
       WHERE sb.user_id = ?
-      -- BẮT BUỘC có GROUP BY để nhóm các kết quả trùng lặp lại thành 1 dòng
       GROUP BY 
           sb.book_id, 
           sb.saved_at, 
@@ -320,7 +325,7 @@ const getSavedBooksByUser = async (userId) => {
     return rows;
 };
 
-// 2. Thêm sách vào danh sách lưu (Dùng INSERT IGNORE để tránh lỗi trùng lặp nếu user click đúp)
+// 2. Thêm sách vào danh sách lưu
 const saveBook = async (userId, bookId) => {
   const query = 'INSERT IGNORE INTO saved_books (user_id, book_id) VALUES (?, ?)';
   const [result] = await db.query(query, [userId, bookId]);
@@ -374,23 +379,16 @@ const setCategories = async (bookId, categoryIds = []) => {
 
 // ── Đảo ngược trạng thái ẩn/hiện của sách ────────────────────────────────────
 const toggleHide = async (id) => {
-  // 1. Kiểm tra xem sách có tồn tại không
   const [[book]] = await db.query('SELECT is_hidden FROM books WHERE id = ?', [id]);
-  if (!book) return null; // Trả về null nếu không tìm thấy sách
+  if (!book) return null;
 
-  // 2. Đảo ngược trạng thái (Nếu đang 1 thì thành 0, đang 0 thì thành 1)
   const newHiddenState = book.is_hidden ? 0 : 1;
-  
-  // 3. Cập nhật xuống Database
   await db.query('UPDATE books SET is_hidden = ? WHERE id = ?', [newHiddenState, id]);
-  
-  // 4. Trả về trạng thái mới cho Controller
   return newHiddenState;
 };
 
 // Lấy danh sách toàn bộ nhà xuất bản
 const findAllPublishers = async () => {
-  // Truy vấn lấy id và name (hoặc publisher_name tùy theo tên cột trong DB của bạn)
   const [rows] = await db.query('SELECT id, name FROM publishers ORDER BY name ASC');
   return rows;
 };
@@ -415,20 +413,17 @@ const createCategory = async (name, description) => {
 
 // ── Dashboard Statistics ─────────────────────────────────────
 const getDashboardStats = async () => {
-  // Tổng số bản sao hiện có của toàn bộ sách
   const [[books]] = await db.query(`
     SELECT COALESCE(SUM(total_copies), 0) AS totalBooks
     FROM books
   `);
 
-  // Thành viên có role = 'user' và status = 'active'
   const [[members]] = await db.query(`
     SELECT COUNT(*) AS activeMembers
     FROM users
     WHERE role = 'user' AND status = 'active'
   `);
 
-  // Số lượt mượn đang diễn ra (status = 'borrowing')
   const [[borrowed]] = await db.query(`
     SELECT COUNT(*) AS checkedOutBooks
     FROM borrows
@@ -470,4 +465,4 @@ const searchSuggestions = async (keyword, limit = 6) => {
   return rows;
 };
 
-module.exports = { findAll, findAllForAdmin, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, createCategory, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook};
+module.exports = { findAll, findAllForAdmin, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, createCategory, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook };
