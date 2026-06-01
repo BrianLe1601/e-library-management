@@ -13,13 +13,11 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
   const conditions = [];
   const params = [];
 
-  // 1. Tìm kiếm từ khóa (Tiêu đề hoặc Tác giả hoac Nhà xuất bản)
   if (search) {
     conditions.push('(b.title LIKE ? OR a.name LIKE ? OR p.name LIKE ?)');
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
-  // 2. Lọc theo danh mục (Có thể là chuỗi "1,2,3" hoặc ID đơn lẻ)
   if (category) {
     const catIds = String(category).split(',').map(Number).filter(Boolean);
     if (catIds.length > 0) {
@@ -28,7 +26,6 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     }
   }
 
-  // 3. Lọc theo nhiều tác giả (Chuỗi ngăn cách bởi dấu phẩy từ FilterSidebar)
   if (author) {
     const authorIds = String(author).split(',').map(Number).filter(Boolean);
     if (authorIds.length > 0) {
@@ -37,7 +34,6 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     }
   }
 
-  // 4. Lọc theo nhiều nhà xuất bản
   if (publisher) {
     const pubIds = String(publisher).split(',').map(Number).filter(Boolean);
     if (pubIds.length > 0) {
@@ -46,13 +42,13 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
     }
   }
 
-  // 5. Lọc theo tình trạng sách
   if (availability === 'in-stock') {
     conditions.push('b.available_copies > 0');
   } else if (availability === 'out-of-stock') {
     conditions.push('b.available_copies = 0');
   }
 
+  // Khi sort featured: chỉ lấy sách còn bản sao (giống findFeatured)
   if (sort === 'featured') {
     conditions.push('b.available_copies > 0');
   }
@@ -63,10 +59,8 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  // Tính toán phân trang
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
 
-  // Lấy tổng số dòng để phân trang
   const countSql = `
     SELECT COUNT(DISTINCT b.id) AS total
     FROM books b
@@ -76,41 +70,37 @@ const findAll = async ({ search = '', category = '', author = '', publisher = ''
   `;
   const [[{ total }]] = await db.query(countSql, params);
 
-  // Xử lý sắp xếp (Khớp với value của sortOptions trong BooksPage.jsx)
-  let orderBy = 'ORDER BY b.id DESC'; // mặc định là latest
+  let orderBy = 'ORDER BY b.id DESC';
   if (sort === 'default')   orderBy = 'ORDER BY b.id ASC';
   if (sort === 'featured')  orderBy = 'ORDER BY borrow_count DESC, rating DESC';
   if (sort === 'trending')  orderBy = 'ORDER BY rating DESC';
   if (sort === 'newest')    orderBy = 'ORDER BY b.created_at DESC';
 
-  // Câu lệnh SQL chính thức - Ép ALIAS thành CamelCase cho React đọc trực tiếp
   const mainSql = `
     SELECT 
       b.id, b.title, b.isbn, b.publish_year AS year, b.description,
-      b.cover_url AS coverUrl, b.total_copies AS totalCopies, 
+      b.cover_url AS coverUrl, b.total_copies AS totalCopies,
       b.available_copies AS availableCopies,
-      b.author_id,
-      b.publisher_id,
-      b.is_hidden,
+      b.author_id, b.publisher_id, b.is_hidden,
       (SELECT bc.category_id FROM book_categories bc WHERE bc.book_id = b.id LIMIT 1) AS category_id,
-      (SELECT COUNT(*) FROM borrows WHERE book_id = b.id) AS borrow_count,
+      COUNT(br.id) AS borrow_count,
       a.name AS author, p.name AS publisher,
       (SELECT c.name FROM categories c JOIN book_categories bc ON bc.category_id = c.id WHERE bc.book_id = b.id LIMIT 1) AS category,
-      COALESCE((SELECT AVG(rating) FROM reviews WHERE book_id = b.id), 0) AS rating,
-      (SELECT COUNT(*) FROM reviews WHERE book_id = b.id) AS reviewCount
+      COALESCE(AVG(r.rating), 0) AS rating,
+      COUNT(DISTINCT r.id) AS reviewCount
     FROM books b
     JOIN authors a ON a.id = b.author_id
     LEFT JOIN publishers p ON p.id = b.publisher_id
+    LEFT JOIN borrows br ON br.book_id = b.id
+    LEFT JOIN reviews r ON r.book_id = b.id
     ${where}
     GROUP BY b.id
     ${orderBy}
     LIMIT ? OFFSET ?
   `;
 
-  // Đẩy tham số limit và offset vào mảng dữ liệu an toàn
   const [rows] = await db.query(mainSql, [...params, Number(limit), offset]);
 
-  // Giả lập mảng trường tags mà Frontend yêu cầu bóc tách
   const formattedRows = rows.map(row => ({
     ...row,
     tags: [row.author, row.publisher].filter(Boolean)
@@ -123,20 +113,17 @@ const findAllForAdmin = async ({ search = '', category = 'All', author = '', pag
   let conditions = [];
   let params = [];
 
-  // 1. Tìm kiếm từ khóa (Tiêu đề, Tác giả, Nhà xuất bản, hoặc ISBN)
   if (search) {
     conditions.push('(b.title LIKE ? OR a.name LIKE ? OR p.name LIKE ? OR b.isbn LIKE ?)');
     const q = `%${search}%`;
     params.push(q, q, q, q);
   }
 
-  // 2. Lọc theo Danh mục (Dựa theo Tên danh mục từ thanh cuộn)
   if (category && category !== 'All') {
     conditions.push('b.id IN (SELECT bc.book_id FROM book_categories bc JOIN categories c ON bc.category_id = c.id WHERE c.name = ?)');
     params.push(category);
   }
 
-  // 3. BỔ SUNG: Lọc theo Tác giả (Chấp nhận ID đơn lẻ hoặc chuỗi ID "1,2,3")
   if (author) {
     const authorIds = String(author).split(',').map(Number).filter(Boolean);
     if (authorIds.length > 0) {
@@ -145,10 +132,8 @@ const findAllForAdmin = async ({ search = '', category = 'All', author = '', pag
     }
   }
 
-  // Gom các điều kiện lọc lại với nhau
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  // 4. ĐẾM TỔNG SỐ DÒNG THỰC TẾ TRONG HỆ THỐNG SAU KHI LỌC
   const countSql = `
     SELECT COUNT(DISTINCT b.id) as totalItems
     FROM books b
@@ -158,7 +143,6 @@ const findAllForAdmin = async ({ search = '', category = 'All', author = '', pag
   `;
   const [[{ totalItems }]] = await db.query(countSql, params);
 
-  // 5. LẤY DỮ LIỆU CỦA TRANG HIỆN TẠI (Sử dụng LIMIT và OFFSET động)
   const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
   const mainSql = `
     SELECT 
@@ -179,7 +163,6 @@ const findAllForAdmin = async ({ search = '', category = 'All', author = '', pag
     LIMIT ? OFFSET ?
   `;
   
-  // Nối params lọc với [limit, offset] vào câu lệnh SQL chính thức
   const [books] = await db.query(mainSql, [...params, Number(limit), offset]);
 
   return { 
@@ -297,32 +280,32 @@ const findAllCategories = async () => {
 
 // 1. Lấy danh sách sách đã lưu của User
 const getSavedBooksByUser = async (userId) => {
-    const query = `
-      SELECT 
-          sb.book_id, 
-          sb.saved_at,
-          b.title, 
-          b.cover_url, 
-          b.available_copies,
-          a.name AS author,
-          GROUP_CONCAT(c.name SEPARATOR ', ') AS category
-      FROM saved_books sb
-      JOIN books b ON sb.book_id = b.id
-      LEFT JOIN authors a ON b.author_id = a.id
-      LEFT JOIN book_categories bc ON b.id = bc.book_id
-      LEFT JOIN categories c ON bc.category_id = c.id
-      WHERE sb.user_id = ?
-      GROUP BY 
-          sb.book_id, 
-          sb.saved_at, 
-          b.title, 
-          b.cover_url, 
-          b.available_copies, 
-          a.name
-      ORDER BY sb.saved_at DESC
-    `;
-    const [rows] = await db.query(query, [userId]);
-    return rows;
+  const query = `
+    SELECT 
+        sb.book_id, 
+        sb.saved_at,
+        b.title, 
+        b.cover_url, 
+        b.available_copies,
+        a.name AS author,
+        GROUP_CONCAT(c.name SEPARATOR ', ') AS category
+    FROM saved_books sb
+    JOIN books b ON sb.book_id = b.id
+    LEFT JOIN authors a ON b.author_id = a.id
+    LEFT JOIN book_categories bc ON b.id = bc.book_id
+    LEFT JOIN categories c ON bc.category_id = c.id
+    WHERE sb.user_id = ?
+    GROUP BY 
+        sb.book_id, 
+        sb.saved_at, 
+        b.title, 
+        b.cover_url, 
+        b.available_copies, 
+        a.name
+    ORDER BY sb.saved_at DESC
+  `;
+  const [rows] = await db.query(query, [userId]);
+  return rows;
 };
 
 // 2. Thêm sách vào danh sách lưu
