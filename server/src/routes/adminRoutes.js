@@ -52,6 +52,10 @@ router.get('/borrows/overdue',      authorize('admin', 'employee'), adminControl
 router.put('/borrows/approve/:id',  authorize('admin', 'employee'), adminController.approveBorrow);
 router.put('/borrows/reject/:id',   authorize('admin', 'employee'), adminController.rejectBorrow);
 
+// ── Reports (admin + employee) ────────────────────────────────────────────────
+router.get('/reports/summary',  authorize('admin','employee'), adminController.getReportSummary);
+router.get('/reports/category', authorize('admin','employee'), adminController.getCategoryReport);
+
 // ── Notifications (admin + employee) ─────────────────────────────────────────────
 router.get   ('/notifications',                 authorize('admin', 'employee'), adminController.getNotifications);
 router.patch ('/notifications/mark-all',        authorize('admin', 'employee'), adminController.markAllNotificationsRead);

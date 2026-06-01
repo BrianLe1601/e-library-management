@@ -46,12 +46,13 @@ const adminService = {
 //  REPORTS — Báo cáo
 // ─────────────────────────────────────────────────────────────
 
-  getReports         : (from, to, type = "borrows") => api.get(`/admin/reports?from=${from}&to=${to}&type=${type}`),
-  exportReport       : (format = "pdf", from, to)   => api.get(`/admin/reports/export?format=${format}&from=${from}&to=${to}`, { responseType: "blob" }),
-  getTopBooks        : (limit = 10)                  => api.get(`/admin/reports/top-books?limit=${limit}`),
-  getBorrowChartData : (year = new Date().getFullYear()) => api.get(`/admin/reports/borrow-chart?year=${year}`),
-  getCategoryChartData : () => api.get("/admin/reports/category-chart"),
-  getBorrowChart: (year) => api.get(`/admin/reports/borrow-chart?year=${year}`),
+  getReports         : (from, to, type = '') => api.get(`/admin/reports?from=${from}&to=${to}&type=${type}`),
+  exportReport       : (format = 'pdf', from, to) => api.get(`/admin/reports/export?format=${format}&from=${from}&to=${to}`, { responseType: 'blob' }),
+  getTopBooks        : (limit = 10) => api.get(`/admin/reports/top-books?limit=${limit}`),
+  getBorrowChart     : (year = new Date().getFullYear()) => api.get(`/admin/reports/borrow-chart?year=${year}`),
+  getCategoryChartData: () => api.get('/admin/reports/category-chart'),
+  getReportSummary : (from, to) => api.get(`/admin/reports/summary?from=${from}&to=${to}`),
+  getCategoryReport: (from, to) => api.get(`/admin/reports/category?from=${from}&to=${to}`),
 
 // ─────────────────────────────────────────────────────────────
 //  NOTIFICATIONS — Thông báo
