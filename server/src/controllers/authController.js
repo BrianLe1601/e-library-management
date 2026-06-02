@@ -25,40 +25,30 @@ const axios = require('axios');
 const SALT_ROUNDS = 10;
 
 const sendMailHelper = async (toEmail, subject, htmlContent) => {
-    // Kiểm tra xem đã có API Key trên Render chưa
-    if (!process.env.BREVO_API_KEY) {
-        console.warn('[sendMailHelper] Thiếu biến môi trường BREVO_API_KEY');
+    if (!process.env.RESEND_API_KEY) {
+        console.warn('[sendMailHelper] Thiếu biến môi trường RESEND_API_KEY');
         return false;
     }
 
     try {
-        const senderEmail = process.env.MAIL_USER || 'elibraryproject2005@gmail.com';
-        
-        // Gọi thẳng qua cổng HTTPS (443) an toàn tuyệt đối
-        const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
-            sender: { 
-                name: "E-Library System", 
-                email: senderEmail 
-            },
-            to: [
-                { email: toEmail }
-            ],
+        // Gọi API của Resend
+        const response = await axios.post('https://api.resend.com/emails', {
+            from: 'onboarding@resend.dev', 
+            to: toEmail, 
             subject: subject,
-            htmlContent: htmlContent
+            html: htmlContent
         }, {
             headers: {
-                'accept': 'application/json',
-                'api-key': process.env.BREVO_API_KEY, // Xác thực bằng API Key
-                'content-type': 'application/json'
+                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json'
             },
-            timeout: 8000 // Tối đa 8 giây, tránh treo web
+            timeout: 8000
         });
 
-        console.log(`[sendMailHelper] Đã gửi mail qua HTTP API tới: ${toEmail} | MessageID:`, response.data.messageId);
+        console.log(`[sendMailHelper] Đã gửi mail qua Resend API tới: ${toEmail} | ID:`, response.data.id);
         return true; 
     } catch (err) {
-        // Bắt lỗi chi tiết từ Brevo nếu gửi xịt
-        console.error('[sendMailHelper] Lỗi HTTP API:', err.response?.data || err.message);
+        console.error('[sendMailHelper] Lỗi Resend API:', err.response?.data || err.message);
         return false; 
     }
 };
