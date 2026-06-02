@@ -16,43 +16,49 @@ const db = require('../config/db');
 const userModel = require('../models/userModel');
 const { signToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
-const nodemailer = require('nodemailer');
-const dnsPromises = require('dns').promises; 
+
+const axios = require('axios'); 
+
+// const nodemailer = require('nodemailer');
+// const dnsPromises = require('dns').promises; 
 
 const SALT_ROUNDS = 10;
 
 const sendMailHelper = async (toEmail, subject, htmlContent) => {
-    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) return false;
+    // Kiểm tra xem đã có API Key trên Render chưa
+    if (!process.env.BREVO_API_KEY) {
+        console.warn('[sendMailHelper] Thiếu biến môi trường BREVO_API_KEY');
+        return false;
+    }
+
     try {
-        const addresses = await dnsPromises.resolve4('smtp.gmail.com');
-        const ipv4Address = addresses[0];
-
-        const transporter = nodemailer.createTransport({
-            host: ipv4Address, 
-            port: 465,
-            secure: true,
-            auth: {
-                user: process.env.MAIL_USER,
-                pass: process.env.MAIL_PASS.replace(/\s+/g, '')
-            },
-            tls: {
-                servername: 'smtp.gmail.com', 
-                rejectUnauthorized: false
-            },
-            connectionTimeout: 8000
-        });
-
-        const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-        await transporter.sendMail({
-            from: mailFrom,
-            to: toEmail,
-            subject: subject,
-            html: htmlContent
-        });
+        const senderEmail = process.env.MAIL_USER || 'elibraryproject2005@gmail.com';
         
+        // Gọi thẳng qua cổng HTTPS (443) an toàn tuyệt đối
+        const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
+            sender: { 
+                name: "E-Library System", 
+                email: senderEmail 
+            },
+            to: [
+                { email: toEmail }
+            ],
+            subject: subject,
+            htmlContent: htmlContent
+        }, {
+            headers: {
+                'accept': 'application/json',
+                'api-key': process.env.BREVO_API_KEY, // Xác thực bằng API Key
+                'content-type': 'application/json'
+            },
+            timeout: 8000 // Tối đa 8 giây, tránh treo web
+        });
+
+        console.log(`[sendMailHelper] Đã gửi mail qua HTTP API tới: ${toEmail} | MessageID:`, response.data.messageId);
         return true; 
     } catch (err) {
-        console.error('[sendMailHelper] Lỗi gửi mail (Đã chặn treo web):', err.message);
+        // Bắt lỗi chi tiết từ Brevo nếu gửi xịt
+        console.error('[sendMailHelper] Lỗi HTTP API:', err.response?.data || err.message);
         return false; 
     }
 };
