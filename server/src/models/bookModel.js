@@ -397,7 +397,7 @@ const createCategory = async (name, description) => {
 // ── Dashboard Statistics ─────────────────────────────────────
 const getDashboardStats = async () => {
   const [[books]] = await db.query(`
-    SELECT COALESCE(SUM(total_copies), 0) AS totalBooks
+    SELECT COALESCE(SUM(available_copies), 0) AS totalBooks
     FROM books
   `);
 
