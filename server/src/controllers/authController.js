@@ -17,24 +17,44 @@ const userModel = require('../models/userModel');
 const { signToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
 const nodemailer = require('nodemailer');
+const dnsPromises = require('dns').promises; 
 
 const SALT_ROUNDS = 10;
 
-// =========================================================================
-// HÀM CẤU HÌNH GỬI MAIL CHUẨN CHO RENDER (ÉP IPV4, DÙNG PORT 465, CHỐNG TREO)
-// =========================================================================
-const createTransporter = () => {
-    return nodemailer.createTransport({
-        host: process.env.MAIL_HOST || 'smtp.gmail.com',
-        port: Number(process.env.MAIL_PORT) || 465, // Bắt buộc dùng 465
-        secure: true, // true ứng với port 465 (SSL)
-        auth: {
-            user: process.env.MAIL_USER,
-            pass: (process.env.MAIL_PASS || '').replace(/\s+/g, '') // Tự động xóa khoảng trắng trong pass
-        },
-        family: 4, // ÉP BUỘC NODEJS DÙNG MẠNG IPv4
-        connectionTimeout: 10000, // Đợi 10 giây nếu kẹt mạng thì báo lỗi chứ không làm đơ web
-    });
+const sendMailHelper = async (toEmail, subject, htmlContent) => {
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) return false;
+    try {
+        const addresses = await dnsPromises.resolve4('smtp.gmail.com');
+        const ipv4Address = addresses[0];
+
+        const transporter = nodemailer.createTransport({
+            host: ipv4Address, 
+            port: 465,
+            secure: true,
+            auth: {
+                user: process.env.MAIL_USER,
+                pass: process.env.MAIL_PASS.replace(/\s+/g, '')
+            },
+            tls: {
+                servername: 'smtp.gmail.com', 
+                rejectUnauthorized: false
+            },
+            connectionTimeout: 8000
+        });
+
+        const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
+        await transporter.sendMail({
+            from: mailFrom,
+            to: toEmail,
+            subject: subject,
+            html: htmlContent
+        });
+        
+        return true; 
+    } catch (err) {
+        console.error('[sendMailHelper] Lỗi gửi mail (Đã chặn treo web):', err.message);
+        return false; 
+    }
 };
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
@@ -75,33 +95,21 @@ exports.register = async (req, res) => {
             [email, otpCode, expiresAt]
         );
 
-        let mailSent = false;
-        if (process.env.MAIL_USER && process.env.MAIL_PASS) {
-            try {
-                const transporter = createTransporter();
-                const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-
-                await transporter.sendMail({
-                    from: mailFrom,
-                    to: email,
-                    subject: 'E-Library Account Activation OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
-                            <p>Hello,</p>
-                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
-                });
-                mailSent = true;
-            } catch (mailError) {
-                console.warn(`[authController.register] Failed to send email:`, mailError.message);
-            }
-        }
+        let mailSent = await sendMailHelper(
+            email,
+            'E-Library Account Activation OTP',
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
+                <p>Hello,</p>
+                <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                        ${otpCode}
+                    </span>
+                </div>
+                <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+            </div>`
+        );
 
         const responsePayload = {
             success: true,
@@ -110,9 +118,7 @@ exports.register = async (req, res) => {
                 : 'Registration successful! System generated an OTP.',
         };
 
-        if (!mailSent) {
-            responsePayload.debugOtp = otpCode; // Phao cứu sinh hiện ra Frontend nếu email hỏng
-        }
+        if (!mailSent) responsePayload.debugOtp = otpCode; 
 
         return res.status(200).json(responsePayload);
     } catch (error) {
@@ -140,31 +146,21 @@ exports.resendOtp = async (req, res) => {
             [email, otpCode, expiresAt]
         );
 
-        let mailSent = false;
-        if (process.env.MAIL_USER && process.env.MAIL_PASS) {
-            try {
-                const transporter = createTransporter();
-                const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-
-                await transporter.sendMail({
-                    from: mailFrom,
-                    to: email,
-                    subject: 'E-Library Account Activation OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
-                            <p>Hello,</p>
-                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
-                });
-                mailSent = true;
-            } catch (err) { console.warn('Error sending email:', err.message); }
-        }
+        let mailSent = await sendMailHelper(
+            email,
+            'E-Library Account Activation OTP',
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
+                <p>Hello,</p>
+                <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                        ${otpCode}
+                    </span>
+                </div>
+                <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+            </div>`
+        );
 
         const responsePayload = { success: true, message: 'New OTP code has been sent to your email.' };
         if (!mailSent) responsePayload.debugOtp = otpCode;
@@ -315,38 +311,25 @@ exports.forgotPassword = async (req, res) => {
             [email, otpCode, expiresAt]
         );
 
-        let mailSent = false;
-        if (process.env.MAIL_USER && process.env.MAIL_PASS) {
-            try {
-                const transporter = createTransporter();
-                const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-
-                await transporter.sendMail({
-                    from: mailFrom,
-                    to: email,
-                    subject: 'E-Library Password Reset OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">Reset E-Library Account Password</h2>
-                            <p>Hello,</p>
-                            <p>You recently requested a password reset on our E-Library system. Your password reset OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
-                });
-                mailSent = true;
-            } catch (mailError) {
-                console.warn('[authController.forgotPassword] Email sending failed:', mailError.message);
-            }
-        }
+        let mailSent = await sendMailHelper(
+            email,
+            'E-Library Password Reset OTP',
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">Reset E-Library Account Password</h2>
+                <p>Hello,</p>
+                <p>You recently requested a password reset on our E-Library system. Your password reset OTP is:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                        ${otpCode}
+                    </span>
+                </div>
+                <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+            </div>`
+        );
 
         const responsePayload = { success: true, message: 'OTP sent successfully' };
-        if (!mailSent) {
-            responsePayload.debugOtp = otpCode; // Phao cứu sinh cho Frontend
-        }
+        if (!mailSent) responsePayload.debugOtp = otpCode; // Phao cứu sinh
+
         return res.status(200).json(responsePayload);
     } catch (error) {
         console.error(error);
