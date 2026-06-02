@@ -326,9 +326,9 @@ exports.forgotPassword = async (req, res) => {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "forgot_password"', [email]);
+        await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'forgot_password'", [email]);
         await db.query(
-            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "forgot_password", ?)',
+            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'forgot_password', ?)",
             [email, otpCode, expiresAt]
         );
 
