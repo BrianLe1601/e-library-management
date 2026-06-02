@@ -20,6 +20,20 @@ const nodemailer = require('nodemailer');
 
 const SALT_ROUNDS = 10;
 
+// HÀM TIỆN ÍCH CHUYÊN DÙNG ĐỂ TẠO TRÌNH GỬI MAIL (CHỐNG TREO)
+const createTransporter = (mailUser, mailPass) => {
+    return nodemailer.createTransport({
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: 465,           // ĐỔI SANG CỔNG 465 ĐỂ DÙNG SSL
+        secure: true,        // BẬT SSL TRỰC TIẾP CHỐNG TREO STARTTLS
+        auth: { user: mailUser, pass: mailPass },
+        family: 4,           // Bắt buộc dùng IPv4
+        connectionTimeout: 5000, // Cực kỳ quan trọng: Quá 5 giây không kết nối được -> Hủy ngay để khỏi đơ web
+        greetingTimeout: 5000,
+        socketTimeout: 5000
+    });
+};
+
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 exports.register = async (req, res) => {
     const { full_name, email, password, phone, role } = req.body;
@@ -60,65 +74,37 @@ exports.register = async (req, res) => {
 
         const mailUser = process.env.MAIL_USER;
         const mailPass = process.env.MAIL_PASS;
-        const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-        const mailHost = process.env.MAIL_HOST || 'smtp.gmail.com';
-        const mailPort = Number(process.env.MAIL_PORT) || 587;
-
         let mailSent = false;
+
         if (mailUser && mailPass) {
             try {
-                const transporter = nodemailer.createTransport({
-                    host: mailHost,
-                    port: mailPort,
-                    secure: false,
-                    auth: { user: mailUser, pass: mailPass },
-                    family: 4 // FIX: Ép buộc Nodemailer sử dụng IPv4 khi kết nối mạng
-                });
-
+                const transporter = createTransporter(mailUser, mailPass);
                 await transporter.sendMail({
-                    from: mailFrom,
+                    from: process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>',
                     to: email,
                     subject: 'E-Library Account Activation OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
-                            <p>Hello,</p>
-                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
+                    html: `<h2>E-Library Account Verification</h2><p>Your activation OTP is: <b>${otpCode}</b></p>`
                 });
                 mailSent = true;
             } catch (mailError) {
-                console.warn(`[authController.register] Failed to send email to ${email}:`, mailError.message);
-                if (process.env.NODE_ENV === 'production') {
-                    throw mailError;
-                }
+                console.warn(`[authController.register] Lỗi gửi mail (Đã bỏ qua để không đơ web):`, mailError.message);
             }
-        } else {
-            console.warn(`Missing Mail configuration in .env. OTP for ${email} is: ${otpCode}`);
         }
 
         const responsePayload = {
             success: true,
             message: mailSent
                 ? 'Registration successful! Please check your email for the OTP verification code.'
-                : 'Registration successful! The system generated an OTP (but email sending failed in test environment).',
+                : 'Registration successful! System generated an OTP.',
         };
 
-        if (!mailSent || !mailUser || !mailPass) {
-            responsePayload.debugOtp = otpCode;
-        }
+        // LUÔN TRẢ VỀ OTP TRONG MẠNG ĐỂ CỨU CÁNH LÚC DEMO NẾU MAIL BỊ LỖI
+        if (!mailSent) responsePayload.debugOtp = otpCode;
 
         return res.status(200).json(responsePayload);
     } catch (error) {
         console.error('[authController.register] System error:', error);
-        const response = { success: false, message: 'An error occurred during account registration.' };
-        if (process.env.NODE_ENV !== 'production') response.detail = error.message;
-        return res.status(500).json(response);
+        return res.status(500).json({ success: false, message: 'An error occurred.' });
     }
 };
 
@@ -147,31 +133,15 @@ exports.resendOtp = async (req, res) => {
 
         if (mailUser && mailPass) {
             try {
-                const transporter = nodemailer.createTransport({
-                    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-                    port: Number(process.env.MAIL_PORT) || 587,
-                    secure: false,
-                    auth: { user: mailUser, pass: mailPass },
-                    family: 4 // FIX: Ép buộc Nodemailer sử dụng IPv4 khi kết nối mạng
-                });
+                const transporter = createTransporter(mailUser, mailPass);
                 await transporter.sendMail({
                     from: process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>',
                     to: email,
                     subject: 'E-Library Account Activation OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
-                            <p>Hello,</p>
-                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
+                    html: `<h2>E-Library Account Verification</h2><p>Your activation OTP is: <b>${otpCode}</b></p>`
                 });
                 mailSent = true;
-            } catch (err) { console.warn('Error sending email:', err.message); }
+            } catch (err) { console.warn('Lỗi gửi mail (Đã bỏ qua):', err.message); }
         }
 
         const responsePayload = { success: true, message: 'New OTP code has been sent to your email.' };
@@ -179,7 +149,7 @@ exports.resendOtp = async (req, res) => {
 
         return res.status(200).json(responsePayload);
     } catch (error) {
-        return res.status(500).json({ success: false, message: 'Error on server while resending OTP.' });
+        return res.status(500).json({ success: false, message: 'Error on server.' });
     }
 };
 
@@ -188,10 +158,7 @@ exports.verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
         const [otps] = await db.query(
-            `SELECT * FROM otps 
-             WHERE email = ? AND otp_code = ? AND action_type = 'register' 
-             AND is_used = 0 AND expires_at > NOW() 
-             ORDER BY created_at DESC LIMIT 1`,
+            `SELECT * FROM otps WHERE email = ? AND otp_code = ? AND action_type = 'register' AND is_used = 0 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
         );
         if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
@@ -200,8 +167,7 @@ exports.verifyOtp = async (req, res) => {
         await db.query("UPDATE users SET status = 'active' WHERE email = ?", [email]);
         return res.status(200).json({ success: true, message: 'Verification successful. Now you can login.' });
     } catch (error) {
-        console.error('[authController.verifyOtp] Error:', error);
-        return res.status(500).json({ success: false, message: 'Internal server error when verifying OTP.' });
+        return res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 };
 
@@ -218,9 +184,7 @@ exports.login = async (req, res) => {
         if (user.status === 'banned') return res.status(403).json({ message: 'Your account has been banned.' });
 
         if (user.password === 'GOOGLE_AUTH_ACCOUNT' || user.login_method === 'google') {
-            return res.status(400).json({ 
-                message: 'This account was registered via Google. Please click the "Google" button below to log in!' 
-            });
+            return res.status(400).json({ message: 'This account was registered via Google.' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
@@ -229,10 +193,7 @@ exports.login = async (req, res) => {
         const token = signToken({ id: user.id, email: user.email, role: user.role });
         res.status(200).json({
             success: true,
-            data: {
-                token,
-                user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role }
-            }
+            data: { token, user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role } }
         });
     } catch (error) {
         res.status(500).json({ message: 'System login error.' });
@@ -242,64 +203,41 @@ exports.login = async (req, res) => {
 // ── POST /api/auth/google ──────────────────────────────────────────
 exports.googleLogin = async (req, res) => {
     const { accessToken } = req.body;
-    if (!accessToken) {
-        return res.status(400).json({ success: false, message: 'Missing Google access token.' });
-    }
+    if (!accessToken) return res.status(400).json({ success: false, message: 'Missing token.' });
 
     try {
         const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
-        if (!googleRes.ok) {
-            return res.status(400).json({ success: false, message: 'Invalid or expired Google access token.' });
-        }
+        if (!googleRes.ok) return res.status(400).json({ success: false, message: 'Invalid token.' });
         
         const payload = await googleRes.json();
         const { sub: googleId, email, name, picture } = payload;
-
         const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
         let user;
 
         if (users.length > 0) {
             user = users[0];
-
-            if (user.status === 'banned') {
-                return res.status(403).json({ success: false, message: 'Your account has been banned.' });
-            }
-
+            if (user.status === 'banned') return res.status(403).json({ success: false, message: 'Account banned.' });
             if (user.login_method === 'local' || !user.google_id) {
-                await db.query(
-                    "UPDATE users SET google_id = ?, login_method = 'google', avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?",
-                    [googleId, picture, user.id]
-                );
+                await db.query("UPDATE users SET google_id = ?, login_method = 'google', avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?", [googleId, picture, user.id]);
                 user.login_method = 'google';
             }
-
             if (user.status === 'pending') {
                 await db.query("UPDATE users SET status = 'active', updated_at = NOW() WHERE id = ?", [user.id]);
                 user.status = 'active';
             }
         } else {
             const [result] = await db.query(
-                `INSERT INTO users (full_name, email, password, avatar_url, role, status, login_method, google_id) 
-                 VALUES (?, ?, 'GOOGLE_AUTH_ACCOUNT', ?, 'user', 'active', 'google', ?)`,
+                `INSERT INTO users (full_name, email, password, avatar_url, role, status, login_method, google_id) VALUES (?, ?, 'GOOGLE_AUTH_ACCOUNT', ?, 'user', 'active', 'google', ?)`,
                 [name, email, picture, googleId]
             );
-            
             const [newUsers] = await db.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
             user = newUsers[0];
         }
 
         const token = signToken({ id: user.id, email: user.email, role: user.role });
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                token,
-                user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role }
-            }
-        });
+        return res.status(200).json({ success: true, data: { token, user: { id: user.id, full_name: user.full_name, email: user.email, role: user.role } } });
     } catch (error) {
-        console.error('[authController.googleLogin] Lỗi:', error);
-        return res.status(500).json({ success: false, message: 'Internal server error when verifying Google account.' });
+        return res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 };
 
@@ -311,62 +249,38 @@ exports.forgotPassword = async (req, res) => {
         if (users.length === 0) return res.status(404).json({ success: false, message: 'Email does not exist in the system.' });
 
         const user = users[0];
-        if (user.status === 'pending') return res.status(400).json({ success: false, message: 'Account is not verified. Please complete registration first.' });
+        if (user.status === 'pending') return res.status(400).json({ success: false, message: 'Account is not verified.' });
         if (user.status === 'banned') return res.status(403).json({ success: false, message: 'Your account has been banned.' });
 
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
         await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'forgot_password'", [email]);
-        await db.query(
-            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'forgot_password', ?)",
-            [email, otpCode, expiresAt]
-        );
+        await db.query("INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'forgot_password', ?)", [email, otpCode, expiresAt]);
 
         const mailUser = process.env.MAIL_USER;
         const mailPass = process.env.MAIL_PASS;
-        const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
         let mailSent = false;
 
         if (mailUser && mailPass) {
             try {
-                const transporter = nodemailer.createTransport({
-                    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-                    port: Number(process.env.MAIL_PORT) || 587,
-                    secure: false,
-                    auth: { user: mailUser, pass: mailPass },
-                    family: 4 // FIX: Ép buộc Nodemailer sử dụng IPv4 khi kết nối mạng
-                });
-
+                const transporter = createTransporter(mailUser, mailPass);
                 await transporter.sendMail({
-                    from: mailFrom,
+                    from: process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>',
                     to: email,
                     subject: 'E-Library Password Reset OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">Reset E-Library Account Password</h2>
-                            <p>Hello,</p>
-                            <p>You recently requested a password reset on our E-Library system. Your password reset OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
+                    html: `<h2>Reset E-Library Account Password</h2><p>Your password reset OTP is: <b>${otpCode}</b></p>`
                 });
                 mailSent = true;
             } catch (mailError) {
-                console.warn('[authController.forgotPassword] Email sending failed:', mailError.message);
+                console.warn('[authController.forgotPassword] Lỗi gửi mail (Đã bỏ qua):', mailError.message);
             }
-        } else {
-            console.warn(`[forgotPassword] Missing Mail config. OTP for ${email}: ${otpCode}`);
         }
 
         const responsePayload = { success: true, message: 'OTP sent successfully' };
-        if (!mailSent || !mailUser || !mailPass) responsePayload.debugOtp = otpCode;
+        if (!mailSent) responsePayload.debugOtp = otpCode;
         return res.status(200).json(responsePayload);
     } catch (error) {
-        console.error(error);
         return res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 };
@@ -376,24 +290,16 @@ exports.verifyForgotOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
         const [otps] = await db.query(
-            `SELECT * FROM otps 
-             WHERE email = ? AND otp_code = ? AND action_type = 'forgot_password' 
-             AND is_used = 0 AND expires_at > NOW() 
-             ORDER BY created_at DESC LIMIT 1`,
+            `SELECT * FROM otps WHERE email = ? AND otp_code = ? AND action_type = 'forgot_password' AND is_used = 0 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
         );
         if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
 
         await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otps[0].id]);
         const resetToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '15m' });
-        return res.status(200).json({ 
-            success: true, 
-            message: 'Verification successful. Please enter your new password.',
-            resetToken 
-        });
+        return res.status(200).json({ success: true, message: 'Verification successful.', resetToken });
     } catch (error) {
-        console.error('[authController.verifyForgotOtp] Error:', error);
-        return res.status(500).json({ success: false, message: 'Internal server error when verifying OTP.' });
+        return res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 };
 
