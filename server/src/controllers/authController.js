@@ -42,19 +42,22 @@ exports.register = async (req, res) => {
             userId = user.id;
         } else {
             const hashedPassword = await bcrypt.hash(password, 10);
+            // FIX: Đổi "pending" thành 'pending'
             const [result] = await db.query(
-                'INSERT INTO users (full_name, email, password, phone, role, status) VALUES (?, ?, ?, ?, ?, "pending")',
+                "INSERT INTO users (full_name, email, password, phone, role, status) VALUES (?, ?, ?, ?, ?, 'pending')",
                 [full_name, email, hashedPassword, phone, role || 'user']
             );
             userId = result.insertId;
         }
 
-        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "register"', [email]);
+        // FIX: Đổi "register" thành 'register'
+        await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'register'", [email]);
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
+        // FIX: Đổi "register" thành 'register'
         await db.query(
-            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "register", ?)',
+            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'register', ?)",
             [email, otpCode, expiresAt]
         );
 
@@ -131,17 +134,17 @@ exports.resendOtp = async (req, res) => {
         const user = users[0];
         if (user.status !== 'pending') return res.status(400).json({ success: false, message: 'This account has already been verified.' });
 
-        // Xóa OTP cũ và tạo mới
-        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "register"', [email]);
+        // FIX: Đổi "register" thành 'register'
+        await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'register'", [email]);
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
+        // FIX: Đổi "register" thành 'register'
         await db.query(
-            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "register", ?)',
+            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'register', ?)",
             [email, otpCode, expiresAt]
         );
 
-        // Logic gửi Mail (Giống hệt phần Register)
         const mailUser = process.env.MAIL_USER;
         const mailPass = process.env.MAIL_PASS;
         let mailSent = false;
@@ -187,9 +190,10 @@ exports.resendOtp = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
+        // FIX: Đổi "register" thành 'register' ở câu lệnh SQL dưới
         const [otps] = await db.query(
             `SELECT * FROM otps 
-             WHERE email = ? AND otp_code = ? AND action_type = "register" 
+             WHERE email = ? AND otp_code = ? AND action_type = 'register' 
              AND is_used = 0 AND expires_at > NOW() 
              ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
@@ -197,7 +201,8 @@ exports.verifyOtp = async (req, res) => {
         if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
 
         await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otps[0].id]);
-        await db.query('UPDATE users SET status = "active" WHERE email = ?', [email]);
+        // FIX: Đổi "active" thành 'active'
+        await db.query("UPDATE users SET status = 'active' WHERE email = ?", [email]);
         return res.status(200).json({ success: true, message: 'Verification successful. Now you can login.' });
     } catch (error) {
         console.error('[authController.verifyOtp] Error:', error);
@@ -217,7 +222,6 @@ exports.login = async (req, res) => {
         if (user.status === 'pending') return res.status(401).json({ message: 'Account has not been verified with OTP.' });
         if (user.status === 'banned') return res.status(403).json({ message: 'Your account has been banned.' });
 
-        // TÌNH HUỐNG CHẶN: Nếu mật khẩu trong DB là token Google, yêu cầu họ nhấn nút đăng nhập bằng Google bên dưới
         if (user.password === 'GOOGLE_AUTH_ACCOUNT' || user.login_method === 'google') {
             return res.status(400).json({ 
                 message: 'This account was registered via Google. Please click the "Google" button below to log in!' 
@@ -248,7 +252,6 @@ exports.googleLogin = async (req, res) => {
     }
 
     try {
-        // Gọi trực tiếp API chính chủ của Google để lấy thông tin User từ Access Token nhận từ React
         const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
         if (!googleRes.ok) {
             return res.status(400).json({ success: false, message: 'Invalid or expired Google access token.' });
@@ -257,34 +260,31 @@ exports.googleLogin = async (req, res) => {
         const payload = await googleRes.json();
         const { sub: googleId, email, name, picture } = payload;
 
-        // Tìm User trong DB
         const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
         let user;
 
         if (users.length > 0) {
             user = users[0];
 
-            // Kịch bản bảo mật: Giữ vững logic chặn tài khoản Banned tuyệt đối của bạn
             if (user.status === 'banned') {
                 return res.status(403).json({ success: false, message: 'Your account has been banned.' });
             }
 
-            // Kịch bản Liên kết tài khoản (Account Linking): Nếu trước kia đăng ký form local, giờ dùng Google
             if (user.login_method === 'local' || !user.google_id) {
+                // FIX: Đổi "google" thành 'google' ở câu lệnh SQL
                 await db.query(
-                    'UPDATE users SET google_id = ?, login_method = "google", avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?',
+                    "UPDATE users SET google_id = ?, login_method = 'google', avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?",
                     [googleId, picture, user.id]
                 );
                 user.login_method = 'google';
             }
 
-            // Tiện ích bổ sung: Nếu đang bị 'pending' OTP thường mà bấm Google Login thành công -> Active luôn vì Google đã chứng thực Email sạch rồi
             if (user.status === 'pending') {
-                await db.query('UPDATE users SET status = "active", updated_at = NOW() WHERE id = ?', [user.id]);
+                // FIX: Đổi "active" thành 'active'
+                await db.query("UPDATE users SET status = 'active', updated_at = NOW() WHERE id = ?", [user.id]);
                 user.status = 'active';
             }
         } else {
-            // Kịch bản Tạo mới tinh: Tự động ghi nhận thông tin và bỏ qua bước bắt nhập OTP phiền phức
             const [result] = await db.query(
                 `INSERT INTO users (full_name, email, password, avatar_url, role, status, login_method, google_id) 
                  VALUES (?, ?, 'GOOGLE_AUTH_ACCOUNT', ?, 'user', 'active', 'google', ?)`,
@@ -295,10 +295,8 @@ exports.googleLogin = async (req, res) => {
             user = newUsers[0];
         }
 
-        // Ký token JWT bằng cơ chế cấu hình sẵn của bạn
         const token = signToken({ id: user.id, email: user.email, role: user.role });
 
-        // Trả về định dạng đồng bộ hoàn toàn với hàm Đăng nhập Local gốc
         return res.status(200).json({
             success: true,
             data: {
@@ -383,9 +381,10 @@ exports.forgotPassword = async (req, res) => {
 exports.verifyForgotOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
+        // FIX: Đổi "forgot_password" thành 'forgot_password' ở câu lệnh dưới
         const [otps] = await db.query(
             `SELECT * FROM otps 
-             WHERE email = ? AND otp_code = ? AND action_type = "forgot_password" 
+             WHERE email = ? AND otp_code = ? AND action_type = 'forgot_password' 
              AND is_used = 0 AND expires_at > NOW() 
              ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
@@ -412,7 +411,8 @@ exports.resetPassword = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const email = decoded.email;
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await db.query('UPDATE users SET password = ?, login_method = "local", google_id = NULL WHERE email = ?', [hashedPassword, email]);
+        // FIX: Đổi "local" thành 'local' ở câu lệnh dưới
+        await db.query("UPDATE users SET password = ?, login_method = 'local', google_id = NULL WHERE email = ?", [hashedPassword, email]);
         return res.status(200).json({ success: true, message: 'Password changed successfully!' });
     } catch (error) {
         return res.status(400).json({ success: false, message: 'Password reset session has expired (over 15 minutes).' });
