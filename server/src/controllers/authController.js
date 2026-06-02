@@ -42,7 +42,6 @@ exports.register = async (req, res) => {
             userId = user.id;
         } else {
             const hashedPassword = await bcrypt.hash(password, 10);
-            // FIX: Đổi "pending" thành 'pending'
             const [result] = await db.query(
                 "INSERT INTO users (full_name, email, password, phone, role, status) VALUES (?, ?, ?, ?, ?, 'pending')",
                 [full_name, email, hashedPassword, phone, role || 'user']
@@ -50,12 +49,10 @@ exports.register = async (req, res) => {
             userId = result.insertId;
         }
 
-        // FIX: Đổi "register" thành 'register'
         await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'register'", [email]);
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-        // FIX: Đổi "register" thành 'register'
         await db.query(
             "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'register', ?)",
             [email, otpCode, expiresAt]
@@ -74,7 +71,8 @@ exports.register = async (req, res) => {
                     host: mailHost,
                     port: mailPort,
                     secure: false,
-                    auth: { user: mailUser, pass: mailPass }
+                    auth: { user: mailUser, pass: mailPass },
+                    family: 4 // FIX: Ép buộc Nodemailer sử dụng IPv4 khi kết nối mạng
                 });
 
                 await transporter.sendMail({
@@ -134,12 +132,10 @@ exports.resendOtp = async (req, res) => {
         const user = users[0];
         if (user.status !== 'pending') return res.status(400).json({ success: false, message: 'This account has already been verified.' });
 
-        // FIX: Đổi "register" thành 'register'
         await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'register'", [email]);
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-        // FIX: Đổi "register" thành 'register'
         await db.query(
             "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'register', ?)",
             [email, otpCode, expiresAt]
@@ -155,7 +151,8 @@ exports.resendOtp = async (req, res) => {
                     host: process.env.MAIL_HOST || 'smtp.gmail.com',
                     port: Number(process.env.MAIL_PORT) || 587,
                     secure: false,
-                    auth: { user: mailUser, pass: mailPass }
+                    auth: { user: mailUser, pass: mailPass },
+                    family: 4 // FIX: Ép buộc Nodemailer sử dụng IPv4 khi kết nối mạng
                 });
                 await transporter.sendMail({
                     from: process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>',
@@ -190,7 +187,6 @@ exports.resendOtp = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
-        // FIX: Đổi "register" thành 'register' ở câu lệnh SQL dưới
         const [otps] = await db.query(
             `SELECT * FROM otps 
              WHERE email = ? AND otp_code = ? AND action_type = 'register' 
@@ -201,7 +197,6 @@ exports.verifyOtp = async (req, res) => {
         if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
 
         await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otps[0].id]);
-        // FIX: Đổi "active" thành 'active'
         await db.query("UPDATE users SET status = 'active' WHERE email = ?", [email]);
         return res.status(200).json({ success: true, message: 'Verification successful. Now you can login.' });
     } catch (error) {
@@ -271,7 +266,6 @@ exports.googleLogin = async (req, res) => {
             }
 
             if (user.login_method === 'local' || !user.google_id) {
-                // FIX: Đổi "google" thành 'google' ở câu lệnh SQL
                 await db.query(
                     "UPDATE users SET google_id = ?, login_method = 'google', avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?",
                     [googleId, picture, user.id]
@@ -280,7 +274,6 @@ exports.googleLogin = async (req, res) => {
             }
 
             if (user.status === 'pending') {
-                // FIX: Đổi "active" thành 'active'
                 await db.query("UPDATE users SET status = 'active', updated_at = NOW() WHERE id = ?", [user.id]);
                 user.status = 'active';
             }
@@ -341,7 +334,8 @@ exports.forgotPassword = async (req, res) => {
                     host: process.env.MAIL_HOST || 'smtp.gmail.com',
                     port: Number(process.env.MAIL_PORT) || 587,
                     secure: false,
-                    auth: { user: mailUser, pass: mailPass }
+                    auth: { user: mailUser, pass: mailPass },
+                    family: 4 // FIX: Ép buộc Nodemailer sử dụng IPv4 khi kết nối mạng
                 });
 
                 await transporter.sendMail({
@@ -381,7 +375,6 @@ exports.forgotPassword = async (req, res) => {
 exports.verifyForgotOtp = async (req, res) => {
     const { email, otp } = req.body;
     try {
-        // FIX: Đổi "forgot_password" thành 'forgot_password' ở câu lệnh dưới
         const [otps] = await db.query(
             `SELECT * FROM otps 
              WHERE email = ? AND otp_code = ? AND action_type = 'forgot_password' 
@@ -411,7 +404,6 @@ exports.resetPassword = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const email = decoded.email;
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        // FIX: Đổi "local" thành 'local' ở câu lệnh dưới
         await db.query("UPDATE users SET password = ?, login_method = 'local', google_id = NULL WHERE email = ?", [hashedPassword, email]);
         return res.status(200).json({ success: true, message: 'Password changed successfully!' });
     } catch (error) {
