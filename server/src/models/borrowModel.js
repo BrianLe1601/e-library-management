@@ -303,7 +303,10 @@ const findAll = async ({ page = 1, limit = 20, status = '', user_id = '' }) => {
     params
   );
   const [rows] = await db.query(
-    `SELECT b.id, b.borrow_date, b.due_date, b.return_date, b.status,
+    `SELECT b.id, 
+            b.user_id,
+            b.book_id,
+            b.borrow_date, b.due_date, b.return_date, b.status,
             b.fine_amount, b.fine_paid, b.renewed_count,
             u.full_name  AS user_name,
             u.email,

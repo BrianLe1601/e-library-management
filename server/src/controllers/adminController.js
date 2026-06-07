@@ -415,11 +415,15 @@ exports.getTopBooks = async (req, res) => {
 exports.getReportSummary = async (req, res) => {
   try {
     const { from, to } = req.query;
-    const data = await reportModel.getReportSummary({ from, to });
-    return success(res, data);
+    if (!from || !to) return error(res, 'Missing date range', 400);
+
+    const summaryData = await reportModel.getReportSummary(from, to);
+    
+    // Gói vào object data và trả về
+    return success(res, summaryData, 'Get report summary successfully');
   } catch (err) {
     console.error('[getReportSummary]', err);
-    return error(res, 'Server error', 500);
+    return error(res, 'Internal Server Error', 500);
   }
 };
  
@@ -617,7 +621,7 @@ exports.bulkActionNotifications = async (req, res) => {
 // ── POST /api/admin/notifications ────────────────────────────────────────────
 exports.createNotificationApi = async (req, res) => {
   try {
-    const { scope, user_id, borrow_id, book_id, type, title, message } = req.body;
+    const { scope, receiver_role, user_id, borrow_id, book_id, type, title, message } = req.body;
  
     if (!title || !message) {
       return error(res, 'title and message are required', 400);
@@ -626,7 +630,15 @@ exports.createNotificationApi = async (req, res) => {
     if (scope === 'all' || scope === 'users_only') {
       await notificationModel.createForRoleUsers({ scope, type, title, message, book_id });
     } else {
-      await notificationModel.create({ scope: 'user', user_id, borrow_id, book_id, type, title, message });
+      await notificationModel.create({ 
+        receiver_role: 'user', 
+        user_id, 
+        borrow_id, 
+        book_id, 
+        type, 
+        title, 
+        message 
+      });
     }
  
     return success(res, null, 'Notification created');
@@ -635,40 +647,6 @@ exports.createNotificationApi = async (req, res) => {
     return error(res);
   }
 };
-
-// exports.getBorrowChart = async (req, res) => {
-//   try {
-//     const year = parseInt(req.query.year) || new Date().getFullYear();
-//     const db   = require('../config/db');
-
-//     const [rows] = await db.query(`
-//       SELECT
-//         MONTH(borrow_date) AS month,
-//         COUNT(*) AS borrows,
-//         SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returns
-//       FROM borrows
-//       WHERE YEAR(borrow_date) = ?
-//       GROUP BY MONTH(borrow_date)
-//       ORDER BY month ASC
-//     `, [year]);
-
-//     // Fill tháng thiếu với 0
-//     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-//     const chart  = MONTHS.map((name, i) => {
-//       const found = rows.find(r => r.month === i + 1);
-//       return {
-//         month:   name,
-//         borrows: Number(found?.borrows) || 0,
-//         returns: Number(found?.returns) || 0,
-//       };
-//     });
-
-//     return res.json({ success: true, data: chart });
-//   } catch (err) {
-//     console.error('[getBorrowChart]', err);
-//     return res.status(500).json({ success: false, message: 'Server error' });
-//   }
-// };
 
 exports.exportReports = async (req, res) => {
   try {

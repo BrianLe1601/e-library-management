@@ -3,14 +3,14 @@ const borrowModel = require('../models/borrowModel');
 const notificationModel = require('../models/notificationModel');
 
 const startCronJobs = () => {
-  // Chạy vào lúc 00:00 mỗi đêm
+
   cron.schedule('0 0 * * *', async () => {
     console.log('[CronJob] Start for check overdue...');
     try {
       const overdueBorrows = await borrowModel.markOverdue();
       
       if (overdueBorrows && overdueBorrows.length > 0) {
-        // Lặp qua từng phiếu mượn bị quá hạn để bắn thông báo
+        
         for (const borrow of overdueBorrows) {
           await notificationModel.create({
             scope: 'user',

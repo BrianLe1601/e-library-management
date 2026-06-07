@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
 import borrowService from '../../services/borrowService';
+import adminService from '../../services/adminService';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const avatarColors = [
@@ -118,7 +119,28 @@ export default function BorrowingReturns() {
   const handleReject        = (id) => withAction(id, async () => { await borrowService.rejectBorrow(id);   showToast('Borrow request rejected'); })();
   const handleConfirmReturn = (id) => withAction(id, async () => { const r = await borrowService.returnBook(id); showToast(r.data?.message || 'Book returned successfully'); })();
   const handleMarkLost      = (id) => withAction(id, async () => { await borrowService.markLost(id);       showToast('Book marked as lost'); })();
-  const handleNotify        = (id) => { setNotifiedIds(p => [...p, id]); showToast('Notification sent to user'); setTimeout(() => setNotifiedIds(p => p.filter(i => i !== id)), 3000); };
+  const handleNotify = async (item) => {
+    setActionId(item.id);
+    try {
+      await adminService.createNotificationApi({
+        receiver_role: 'user',
+        user_id: item.user_id,
+        borrow_id: item.id,
+        book_id: item.book_id,
+        type: 'overdue',
+        title: 'Book Overdue!',
+        message: `Your book "${item.book_title}" is overdue. Please bring the book to the library to return it and complete the payment of the fine! Thank you!`
+      });
+      
+      setNotifiedIds(p => [...p, item.id]);
+      showToast('Notification sent to user successfully');
+    } catch (err) {
+      showToast('Failed to send notification', 'error');
+      console.error('[handleNotify]', err);
+    } finally {
+      setActionId(null);
+    }
+  };
 
   // ── Tab config ──────────────────────────────────────────────────────────────
   const tabs = [
@@ -398,11 +420,13 @@ export default function BorrowingReturns() {
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 text-xs disabled:opacity-50">
                                 <Package size={11} /> Mark Lost
                               </button>
-                              <button onClick={() => handleNotify(item.id)} disabled={notified}
+                              <button onClick={() => handleNotify(item)} disabled={notified || actionId === item.id}
                                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all ${
-                                  notified ? 'bg-slate-500/10 text-slate-400 cursor-not-allowed' : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                                  notified  ? 'bg-slate-500/10 text-slate-400 cursor-not-allowed'
+                                            : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50'
                                 }`}>
-                                <Bell size={11} /> {notified ? 'Sent!' : 'Notify'}
+                                {actionId === item.id ? <Loader2 size={11} className="animate-spin" /> : <Bell size={11} />} 
+                                {notified ? 'Sent!' : 'Notify'}
                               </button>
                             </div>
                           </td>

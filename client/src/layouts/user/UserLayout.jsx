@@ -142,12 +142,14 @@ export default function UserLayout() {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Status</span>
                   <span className={`text-xs font-semibold ${
-                    user?.status === "active"  ? "text-green-600 dark:text-green-400" :
-                    user?.status === "pending" ? "text-yellow-500" :
+                    !user?.status            ? "text-slate-400" :
+                    user.status === "active"  ? "text-green-600 dark:text-green-400" :
+                    user.status === "pending" ? "text-yellow-500" :
                     "text-red-500"
                   }`}>
-                    {user?.status === "active"  ? "Active"  :
-                    user?.status === "pending" ? "Pending" :
+                    {!user?.status            ? "—"       :
+                    user.status === "active"  ? "Active"  :
+                    user.status === "pending" ? "Pending" :
                     "Locked"}
                   </span>
                 </div>
