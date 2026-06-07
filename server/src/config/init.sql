@@ -159,7 +159,7 @@ CREATE TABLE notifications (
     receiver_role 	VARCHAR(20) DEFAULT 'user',
     title       	VARCHAR(255) NOT NULL,
     message     	TEXT NOT NULL,
-    type        	ENUM('overdue', 'approved', 'returned', 'fine', 'system') DEFAULT 'system',
+    type        	ENUM('overdue', 'approved', 'returned', 'fine', 'system','borrow_request','return_request','renew','rejected') DEFAULT 'system',
     is_read     	TINYINT(1) NOT NULL DEFAULT 0,
     is_archived 	TINYINT(1) NOT NULL DEFAULT 0,
     created_at  	DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

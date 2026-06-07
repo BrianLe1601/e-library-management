@@ -46,12 +46,68 @@ const getStats = async () => {
   };
 };
 
+// ── Export toàn bộ báo cáo ──────────────────────────────
+const getAllReports = async ({ from, to, type }) => {
+  const conds = [];
+  const params = [];
+
+  if (from) {
+    conds.push('b.borrow_date >= ?');
+    params.push(from);
+  }
+
+  if (to) {
+    conds.push('b.borrow_date <= ?');
+    params.push(`${to} 23:59:59`);
+  }
+
+  if (type) {
+    conds.push('b.status = ?');
+    params.push(type);
+  }
+
+  const where =
+    conds.length
+      ? `WHERE ${conds.join(' AND ')}`
+      : '';
+
+  const [rows] = await db.query(
+    `
+    SELECT
+      b.id,
+      u.full_name AS user_name,
+      u.email,
+      bk.title AS book_title,
+      h.full_name AS handled_by,
+      b.borrow_date,
+      b.due_date,
+      b.return_date,
+      b.status,
+      b.renewed_count,
+      b.fine_amount,
+      b.fine_paid
+    FROM borrows b
+    JOIN users u
+      ON u.id = b.user_id
+    JOIN books bk
+      ON bk.id = b.book_id
+    LEFT JOIN users h
+      ON h.id = b.handled_by
+    ${where}
+    ORDER BY b.borrow_date DESC
+    `,
+    params
+  );
+
+  return rows;
+};
+
 // ── Báo cáo mượn trả (có filter ngày + status) ──────────────────────────────
 const getReports = async ({ from, to, type, page = 1, limit = 20 }) => {
   const conds  = [];
   const params = [];
   if (from) { conds.push('b.borrow_date >= ?'); params.push(from); }
-  if (to)   { conds.push('b.borrow_date <= ?'); params.push(to);   }
+  if (to)   { conds.push('b.borrow_date <= ?'); params.push(`${to} 23:59:59`); }
   if (type) { conds.push('b.status = ?');       params.push(type); }
   const where   = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
   const offset  = (Math.max(1, Number(page)) - 1) * Number(limit);
@@ -101,7 +157,10 @@ const getReportSummary = async ({ from, to }) => {
   const dateConds  = [];
   const dateParams = [];
   if (from) { dateConds.push('borrow_date >= ?'); dateParams.push(from); }
-  if (to)   { dateConds.push('borrow_date <= ?'); dateParams.push(to);   }
+  if (to) {
+    dateConds.push('borrow_date <= ?');
+    dateParams.push(`${to} 23:59:59`);
+  }
   const whereDate = dateConds.length ? `WHERE ${dateConds.join(' AND ')}` : '';
 
   const [[borrowStats]] = await db.query(
@@ -195,6 +254,7 @@ const getCategoryReport = async ({ from, to }) => {
 
 module.exports = {
   getStats,
+  getAllReports,
   getReports,
   getTopBooks,
   getReportSummary,

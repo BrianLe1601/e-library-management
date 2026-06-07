@@ -337,7 +337,7 @@ const create = async (fields) => {
 const update = async (id, fields) => {
   const cols = [];
   const values = [];
-  const allowed = ['title', 'author_id', 'publisher_id', 'isbn', 'publish_year', 'description', 'cover_url', 'total_copies'];
+  const allowed = ['title', 'author_id', 'publisher_id', 'isbn', 'publish_year', 'description', 'cover_url', 'total_copies', 'available_copies'];
   for (const key of allowed) {
     if (fields[key] !== undefined) { cols.push(`${key} = ?`); values.push(fields[key]); }
   }
@@ -350,6 +350,21 @@ const update = async (id, fields) => {
 const remove = async (id) => {
   const [result] = await db.query('DELETE FROM books WHERE id = ?', [id]);
   return result.affectedRows > 0;
+};
+
+const getInventoryInfo = async (id) => {
+  const [rows] = await db.query(
+    `
+    SELECT
+      total_copies,
+      available_copies
+    FROM books
+    WHERE id = ?
+    `,
+    [id]
+  );
+
+  return rows[0] || null;
 };
 
 // Gắn/cập nhật danh mục cho sách
@@ -448,4 +463,4 @@ const searchSuggestions = async (keyword, limit = 6) => {
   return rows;
 };
 
-module.exports = { findAll, findAllForAdmin, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, createCategory, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook };
+module.exports = { findAll, findAllForAdmin, findById, findFeatured, findTopRated, findNewest, findAllCategories, create, update, remove, getInventoryInfo, setCategories, getDashboardStats, toggleHide, findAllPublishers, createAuthor, createPublisher, createCategory, searchSuggestions, getSavedBooksByUser, saveBook, unsaveBook };

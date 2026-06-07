@@ -131,13 +131,36 @@ exports.updateBook = async (req, res) => {
     const bookId = req.params.id;
     const bookData = req.body;
 
-    // Tương tự, nếu Admin CÓ CHỌN ảnh mới thì lấy link mới
-    // Nếu KHÔNG CHỌN ảnh mới thì req.file sẽ rỗng, ta giữ nguyên ảnh cũ trong DB
+    if (bookData.total_copies !== undefined) {
+
+      const inventory =
+        await bookModel.getInventoryInfo(bookId);
+
+      if (!inventory) {
+        return error(res, 'Book not found', 404);
+      }
+
+      const borrowedCopies =
+        Number(inventory.total_copies) -
+        Number(inventory.available_copies);
+
+      const newTotal =
+        Number(bookData.total_copies);
+
+      if (newTotal < borrowedCopies) {
+        return error(
+          res,
+          `Cannot reduce total copies below borrowed count (${borrowedCopies})`,
+          400
+        );
+      }
+      bookData.available_copies = newTotal - borrowedCopies;
+    }
+
     if (req.file && req.file.path) {
       bookData.cover_url = req.file.path;
     }
 
-    // Gọi Model update sách (Giả định trong bookModel có hàm update)
     const isUpdated = await bookModel.update(bookId, bookData);
     if (!isUpdated) return error(res, 'Book not found', 404);
 
@@ -386,30 +409,6 @@ exports.getTopBooks = async (req, res) => {
   }
 };
 
-// ── GET /api/admin/reports/export ────────────────────────────────────────────
-exports.exportReport = async (req, res) => {
-  try {
-    const { from, to, type = 'all', format = 'json' } = req.query;
-    const { rows } = await reportModel.getReports({ from, to, type: type === 'all' ? '' : type, page: 1, limit: 1000 });
-
-    /*
-     * TODO (TV4): Tích hợp thư viện xuất file thật sự:
-     *   PDF   → pdfkit / puppeteer
-     *   Excel → exceljs
-     *
-     * Hiện tại trả JSON mockup kèm preview 5 dòng đầu.
-     */
-    return res.json({
-      success:     true,
-      message:     `[Mockup] will export ${format.toUpperCase()} file of ${rows.length} records`,
-      export_info: { format, total_records: rows.length, filter: { from, to, type }, generated_at: new Date().toISOString() },
-      preview:     rows.slice(0, 5),
-    });
-  } catch (err) {
-    console.error('[exportReport]', err);
-    return error(res, 'System Error while exporting report', 500);
-  }
-};
 // ── GET /api/admin/reports/summary ───────────────────────────────────────────
 // Trả về tổng hợp: totalBorrows, totalReturns, totalNewUsers, totalFinesCollected
 // Params: ?from=2026-01-01&to=2026-05-31
@@ -637,37 +636,65 @@ exports.createNotificationApi = async (req, res) => {
   }
 };
 
-exports.getBorrowChart = async (req, res) => {
+// exports.getBorrowChart = async (req, res) => {
+//   try {
+//     const year = parseInt(req.query.year) || new Date().getFullYear();
+//     const db   = require('../config/db');
+
+//     const [rows] = await db.query(`
+//       SELECT
+//         MONTH(borrow_date) AS month,
+//         COUNT(*) AS borrows,
+//         SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returns
+//       FROM borrows
+//       WHERE YEAR(borrow_date) = ?
+//       GROUP BY MONTH(borrow_date)
+//       ORDER BY month ASC
+//     `, [year]);
+
+//     // Fill tháng thiếu với 0
+//     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+//     const chart  = MONTHS.map((name, i) => {
+//       const found = rows.find(r => r.month === i + 1);
+//       return {
+//         month:   name,
+//         borrows: Number(found?.borrows) || 0,
+//         returns: Number(found?.returns) || 0,
+//       };
+//     });
+
+//     return res.json({ success: true, data: chart });
+//   } catch (err) {
+//     console.error('[getBorrowChart]', err);
+//     return res.status(500).json({ success: false, message: 'Server error' });
+//   }
+// };
+
+exports.exportReports = async (req, res) => {
   try {
-    const year = parseInt(req.query.year) || new Date().getFullYear();
-    const db   = require('../config/db');
+    const {
+      from,
+      to,
+      type
+    } = req.query;
 
-    const [rows] = await db.query(`
-      SELECT
-        MONTH(borrow_date) AS month,
-        COUNT(*) AS borrows,
-        SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returns
-      FROM borrows
-      WHERE YEAR(borrow_date) = ?
-      GROUP BY MONTH(borrow_date)
-      ORDER BY month ASC
-    `, [year]);
+    const rows =
+      await reportModel.getAllReports({
+        from,
+        to,
+        type
+      });
 
-    // Fill tháng thiếu với 0
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const chart  = MONTHS.map((name, i) => {
-      const found = rows.find(r => r.month === i + 1);
-      return {
-        month:   name,
-        borrows: Number(found?.borrows) || 0,
-        returns: Number(found?.returns) || 0,
-      };
-    });
-
-    return res.json({ success: true, data: chart });
+    return success(
+      res,
+      rows,
+      'Export reports successfully'
+    );
   } catch (err) {
-    console.error('[getBorrowChart]', err);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return error(
+      res,
+      err.message
+    );
   }
 };
 

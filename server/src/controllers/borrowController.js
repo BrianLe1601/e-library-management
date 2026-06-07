@@ -33,7 +33,7 @@ exports.createBorrow = async (req, res) => {
     const { book_id } = req.body;
 
     if (!book_id || isNaN(Number(book_id)))
-      return error(res, 'book_id không hợp lệ', 400);
+      return error(res, 'book_id not valid', 400);
 
     const id = await borrowModel.create({
       user_id:    req.user.id,
@@ -49,15 +49,15 @@ exports.createBorrow = async (req, res) => {
       receiver_role: 'admin_employee',
       borrow_id: id,
       book_id: Number(book_id),
-      type: 'system',
-      title: 'Yêu cầu mượn sách mới',
-      message: `Có user "${borrowDetail.user_name}" gửi yêu cầu mượn sách "${borrowDetail.book_title}".`
+      type: 'borrow_request',
+      title: 'Borrow book request',
+      message: `User "${borrowDetail.user_name}" send borrow request for "${borrowDetail.book_title}".`
     });
 
-    return success(res, { borrow_id: id }, 'Tạo yêu cầu mượn thành công', 201);
+    return success(res, { borrow_id: id }, 'Borrow request created', 201);
   } catch (err) {
     console.error('[createBorrow]', err);
-    return error(res, err.message || 'Lỗi server', err.statusCode || 500);
+    return error(res, err.message || 'Server error', err.statusCode || 500);
   }
 };
 
@@ -67,13 +67,13 @@ exports.returnBook = async (req, res) => {
   try {
     const borrow = await borrowModel.findById(req.params.id);
     if (!borrow)
-      return error(res, 'Không tìm thấy phiếu mượn', 404);
+      return error(res, 'Borrow record not found', 404);
 
     const result = await borrowModel.returnBook(req.params.id, req.user.id);
 
     const msg = result.fine_amount > 0
-      ? `Trả sách thành công. Tiền phạt: ${result.fine_amount.toLocaleString('vi-VN')}đ`
-      : 'Trả sách thành công';
+      ? `Returned successfully. You have to pay ${result.fine_amount.toLocaleString('vi-VN')}đ`
+      : 'Returned successfully';
       
     if (result.fine_amount > 0) {
       await notificationModel.create({
@@ -82,8 +82,8 @@ exports.returnBook = async (req, res) => {
         borrow_id: borrow.id,
         book_id: borrow.book_id,
         type: 'fine',
-        title: 'Trả sách trễ hạn - Có phí phạt',
-        message: `Bạn đã trả cuốn sách "${borrow.book_title}". Tuy nhiên bạn bị phạt ${result.fine_amount.toLocaleString('vi-VN')} VNĐ do trễ hạn. Vui lòng thanh toán cho thủ thư.`
+        title: 'Returned with fine',
+        message: `You have returned "${borrow.book_title}". However, you need to pay ${result.fine_amount.toLocaleString('vi-VN')} VNĐ due to late. Please come to the library to pay the fine.`
       });
     } else {
       await notificationModel.create({
@@ -92,14 +92,14 @@ exports.returnBook = async (req, res) => {
         borrow_id: borrow.id,
         book_id: borrow.book_id,
         type: 'returned',
-        title: 'Trả sách thành công',
-        message: `Yêu cầu trả cuốn sách "${borrow.book_title}" của bạn đã được xác nhận thành công. Cảm ơn bạn!`
+        title: 'Returned successfully',
+        message: `You have returned "${borrow.book_title}" successfully. Thanks for using our services!`
       });
     }
     return success(res, result, msg);
   } catch (err) {
     console.error('[returnBook]', err);
-    return error(res, err.message || 'Lỗi server', err.statusCode || 500);
+    return error(res, err.message || 'Server error', err.statusCode || 500);
   }
 };
 
@@ -110,12 +110,12 @@ exports.extendBorrow = async (req, res) => {
     // 1. Lấy thông tin phiếu mượn
     const borrow = await borrowModel.findById(req.params.id);
     if (!borrow) {
-      return error(res, 'Không tìm thấy phiếu mượn', 404);
+      return error(res, 'Cannot find borrow', 404);
     }
 
     // 2. Kiểm tra quyền: User chỉ được gia hạn phiếu của mình, Admin/Employee có quyền gia hạn thay
     if (req.user.role === 'user' && borrow.user_id !== req.user.id) {
-      return error(res, 'Bạn không có quyền gia hạn phiếu này', 403);
+      return error(res, 'You are not allowed to extend this borrow', 403);
     }
 
     // 3. Xử lý logic DB (cập nhật ngày, cộng số lượt gia hạn)
@@ -126,9 +126,9 @@ exports.extendBorrow = async (req, res) => {
       receiver_role: 'admin_employee',
       borrow_id: borrow.id,
       book_id: borrow.book_id,
-      type: 'system',
-      title: 'Đã gia hạn sách',
-      message: `Phiếu mượn sách "${borrow.book_title}" của user "${borrow.user_name || 'User'}" đã được gia hạn (Lần ${result.renewed_count}). Hạn trả mới: ${result.new_due_date}.`
+      type: 'renew',
+      title: 'Book have been renewed',
+      message: `"${borrow.book_title}" of "${borrow.user_name || 'User'}" have been renewed ( ${result.renewed_count} times). New due date: ${result.new_due_date}.`
     });
 
     // 5. Bắn thông báo xác nhận cho User
@@ -137,18 +137,18 @@ exports.extendBorrow = async (req, res) => {
       user_id: borrow.user_id,
       borrow_id: borrow.id,
       book_id: borrow.book_id,
-      type: 'system',
-      title: 'Gia hạn thành công',
-      message: `Cuốn sách "${borrow.book_title}" đã được gia hạn thành công. Hạn trả mới của bạn là ${result.new_due_date}.`
+      type: 'renew',
+      title: 'Book have been renewed successfully',
+      message: `Book "${borrow.book_title}" renewed successfully. New due date: ${result.new_due_date}.`
     });
 
     // 6. Trả về Response chuẩn theo format dự án của bạn
-    return success(res, result, `Gia hạn thành công đến ${result.new_due_date}`);
+    return success(res, result, `Renewed successfully. New due date: ${result.new_due_date}`);
 
   } catch (err) {
     console.error('[extendBorrow Error]', err);
     // Bắt đúng statusCode từ dưới Model ném lên (VD: 409 khi quá 2 lần hoặc quá hạn)
-    return error(res, err.message || 'Lỗi server trong quá trình gia hạn', err.statusCode || 500);
+    return error(res, err.message || 'Server error occurred while extending', err.statusCode || 500);
   }
 };
 
@@ -167,11 +167,23 @@ exports.getMyBooks = async (req, res) => {
 exports.getHistory = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
-    const { rows, total } = await borrowModel.findHistoryByUser(req.user.id, { page, limit });
-    return paginated(res, rows, total, page, limit);
+    const { rows, total } = await borrowModel.findHistoryByUser(req.user.id, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+    return res.json({
+      success: true,
+      data: rows,
+      pagination: {
+        page:       parseInt(page),
+        limit:      parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
   } catch (err) {
     console.error('[getHistory]', err);
-    return error(res);
+    return error(res, 'Server error', 500);
   }
 };
 
@@ -206,7 +218,7 @@ exports.approveBorrow = async (req, res) => {
   try {
     const borrow = await borrowModel.findById(req.params.id);
     if (!borrow)
-      return error(res, 'Không tìm thấy phiếu mượn', 404);
+      return error(res, 'Borrow record not found', 404);
 
     await borrowModel.updateStatus(req.params.id, 'borrowing', req.user.id);
     
@@ -217,10 +229,10 @@ exports.approveBorrow = async (req, res) => {
       borrow_id: borrow.id,
       book_id: borrow.book_id,
       type: 'approved',
-      title: 'Yêu cầu mượn sách được duyệt',
-      message: `Thủ thư đã duyệt phiếu mượn #${borrow.id}. Vui lòng đến thư viện nhận sách "${borrow.book_title}" của bạn.`
+      title: 'Request your book has been approved',
+      message: `Your request to borrow #${borrow.id} has been approved by ELibrary. Please come to the library to pick up "${borrow.book_title}".`
     });
-    return success(res, null, 'Đã duyệt yêu cầu mượn');
+    return success(res, null, 'Borrow approved');
   } catch (err) {
     console.error('[approveBorrow]', err);
     return error(res);
@@ -232,7 +244,7 @@ exports.rejectBorrow = async (req, res) => {
   try {
     const borrow = await borrowModel.findById(req.params.id);
     if (!borrow)
-      return error(res, 'Không tìm thấy phiếu mượn', 404);
+      return error(res, 'Can not find borrow', 404);
       
     await borrowModel.rejectBorrow(req.params.id, req.user.id);
     
@@ -242,22 +254,22 @@ exports.rejectBorrow = async (req, res) => {
       user_id: borrow.user_id,
       borrow_id: borrow.id,
       book_id: borrow.book_id,
-      type: 'system',
-      title: 'Yêu cầu mượn sách bị từ chối',
-      message: `Rất tiếc, yêu cầu mượn sách "${borrow.book_title}" (phiếu #${borrow.id}) của bạn đã bị từ chối.`
+      type: 'rejected',
+      title: 'Request your book has been rejected',
+      message: `Sorry, your borrow request for "${borrow.book_title}" (Borrow #${borrow.id}) has been rejected.`
     });
 
     // Thông báo nội bộ cho Admin/Employee (Ghi nhận log hệ thống)
     await notificationModel.create({
-      receiver_role: 'admin_employee', // Sửa lại để nhảy vào hộp thư chung Admin
+      receiver_role: 'admin_employee',
       borrow_id: borrow.id,
       book_id: borrow.book_id,
-      type: 'system',
-      title: 'Đã từ chối yêu cầu',
-      message: `Quản trị viên đã từ chối mượn sách '${borrow.book_title}' của user '${borrow.user_name}'.`
+      type: 'rejected',
+      title: 'Rejected borrow request',
+      message: `ELibrary rejected borrow request #${borrow.id} for '${borrow.book_title}' of '${borrow.user_name}'.`
     });
     
-    return success(res, null, 'Đã từ chối yêu cầu mượn');
+    return success(res, null, 'Borrow request rejected');
   } catch (err) {
     console.error('[rejectBorrow]', err);
     return error(res);
@@ -284,9 +296,9 @@ exports.requestReturn = async (req, res) => {
       receiver_role: 'admin_employee',
       borrow_id: borrow.id,
       book_id: borrow.book_id,
-      type: 'system',
-      title: 'Yêu cầu trả sách mới',
-      message: `User "${borrow.user_name}" vừa gửi yêu cầu trả cuốn sách "${borrow.book_title}". Vui lòng kiểm tra và xác nhận.`
+      type: 'return_request',
+      title: 'Return book request',
+      message: `User "${borrow.user_name}" request to return "${borrow.book_title}". Please check and confirm.`
     });
 
     return success(res, null, 'Return request sent. Awaiting admin confirmation.');

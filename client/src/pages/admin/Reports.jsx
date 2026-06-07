@@ -205,7 +205,7 @@ export default function Reports() {
   const [detailRows,   setDetailRows]   = useState([]);
   const [detailTotal,  setDetailTotal]  = useState(0);
   const [detailPage,   setDetailPage]   = useState(1);
-  const DETAIL_LIMIT = 15;
+  const DETAIL_LIMIT = 20;
 
   const [loadingSummary,  setLoadingSummary]  = useState(true);
   const [loadingChart,    setLoadingChart]    = useState(true);
@@ -217,7 +217,13 @@ export default function Reports() {
   const fetchDetail = useCallback(async (page = 1) => {
     setLoadingDetail(true);
     try {
-      const res = await adminService.getReports(dateFrom, dateTo, statusFilter);
+      const res = await adminService.getReports(
+        dateFrom,
+        dateTo,
+        statusFilter,
+        page,
+        DETAIL_LIMIT
+      );
 
       // Log toàn bộ response để debug nếu không thấy dữ liệu
       console.log('[Reports] getReports raw response:', res);
@@ -232,8 +238,9 @@ export default function Reports() {
         (Array.isArray(data) ? data : []);
 
       const total =
-        data?.data?.total  ??
-        data?.total        ??
+        data?.meta?.total ??
+        data?.data?.total ??
+        data?.total ??
         (Array.isArray(rows) ? rows.length : 0);
 
       console.log('[Reports] parsed rows:', rows, '| total:', total);
@@ -294,6 +301,15 @@ const arrayBufferToBase64 = (buffer) => {
 
   // ── Export PDF ──────────────────────────────────────────────────────────────
   const handleExportPDF = async () => {
+    const res = await adminService.getAllReports(
+      dateFrom,
+      dateTo,
+      statusFilter
+    );
+
+    const allRows = Array.isArray(res.data?.data)
+      ? res.data.data
+      : [];
     setExporting('pdf');
     try {
       // 1. Tải thư viện và khởi tạo
@@ -328,7 +344,7 @@ const arrayBufferToBase64 = (buffer) => {
       ];
 
       // Map đúng thứ tự 12 cột như tableColumn
-      const tableRows = detailRows.map(r => [
+      const tableRows = allRows.map(r => [
         r.id,
         viToAscii(r.user_name || ''),
         r.email || '',
@@ -374,9 +390,15 @@ const arrayBufferToBase64 = (buffer) => {
   const handleExportExcel = async () => {
     setExporting('excel');
     try {
-      const res  = await adminService.getReports(dateFrom, dateTo, statusFilter);
+      const res = await adminService.getAllReports(
+        dateFrom,
+        dateTo,
+        statusFilter
+      );
       const data = res?.data;
-      const rows = data?.data?.rows ?? data?.rows ?? (Array.isArray(data?.data) ? data.data : []);
+      const rows = Array.isArray(res.data?.data)
+        ? res.data.data
+        : [];
 
       // Load XLSX qua script tag rồi đọc từ window
       const XLSX = await getXLSX();
