@@ -131,13 +131,36 @@ exports.updateBook = async (req, res) => {
     const bookId = req.params.id;
     const bookData = req.body;
 
-    // Tương tự, nếu Admin CÓ CHỌN ảnh mới thì lấy link mới
-    // Nếu KHÔNG CHỌN ảnh mới thì req.file sẽ rỗng, ta giữ nguyên ảnh cũ trong DB
+    if (bookData.total_copies !== undefined) {
+
+      const inventory =
+        await bookModel.getInventoryInfo(bookId);
+
+      if (!inventory) {
+        return error(res, 'Book not found', 404);
+      }
+
+      const borrowedCopies =
+        Number(inventory.total_copies) -
+        Number(inventory.available_copies);
+
+      const newTotal =
+        Number(bookData.total_copies);
+
+      if (newTotal < borrowedCopies) {
+        return error(
+          res,
+          `Cannot reduce total copies below borrowed count (${borrowedCopies})`,
+          400
+        );
+      }
+      bookData.available_copies = newTotal - borrowedCopies;
+    }
+
     if (req.file && req.file.path) {
       bookData.cover_url = req.file.path;
     }
 
-    // Gọi Model update sách (Giả định trong bookModel có hàm update)
     const isUpdated = await bookModel.update(bookId, bookData);
     if (!isUpdated) return error(res, 'Book not found', 404);
 
@@ -386,41 +409,21 @@ exports.getTopBooks = async (req, res) => {
   }
 };
 
-// ── GET /api/admin/reports/export ────────────────────────────────────────────
-exports.exportReport = async (req, res) => {
-  try {
-    const { from, to, type = 'all', format = 'json' } = req.query;
-    const { rows } = await reportModel.getReports({ from, to, type: type === 'all' ? '' : type, page: 1, limit: 1000 });
-
-    /*
-     * TODO (TV4): Tích hợp thư viện xuất file thật sự:
-     *   PDF   → pdfkit / puppeteer
-     *   Excel → exceljs
-     *
-     * Hiện tại trả JSON mockup kèm preview 5 dòng đầu.
-     */
-    return res.json({
-      success:     true,
-      message:     `[Mockup] will export ${format.toUpperCase()} file of ${rows.length} records`,
-      export_info: { format, total_records: rows.length, filter: { from, to, type }, generated_at: new Date().toISOString() },
-      preview:     rows.slice(0, 5),
-    });
-  } catch (err) {
-    console.error('[exportReport]', err);
-    return error(res, 'System Error while exporting report', 500);
-  }
-};
 // ── GET /api/admin/reports/summary ───────────────────────────────────────────
 // Trả về tổng hợp: totalBorrows, totalReturns, totalNewUsers, totalFinesCollected
 // Params: ?from=2026-01-01&to=2026-05-31
 exports.getReportSummary = async (req, res) => {
   try {
     const { from, to } = req.query;
-    const data = await reportModel.getReportSummary({ from, to });
-    return success(res, data);
+    if (!from || !to) return error(res, 'Missing date range', 400);
+
+    const summaryData = await reportModel.getReportSummary(from, to);
+    
+    // Gói vào object data và trả về
+    return success(res, summaryData, 'Get report summary successfully');
   } catch (err) {
     console.error('[getReportSummary]', err);
-    return error(res, 'Server error', 500);
+    return error(res, 'Internal Server Error', 500);
   }
 };
  
@@ -618,7 +621,7 @@ exports.bulkActionNotifications = async (req, res) => {
 // ── POST /api/admin/notifications ────────────────────────────────────────────
 exports.createNotificationApi = async (req, res) => {
   try {
-    const { scope, user_id, borrow_id, book_id, type, title, message } = req.body;
+    const { scope, receiver_role, user_id, borrow_id, book_id, type, title, message } = req.body;
  
     if (!title || !message) {
       return error(res, 'title and message are required', 400);
@@ -627,7 +630,15 @@ exports.createNotificationApi = async (req, res) => {
     if (scope === 'all' || scope === 'users_only') {
       await notificationModel.createForRoleUsers({ scope, type, title, message, book_id });
     } else {
-      await notificationModel.create({ scope: 'user', user_id, borrow_id, book_id, type, title, message });
+      await notificationModel.create({ 
+        receiver_role: 'user', 
+        user_id, 
+        borrow_id, 
+        book_id, 
+        type, 
+        title, 
+        message 
+      });
     }
  
     return success(res, null, 'Notification created');
@@ -637,37 +648,31 @@ exports.createNotificationApi = async (req, res) => {
   }
 };
 
-exports.getBorrowChart = async (req, res) => {
+exports.exportReports = async (req, res) => {
   try {
-    const year = parseInt(req.query.year) || new Date().getFullYear();
-    const db   = require('../config/db');
+    const {
+      from,
+      to,
+      type
+    } = req.query;
 
-    const [rows] = await db.query(`
-      SELECT
-        MONTH(borrow_date) AS month,
-        COUNT(*) AS borrows,
-        SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS returns
-      FROM borrows
-      WHERE YEAR(borrow_date) = ?
-      GROUP BY MONTH(borrow_date)
-      ORDER BY month ASC
-    `, [year]);
+    const rows =
+      await reportModel.getAllReports({
+        from,
+        to,
+        type
+      });
 
-    // Fill tháng thiếu với 0
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const chart  = MONTHS.map((name, i) => {
-      const found = rows.find(r => r.month === i + 1);
-      return {
-        month:   name,
-        borrows: Number(found?.borrows) || 0,
-        returns: Number(found?.returns) || 0,
-      };
-    });
-
-    return res.json({ success: true, data: chart });
+    return success(
+      res,
+      rows,
+      'Export reports successfully'
+    );
   } catch (err) {
-    console.error('[getBorrowChart]', err);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return error(
+      res,
+      err.message
+    );
   }
 };
 

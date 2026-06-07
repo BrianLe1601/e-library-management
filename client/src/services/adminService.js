@@ -46,14 +46,14 @@ const adminService = {
 //  REPORTS — Báo cáo
 // ─────────────────────────────────────────────────────────────
 
-  getReports         : (from, to, type = '') => api.get(`/admin/reports?from=${from}&to=${to}&type=${type}`),
+  getReports         : (from, to, type = '',page = 1, limit = 20) => api.get(`/admin/reports?from=${from}&to=${to}&type=${type}&page=${page}&limit=${limit}`),
   exportReport       : (format = 'pdf', from, to) => api.get(`/admin/reports/export?format=${format}&from=${from}&to=${to}`, { responseType: 'blob' }),
   getTopBooks        : (limit = 10) => api.get(`/admin/reports/top-books?limit=${limit}`),
   getBorrowChart     : (year = new Date().getFullYear()) => api.get(`/admin/reports/borrow-chart?year=${year}`),
   getCategoryChartData: () => api.get('/admin/reports/category-chart'),
   getReportSummary : (from, to) => api.get(`/admin/reports/summary?from=${from}&to=${to}`),
   getCategoryReport: (from, to) => api.get(`/admin/reports/category?from=${from}&to=${to}`),
-
+  getAllReports: ( from,to,type = '') => api.get(`/admin/reports/export?from=${from}&to=${to}&type=${type}`),
 // ─────────────────────────────────────────────────────────────
 //  NOTIFICATIONS — Thông báo
 // [FIX] getNotifications: nhận object params thay vì 2 tham số rời,
@@ -68,7 +68,7 @@ const adminService = {
   restoreNotificatiApi  : (id)            => api.patch(`/admin/notifications/${id}/restore`),
   deleteNotificatiApi   : (id)            => api.delete(`/admin/notifications/${id}`),
   bulkActionNotificatioApi : (action, ids, extraParams = {}) => api.post('/admin/notifications/bulk', { action, ids, ...extraParams }),
-  createNotificatiApi   : (data)          => api.post('/admin/notifications', data),
+  createNotificationApi   : (data)          => api.post('/admin/notifications', data),
   
 }
 

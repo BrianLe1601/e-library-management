@@ -1,6 +1,6 @@
 'use strict';
 const notificationModel = require('../models/notificationModel');
-const db = require('../config/db');
+const userModel = require('../models/userModel');
 const { success, error } = require('../utils/response');
 
 /**
@@ -96,5 +96,15 @@ exports.deleteMultipleNotifications = async (req, res) => {
   } catch (error) {
     console.error("[deleteMultipleNotifications] Error:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.getMyStats = async (req, res) => {
+  try {
+    const stats = await userModel.getUserStats(req.user.id);
+    return success(res, stats);
+  } catch (err) {
+    console.error('[getMyStats Error]:', err);
+    return error(res, 'Error while getting stats', 500);
   }
 };

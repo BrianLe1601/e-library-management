@@ -1,37 +1,25 @@
 import { useState } from "react";
 import useSWR from "swr";
-import { AlertTriangle, Clock, CheckCircle2, BookOpen, Info, Bell, Trash2, CheckSquare } from "lucide-react";
+import { AlertTriangle, Clock, CheckCircle, CheckCircle2, BookOpen, Info, Bell, Trash2, CheckSquare } from "lucide-react";
 import userService from "../../services/userService";
 
 // ── CẤU HÌNH CỦA BẠN ────────────────────────────────────────────────────────
 const NOTIF_CONFIG = {
-  overdue:  { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",     label: "Quá hạn" },
-  approved: { icon: CheckCircle2,  color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", label: "Duyệt mượn" },
-  returned: { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",     label: "Trả sách" },
-  fine:     { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20", label: "Phạt" },
-  system:   { icon: Info,          color: "text-indigo-500",  bg: "bg-indigo-50 dark:bg-indigo-950/20",label: "Hệ thống" },
+  overdue:        { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",          label: "Overdue" },
+  approved:       { icon: CheckCircle,   color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-900/50",  label: "Approved" },
+  returned:       { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",         border: "border-sky-200 dark:border-sky-900/50",          label: "Returned" },
+  fine:           { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20",     border: "border-amber-200 dark:border-amber-900/50",      label: "Fine" },
+  system:         { icon: Info,          color: "text-indigo-500",  bg: "bg-indigo-50 dark:bg-indigo-950/20",   border: "border-indigo-200 dark:border-indigo-900/50",    label: "System" },
+  borrow_request: { icon: Clock,         color: "text-violet-500",  bg: "bg-violet-50 dark:bg-violet-950/20",   border: "border-violet-200 dark:border-violet-900/50",    label: "Borrow Request" },
+  return_request: { icon: BookOpen,      color: "text-cyan-500",    bg: "bg-cyan-50 dark:bg-cyan-950/20",       border: "border-cyan-200 dark:border-cyan-900/50",        label: "Return Request" },
+  renew:          { icon: Clock,         color: "text-blue-500",    bg: "bg-blue-50 dark:bg-blue-950/20",       border: "border-blue-200 dark:border-blue-900/50",        label: "Renewed" },
+  rejected:       { icon: AlertTriangle, color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",          label: "Rejected" },
 };
 
-const getSmartType = (type, title, message) => {
-  // 1. CHỈ giữ lại 4 loại này để ưu tiên giữ nguyên, BỎ "system" ra khỏi đây
-  if (["overdue", "approved", "returned", "fine"].includes(type)) return type;
-  
-  const text = ((title || "") + " " + (message || "")).toLowerCase();
-  
-  // 2. Bắt từ khóa "gia hạn" trước tiên -> Trả về system
-  if (text.includes("gia hạn")) return "system";
-  
-  if (text.includes("quá hạn")) return "overdue";
-  
-  // 3. Bắt từ khóa "trả"
-  if (text.includes("hoàn trả") || text.includes("đã trả") || text.includes("xác nhận trả")) return "returned";
-  
-  if (text.includes("duyệt") || text.includes("mượn") || text.includes("thành công")) return "approved";
-  
-  if (text.includes("phạt")) return "fine";
-  
-  // Nếu không khớp từ khóa nào thì mới chốt là system
-  return "system";
+const getSmartType = (type) => {
+  return NOTIF_CONFIG[type]
+    ? type
+    : "system";
 };
 
 const Skeleton = () => (

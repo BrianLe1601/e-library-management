@@ -15,8 +15,8 @@ const TABS = [
 export default function UserLayout() {
   const { user }          = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
-
-  // Lấy unread count từ API notifications (dữ liệu thật)
+  const [stats, setStats] = useState({ booksRead: 0, thisMonth: 0, ratingGiven: 0 });
+  
   const fetchUnread = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -33,6 +33,13 @@ export default function UserLayout() {
     if (!user?.id) { setUnreadCount(0); return; }
     fetchUnread();
   }, [user?.id, fetchUnread]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    userService.getMyStats()
+      .then(res => setStats(res.data?.data ?? res.data ?? {}))
+      .catch(() => {});
+  }, [user?.id]);
 
   return (
     <div className="bg-gray-50 dark:bg-slate-900">
@@ -134,8 +141,16 @@ export default function UserLayout() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Status</span>
-                  <span className={`text-xs font-semibold ${user?.status === "active" ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
-                    {user?.status === "active" ? "Active" : "Locked"}
+                  <span className={`text-xs font-semibold ${
+                    !user?.status            ? "text-slate-400" :
+                    user.status === "active"  ? "text-green-600 dark:text-green-400" :
+                    user.status === "pending" ? "text-yellow-500" :
+                    "text-red-500"
+                  }`}>
+                    {!user?.status            ? "—"       :
+                    user.status === "active"  ? "Active"  :
+                    user.status === "pending" ? "Pending" :
+                    "Locked"}
                   </span>
                 </div>
               </div>
@@ -147,15 +162,15 @@ export default function UserLayout() {
               <div className="space-y-2.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Books read</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-semibold">24</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-semibold">{stats.booksRead ?? 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">This month</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-semibold">4</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-semibold">{stats.thisMonth ?? 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Rating given</span>
-                  <span className="text-gray-900 dark:text-gray-100 font-semibold">4</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-semibold">{stats.ratingGiven ?? 0}</span>
                 </div>
               </div>
             </div>

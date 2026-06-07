@@ -21,7 +21,8 @@ const emptyForm = {
   publisher_id: '',
   isbn: '',
   categoryIds: [],
-  description: '', 
+  description: '',
+  total: 0,
   stock: 0,
   cover: null,
 };
@@ -103,7 +104,8 @@ export default function BookInventory() {
       return {
         ...book,
         cover: book.coverUrl || 'https://placehold.co/300x450/e2e8f0/475569?text=No+Cover',
-        stock: book.totalCopies || 0,
+        totalCopies: book.totalCopies,
+        stock: book.availableCopies,
         status: computedStatus,
         author: book.author || 'Unknown Author',
         publisher: book.publisher || 'Unknown Publisher',
@@ -145,7 +147,8 @@ export default function BookInventory() {
       isbn: book.isbn || '',
       categoryIds: book.category_id ? [book.category_id] : [],
       description: book.description || '',
-      stock: book.totalCopies || book.stock,
+      total: book.totalCopies,
+      stock: book.availableCopies,
       cover: book.coverUrl || book.cover,
     });
     setImagePreview(book.coverUrl || book.cover); 
@@ -171,7 +174,7 @@ export default function BookInventory() {
       dataToSend.append('publisher_id', form.publisher_id);
       dataToSend.append('isbn', form.isbn);
       dataToSend.append('description', form.description || '');
-      dataToSend.append('total_copies', form.stock);
+      dataToSend.append('total_copies', form.total);
 
       if (form.categoryIds && form.categoryIds.length > 0) {
         dataToSend.append('categoryIds', JSON.stringify(form.categoryIds));
@@ -382,7 +385,8 @@ export default function BookInventory() {
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex flex-col">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${statusConfig[book.status].className}`}>{statusConfig[book.status].label}</span>
-                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1">Stock: {book.stock} copies</span>
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1">Total: {book.totalCopies} copies</span>
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mt-1">Stock: {book.availableCopies} copies</span>
                       </div>
                       {/* FIXED: Added Toggle Visibility Button (Eye/EyeOff) right on Mobile layout */}
                       <div className="flex gap-1">
@@ -401,17 +405,18 @@ export default function BookInventory() {
             {/* VIEW DESKTOP (TABLE) */}
             <div className="hidden sm:block bg-white dark:bg-[#0d1527]/60 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[800px] table-fixed">
+                <table className="w-full text-left border-collapse min-w-[1050px] table-fixed">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-[#0a101f]/50 text-[11px] font-black text-slate-400 uppercase tracking-wider">
-                      <th className="py-4 px-6 w-[9%]">Cover</th>
-                      <th className="py-4 px-6 w-[16%]">Book Info</th>
-                      <th className="py-4 px-6 w-[16%]">Author</th>
-                      <th className="py-4 px-6 w-[16%]">Publisher</th>
+                      <th className="py-4 px-6 w-[8%]">Cover</th>
+                      <th className="py-4 px-6 w-[14%]">Book Info</th>
+                      <th className="py-4 px-6 w-[14%]">Author</th>
+                      <th className="py-4 px-6 w-[14%]">Publisher</th>
                       <th className="py-4 px-6 w-[12%]">Category</th>
-                      <th className="py-4 px-6 w-[11%] text-center">Stock</th>
+                      <th className="py-4 px-6 w-[8%] text-center">Total</th>
+                      <th className="py-4 px-6 w-[9%] text-center">Stock</th>
                       <th className="py-4 px-6 w-[8%] text-center">Status</th>
-                      <th className="py-4 px-6 w-[12%] text-center">Actions</th>
+                      <th className="py-4 px-6 w-[13%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
@@ -440,7 +445,11 @@ export default function BookInventory() {
                           </span>
                         </td>
                         <td className="py-3 px-6 text-center">
-                          <span className="font-black text-slate-800 dark:text-white">{book.stock}</span>
+                          <span className="font-black text-slate-800 dark:text-white">{book.totalCopies}</span>
+                          <span className="text-xs text-slate-400 ml-1">copies</span>
+                        </td>
+                        <td className="py-3 px-6 text-center">
+                          <span className="font-black text-slate-800 dark:text-white">{book.availableCopies}</span>
                           <span className="text-xs text-slate-400 ml-1">copies</span>
                         </td>
                         <td className="py-3 px-6 text-center">
@@ -605,7 +614,7 @@ export default function BookInventory() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <InputField name="isbn" label="ISBN Code" placeholder="e.g. ISBN-0..." icon={Hash} value={form.isbn} onChange={(e) => setForm({...form, isbn: e.target.value})} fieldErrors={{}} />
-                  <InputField name="stock" label="Total Copies *" type="text" placeholder="0" icon={Package} value={form.stock} onChange={(e) => setForm({...form, stock: parseInt(e.target.value) || 0})} fieldErrors={{}} />
+                  <InputField name="total" label="Total Copies *" type="text" placeholder="0" icon={Package} value={form.total} onChange={(e) => setForm({...form, total: parseInt(e.target.value) || 0})} fieldErrors={{}} />
                 </div>
 
                 <div className="space-y-1.5">
@@ -628,7 +637,6 @@ export default function BookInventory() {
             </div>
           </div>
         )}
-
         {/* DELETE CONFIRMATION MODAL */}
         {deleteId !== null && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -652,7 +660,6 @@ export default function BookInventory() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

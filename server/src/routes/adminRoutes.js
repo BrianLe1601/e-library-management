@@ -36,8 +36,10 @@ router.post  ('/categories',            authorize('admin', 'employee'),         
 router.get('/stats',                authorize('admin', 'employee'), adminController.getStats);
 router.get('/reports',              authorize('admin', 'employee'), adminController.getReports);
 router.get('/reports/top-books',    authorize('admin', 'employee'), adminController.getTopBooks);
-router.get('/reports/export',       authorize('admin', 'employee'), adminController.exportReport);
 router.get('/reports/borrow-chart', authorize('admin', 'employee'), adminController.getBorrowChart);
+router.get('/reports/summary',  authorize('admin','employee'), adminController.getReportSummary);
+router.get('/reports/category', authorize('admin','employee'), adminController.getCategoryReport);
+router.get('/reports/export',                   authorize('admin', 'employee'), adminController.exportReports);
 
 // ── User management (admin only) ──────────────────────────────────────────────
 router.get   ('/users',             authorize('admin', 'employee'), adminController.getUsers);
@@ -52,10 +54,6 @@ router.get('/borrows/overdue',      authorize('admin', 'employee'), adminControl
 router.put('/borrows/approve/:id',  authorize('admin', 'employee'), adminController.approveBorrow);
 router.put('/borrows/reject/:id',   authorize('admin', 'employee'), adminController.rejectBorrow);
 
-// ── Reports (admin + employee) ────────────────────────────────────────────────
-router.get('/reports/summary',  authorize('admin','employee'), adminController.getReportSummary);
-router.get('/reports/category', authorize('admin','employee'), adminController.getCategoryReport);
-
 // ── Notifications (admin + employee) ─────────────────────────────────────────────
 router.get   ('/notifications',                 authorize('admin', 'employee'), adminController.getNotifications);
 router.patch ('/notifications/mark-all',        authorize('admin', 'employee'), adminController.markAllNotificationsRead);
@@ -65,4 +63,5 @@ router.patch ('/notifications/:id/archive',     authorize('admin', 'employee'), 
 router.patch ('/notifications/:id/restore',     authorize('admin', 'employee'), adminController.restoreNotification);
 router.delete('/notifications/:id',             authorize('admin', 'employee'), adminController.deleteNotification);
 router.post('/notifications',                   authorize('admin', 'employee'), adminController.createNotificationApi);
+
 module.exports = router;

@@ -91,7 +91,7 @@ const findAllForAdmin = async ({ filter = 'all', is_archived = 0, page = 1, limi
     query += " AND n.type IN ('overdue', 'fine')";
   } else if (filter === 'system') {
     // Tab "Activity": mượn/trả/gia hạn + hệ thống
-    query += " AND n.type IN ('approved', 'returned', 'system')";
+    query += " AND n.type IN ('approved', 'returned', 'system', 'renew', 'rejected', 'borrow_request', 'return_request')";
   }
   // filter === 'all': không thêm điều kiện type
 
@@ -162,7 +162,7 @@ const getStatsForAdmin = async () => {
 // Thao tác đơn lẻ
 // ─────────────────────────────────────────────────────────────
 const markRead   = async (id) => db.query('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
-const markAllRead = async ()  => db.query('UPDATE notifications SET is_read = 1 WHERE is_archived = 0');
+const markAllRead = async () => db.query(` UPDATE notifications SET is_read = 1 WHERE is_archived = 0 AND ( receiver_role = 'admin_employee' OR ( receiver_role = 'user' AND user_id IS NULL ) )`);
 const archive    = async (id) => db.query('UPDATE notifications SET is_archived = 1, is_read = 1 WHERE id = ?', [id]);
 const restore    = async (id) => db.query('UPDATE notifications SET is_archived = 0 WHERE id = ?', [id]);
 const remove     = async (id) => db.query('DELETE FROM notifications WHERE id = ?', [id]);

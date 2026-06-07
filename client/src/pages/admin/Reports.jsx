@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Download, FileSpreadsheet, FileText, Calendar, Filter,
   TrendingUp, BookOpen, Users, BarChart2, Loader2, RefreshCw,
-  AlertTriangle, ChevronLeft, ChevronRight, Eye, X, Clock,
+  AlertTriangle, ChevronLeft, ChevronRight, Eye, X,
   CheckCircle, XCircle, AlertCircle, RotateCcw, HelpCircle
 } from 'lucide-react';
 import {
@@ -13,7 +13,6 @@ import adminService from '../../services/adminService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inject thư viện qua <script> tag rồi đọc từ window
-// (dynamic import() từ CDN không hoạt động trong Vite vì CSP / ESM mismatch)
 // ─────────────────────────────────────────────────────────────────────────────
 const loadScript = (src) =>
   new Promise((resolve, reject) => {
@@ -28,19 +27,16 @@ const loadScript = (src) =>
 const getJsPDF = async () => {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-  // jsPDF UMD gắn vào window.jspdf.jsPDF
   return window.jspdf?.jsPDF || window.jsPDF;
 };
 
-// ─── Chuyển tiếng Việt có dấu → không dấu để PDF render đúng ─────────────────
-// jsPDF font mặc định (Helvetica) không hỗ trợ ký tự Unicode tiếng Việt,
-// nên cần normalize trước khi đưa vào bảng PDF
+// Chuyển tiếng Việt có dấu → không dấu để PDF render đúng (Dùng font mặc định)
 const viToAscii = (str) => {
   if (!str) return '';
   return str
-    .normalize('NFD')                        // tách ký tự gốc + dấu thành 2 codepoint riêng
-    .replace(/[\u0300-\u036f]/g, '')         // xóa toàn bộ dấu (combining characters)
-    .replace(/đ/g, 'd').replace(/Đ/g, 'D'); // đ/Đ không normalize được, xử lý riêng
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D');
 };
 
 const getXLSX = async () => {
@@ -76,7 +72,7 @@ const fmtDate  = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_META = {
-  borrowing: { label: 'Borrowing',  cls: 'bg-blue-500/10 text-blue-400'      },
+  borrowing: { label: 'Borrowing',  cls: 'bg-blue-500/10 text-blue-400'       },
   renewed:   { label: 'Renewed',    cls: 'bg-purple-500/10 text-purple-400'   },
   returned:  { label: 'Returned',   cls: 'bg-emerald-500/10 text-emerald-400' },
   overdue:   { label: 'Overdue',    cls: 'bg-red-500/10 text-red-400'         },
@@ -114,7 +110,6 @@ const BorrowDetailModal = ({ row, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <FileText size={16} className="text-indigo-400" />
@@ -127,7 +122,6 @@ const BorrowDetailModal = ({ row, onClose }) => {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Status + Fine */}
           <div className="flex items-center justify-between">
             <StatusBadge status={row.status} />
             {row.fine_amount > 0 ? (
@@ -139,20 +133,17 @@ const BorrowDetailModal = ({ row, onClose }) => {
             )}
           </div>
 
-          {/* Reader */}
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
             <p className="text-[11px] uppercase tracking-wider text-slate-400 font-medium mb-2">Reader</p>
             <div className="flex justify-between"><span className="text-xs text-slate-500">Name</span><span className="text-sm font-medium text-slate-800 dark:text-slate-200">{row.user_name}</span></div>
             <div className="flex justify-between"><span className="text-xs text-slate-500">Email</span><span className="text-xs text-slate-500">{row.email}</span></div>
           </div>
 
-          {/* Book */}
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
             <p className="text-[11px] uppercase tracking-wider text-slate-400 font-medium mb-2">Book</p>
             <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{row.book_title}</p>
           </div>
 
-          {/* Timeline */}
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-2">
             <p className="text-[11px] uppercase tracking-wider text-slate-400 font-medium mb-2">Timeline</p>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -164,7 +155,6 @@ const BorrowDetailModal = ({ row, onClose }) => {
             {daysOverdue > 0 && <div className="flex justify-between"><span className="text-xs text-slate-500">Days overdue</span><span className="text-xs font-semibold text-red-400">{daysOverdue} days</span></div>}
           </div>
 
-          {/* Extra */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
               <p className="text-[10px] text-slate-400 mb-1">Renewals</p>
@@ -190,10 +180,16 @@ const BorrowDetailModal = ({ row, onClose }) => {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function Reports() {
-  const currentYear = new Date().getFullYear();
+  
+  // SỬA LỖI MÚI GIỜ Ở ĐÂY: Lấy đúng ngày Local Time của Việt Nam
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const localMonth = String(today.getMonth() + 1).padStart(2, '0');
+  const localDay = String(today.getDate()).padStart(2, '0');
+  const localTodayStr = `${currentYear}-${localMonth}-${localDay}`;
 
   const [dateFrom,     setDateFrom]     = useState(`${currentYear}-01-01`);
-  const [dateTo,       setDateTo]       = useState(new Date().toISOString().split('T')[0]);
+  const [dateTo,       setDateTo]       = useState(localTodayStr);
   const [chartYear,    setChartYear]    = useState(currentYear);
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedCat,  setSelectedCat]  = useState('All');
@@ -205,7 +201,7 @@ export default function Reports() {
   const [detailRows,   setDetailRows]   = useState([]);
   const [detailTotal,  setDetailTotal]  = useState(0);
   const [detailPage,   setDetailPage]   = useState(1);
-  const DETAIL_LIMIT = 15;
+  const DETAIL_LIMIT = 20;
 
   const [loadingSummary,  setLoadingSummary]  = useState(true);
   const [loadingChart,    setLoadingChart]    = useState(true);
@@ -213,30 +209,30 @@ export default function Reports() {
   const [loadingDetail,   setLoadingDetail]   = useState(true);
   const [exporting,       setExporting]       = useState(null); // null | 'pdf' | 'excel'
 
-  // ── Fetch detail — log response để debug cấu trúc từ backend ────────────────
+  // ── Fetch detail ────────────────
   const fetchDetail = useCallback(async (page = 1) => {
     setLoadingDetail(true);
     try {
-      const res = await adminService.getReports(dateFrom, dateTo, statusFilter);
+      const res = await adminService.getReports(
+        dateFrom,
+        dateTo,
+        statusFilter,
+        page,
+        DETAIL_LIMIT
+      );
 
-      // Log toàn bộ response để debug nếu không thấy dữ liệu
-      console.log('[Reports] getReports raw response:', res);
-      console.log('[Reports] res.data:', res?.data);
-
-      // Thử nhiều cấu trúc response phổ biến từ backend
       const data  = res?.data;
       const rows  =
-        data?.data?.rows   ??   // { data: { rows: [], total: N } }
-        data?.rows         ??   // { rows: [], total: N }
-        data?.data         ??   // { data: [] }  (mảng thẳng)
+        data?.data?.rows   ??
+        data?.rows         ??
+        data?.data         ??  
         (Array.isArray(data) ? data : []);
 
       const total =
-        data?.data?.total  ??
-        data?.total        ??
+        data?.meta?.total ??
+        data?.data?.total ??
+        data?.total ??
         (Array.isArray(rows) ? rows.length : 0);
-
-      console.log('[Reports] parsed rows:', rows, '| total:', total);
 
       setDetailRows(Array.isArray(rows) ? rows : []);
       setDetailTotal(Number(total) || 0);
@@ -281,37 +277,35 @@ export default function Reports() {
 
   const handleApply = () => { fetchSummary(); fetchCategory(); fetchDetail(1); };
 
-  // Hàm hỗ trợ chuyển đổi ArrayBuffer của file font sang Base64
-const arrayBufferToBase64 = (buffer) => {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
-};
-
-  // ── Export PDF ──────────────────────────────────────────────────────────────
+  // ── Export PDF (Đã fix font và landscape) ──────────────────────────────────
   const handleExportPDF = async () => {
     setExporting('pdf');
     try {
-      // 1. Tải thư viện và khởi tạo
+      const res = await adminService.getAllReports(
+        dateFrom,
+        dateTo,
+        statusFilter
+      );
+
+      const allRows = Array.isArray(res.data?.data)
+        ? res.data.data
+        : [];
+
+      // 1. Tải thư viện và khởi tạo khổ giấy ngang
       const jsPDF = await getJsPDF();
-      // QUAN TRỌNG: Thêm tham số 'landscape' để quay ngang tờ giấy A4, vì 12 cột rất dài
       const doc = new jsPDF('landscape'); 
 
       // 2. Tạo tiêu đề báo cáo
       doc.setFontSize(16);
       doc.setFont(undefined, 'bold');
-      doc.text("LIBRARY STATISTIC REPORT", 14, 22); 
+      doc.text(viToAscii("LIBRARY STATISTIC REPORT"), 14, 22); 
       
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
       doc.setTextColor(100);
       doc.text(`Period: ${dateFrom} to ${dateTo}`, 14, 30);
 
-      // 3. CHUẨN BỊ DỮ LIỆU ĐỘNG TỪ API
+      // 3. Chuẩn bị dữ liệu
       const tableColumn = [
         '#', 
         'Reader Name', 
@@ -327,8 +321,7 @@ const arrayBufferToBase64 = (buffer) => {
         'Handled By'
       ];
 
-      // Map đúng thứ tự 12 cột như tableColumn
-      const tableRows = detailRows.map(r => [
+      const tableRows = allRows.map(r => [
         r.id,
         viToAscii(r.user_name || ''),
         r.email || '',
@@ -374,17 +367,21 @@ const arrayBufferToBase64 = (buffer) => {
   const handleExportExcel = async () => {
     setExporting('excel');
     try {
-      const res  = await adminService.getReports(dateFrom, dateTo, statusFilter);
+      const res = await adminService.getAllReports(
+        dateFrom,
+        dateTo,
+        statusFilter
+      );
       const data = res?.data;
-      const rows = data?.data?.rows ?? data?.rows ?? (Array.isArray(data?.data) ? data.data : []);
+      const rows = Array.isArray(res.data?.data)
+        ? res.data.data
+        : [];
 
-      // Load XLSX qua script tag rồi đọc từ window
       const XLSX = await getXLSX();
       if (!XLSX) throw new Error('XLSX not available on window');
 
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1 — Borrow Records
       const wsData = [
         ['#', 'Reader Name', 'Email', 'Book Title', 'Borrow Date', 'Due Date', 'Return Date', 'Status', 'Renewals', 'Fine Amount (VND)', 'Fine Paid', 'Handled By'],
         ...rows.map(r => [
@@ -401,7 +398,6 @@ const arrayBufferToBase64 = (buffer) => {
       ws1['!cols'] = [8,22,30,36,12,12,12,12,10,18,10,18].map(w => ({ wch: w }));
       XLSX.utils.book_append_sheet(wb, ws1, 'Borrow Records');
 
-      // Sheet 2 — Category Summary
       const catData = [
         ['Category', 'Total Borrowed', 'Returned', 'Overdue', 'Return Rate (%)'],
         ...categoryData.map(c => [c.category, c.borrowed, c.returned, c.overdue, pct(c.returned, c.borrowed)]),
@@ -410,7 +406,6 @@ const arrayBufferToBase64 = (buffer) => {
       ws2['!cols'] = [24,16,12,12,16].map(w => ({ wch: w }));
       XLSX.utils.book_append_sheet(wb, ws2, 'Category Summary');
 
-      // Sheet 3 — Summary Stats
       if (summary) {
         const sumData = [
           ['Metric', 'Value'],
@@ -435,7 +430,6 @@ const arrayBufferToBase64 = (buffer) => {
     }
   };
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
   const filteredCategory = selectedCat === 'All' ? categoryData : categoryData.filter(c => c.category === selectedCat);
   const totalPages = Math.ceil(detailTotal / DETAIL_LIMIT) || 1;
 
@@ -576,10 +570,6 @@ const arrayBufferToBase64 = (buffer) => {
             <h3 className="text-slate-900 dark:text-white font-semibold text-sm md:text-base">Category Performance</h3>
             <p className="text-slate-400 text-xs mt-0.5">Borrow statistics grouped by book category</p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={handleExportPDF} disabled={!!exporting} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs transition-colors"><Download size={12} /> PDF</button>
-            <button onClick={handleExportExcel} disabled={!!exporting} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-xs transition-colors"><Download size={12} /> Excel</button>
-          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[540px]">
@@ -640,7 +630,6 @@ const arrayBufferToBase64 = (buffer) => {
                 : 'No records found — check console for API response structure'}
             </p>
           </div>
-          {/* Quick filter pills */}
           <div className="flex items-center gap-1 flex-wrap">
             {['', 'borrowing', 'overdue', 'returned', 'pending', 'renewed'].map(s => (
               <button key={s} onClick={() => { setStatusFilter(s); }}
@@ -677,7 +666,7 @@ const arrayBufferToBase64 = (buffer) => {
                   <td colSpan={11} className="text-center py-14">
                     <AlertTriangle size={22} className="mx-auto mb-2 text-slate-400 opacity-50" />
                     <p className="text-slate-500 text-sm">No borrow records found</p>
-                    <p className="text-slate-400 text-xs mt-1">Try adjusting the date range or status filter · Check browser console for API details</p>
+                    <p className="text-slate-400 text-xs mt-1">Try adjusting the date range or status filter</p>
                   </td>
                 </tr>
               ) : (

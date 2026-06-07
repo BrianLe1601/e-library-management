@@ -10,22 +10,21 @@ import InputField from "../InputField";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const NOTIF_CONFIG = {
-  overdue:  { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",     label: "Overdue" },
-  approved: { icon: CheckCircle,   color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-900/50", label: "Approved" },
-  returned: { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",         border: "border-sky-200 dark:border-sky-900/50",     label: "Returned" },
-  fine:     { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20",     border: "border-amber-200 dark:border-amber-900/50", label: "Fine" },
-  system:   { icon: Info,          color: "text-indigo-500",  bg: "bg-indigo-50 dark:bg-indigo-950/20",   border: "border-indigo-200 dark:border-indigo-900/50", label: "System" },
+  overdue:        { icon: Clock,         color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",          label: "Overdue" },
+  approved:       { icon: CheckCircle,   color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/20", border: "border-emerald-200 dark:border-emerald-900/50",  label: "Approved" },
+  returned:       { icon: BookOpen,      color: "text-sky-500",     bg: "bg-sky-50 dark:bg-sky-950/20",         border: "border-sky-200 dark:border-sky-900/50",          label: "Returned" },
+  fine:           { icon: AlertTriangle, color: "text-amber-500",   bg: "bg-amber-50 dark:bg-amber-950/20",     border: "border-amber-200 dark:border-amber-900/50",      label: "Fine" },
+  system:         { icon: Info,          color: "text-indigo-500",  bg: "bg-indigo-50 dark:bg-indigo-950/20",   border: "border-indigo-200 dark:border-indigo-900/50",    label: "System" },
+  borrow_request: { icon: Clock,         color: "text-violet-500",  bg: "bg-violet-50 dark:bg-violet-950/20",   border: "border-violet-200 dark:border-violet-900/50",    label: "Borrow Request" },
+  return_request: { icon: BookOpen,      color: "text-cyan-500",    bg: "bg-cyan-50 dark:bg-cyan-950/20",       border: "border-cyan-200 dark:border-cyan-900/50",        label: "Return Request" },
+  renew:          { icon: Clock,         color: "text-blue-500",    bg: "bg-blue-50 dark:bg-blue-950/20",       border: "border-blue-200 dark:border-blue-900/50",        label: "Renewed" },
+  rejected:       { icon: AlertTriangle, color: "text-red-500",     bg: "bg-red-50 dark:bg-red-950/20",         border: "border-red-200 dark:border-red-900/50",          label: "Rejected" },
 };
 
-const getSmartType = (type, title, message) => {
-  if (["overdue", "approved", "returned", "fine"].includes(type)) return type;
-  const text = ((title || "") + " " + (message || "")).toLowerCase();
-  if (text.includes("extend") || text.includes("renew")) return "system";
-  if (text.includes("overdue")) return "overdue";
-  if (text.includes("return") || text.includes("returned")) return "returned";
-  if (text.includes("approve") || text.includes("borrow") || text.includes("success")) return "approved";
-  if (text.includes("fine") || text.includes("penalty")) return "fine";
-  return "system";
+const getSmartType = (type) => {
+  return NOTIF_CONFIG[type]
+    ? type
+    : "system";
 };
 
 const INITIAL_FORM = {
@@ -51,7 +50,7 @@ export const StatPill = memo(({ icon: Icon, value, label, color }) => (
 
 // ─── 2. NotiCard (Desktop) ────────────────────────────────────────────────────
 export const NotiCard = memo(({ item, isChecked, isSelected, onTap, onToggleCheck }) => {
-  const smartType = getSmartType(item.type, item.title, item.message);
+  const smartType = getSmartType(item.type);
   const cfg  = NOTIF_CONFIG[smartType] || NOTIF_CONFIG.system;
   const Icon = cfg.icon;
 
@@ -105,7 +104,7 @@ export const NotificationDetail = memo(({ selectedNotif, onDelete }) => {
     );
   }
 
-  const smartType = getSmartType(selectedNotif.type, selectedNotif.title, selectedNotif.message);
+  const smartType = getSmartType(selectedNotif.type);
   const cfg       = NOTIF_CONFIG[smartType] || NOTIF_CONFIG.system;
   const isPublic  = !selectedNotif.user_id;
 
@@ -571,7 +570,7 @@ export const MobileNotificationFilters = memo(({ searchQuery, filter, onSearch, 
 
 // ─── 7. NotificationCardMobile ────────────────────────────────────────────────
 export const NotificationCardMobile = memo(({ item, isChecked, isSelectionMode, onTap, onToggleCheck }) => {
-  const smartType = getSmartType(item.type, item.title, item.message);
+  const smartType = getSmartType(item.type);
   const cfg       = NOTIF_CONFIG[smartType] || NOTIF_CONFIG.system;
   const isUnread  = !item.is_read;
 

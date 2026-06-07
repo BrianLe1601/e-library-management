@@ -13,6 +13,8 @@ router.patch ('/notifications/mark-all', authenticate,  authorize('user'), userC
 router.patch ('/notifications/:id/read', authenticate,  authorize('user'), userController.markNotificationAsRead); 
 router.post  ('/notifications/delete-multiple', authenticate, authorize('user'), userController.deleteMultipleNotifications);
 router.delete('/notifications/:id',             authenticate, authorize('user'), userController.deleteNotification);
+router.get('/stats', authenticate, authorize('user'), userController.getMyStats);
+
 // ── Saved Books (Sách đã lưu) ────────────────────────────────────────────────
 router.get   ('/saved-books',          authenticate, authorize('user', 'admin', 'employee'),  bookController.getSavedBooks);
 router.post  ('/saved-books',          authenticate, authorize('user', 'admin', 'employee'),  bookController.saveBook);

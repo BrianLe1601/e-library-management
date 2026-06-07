@@ -276,7 +276,7 @@ export default function Dashboard() {
             <h3 className="text-slate-900 dark:text-white font-semibold">Recent history</h3>
             <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">Latest activity across all users</p>
           </div>
-          <a href="/admin/borrows"
+          <a href="/admin/borrowing"
             className="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 font-medium transition-colors">
             <Eye size={13} /> View all
           </a>
