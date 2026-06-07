@@ -31,7 +31,6 @@ const sendMailHelper = async (toEmail, subject, htmlContent) => {
             return false;
         }
         try {
-            // Đã đổi to: toEmail để gửi trực tiếp cho người nhận mong muốn
             const response = await axios.post('https://api.resend.com/emails', {
                 from: 'onboarding@resend.dev', 
                 to: toEmail.trim(),            
