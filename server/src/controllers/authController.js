@@ -31,12 +31,11 @@ const sendMailHelper = async (toEmail, subject, htmlContent) => {
             return false;
         }
         try {
-            const sandboxSafeEmail = 'elibrarycompany113@gmail.com'; 
-            
+            // Đã đổi to: toEmail để gửi trực tiếp cho người nhận mong muốn
             const response = await axios.post('https://api.resend.com/emails', {
                 from: 'onboarding@resend.dev', 
-                to: sandboxSafeEmail, 
-                subject: `[Gửi tới: ${toEmail}] ${subject}`, 
+                to: toEmail.trim(),            
+                subject: subject,              
                 html: htmlContent
             }, {
                 headers: {
@@ -46,13 +45,13 @@ const sendMailHelper = async (toEmail, subject, htmlContent) => {
                 timeout: 8000
             });
             
-            console.log(`[Render Cloud] Chuyển hướng OTP an toàn về: ${sandboxSafeEmail}`);
+            console.log(`[Render Cloud] Đã gửi mail thành công tới: ${toEmail}`);
             return true; 
         } catch (err) {
             console.error('[Render Cloud] Lỗi Resend API:', err.response?.data || err.message);
             return false; 
         }
-    } 
+    }
     
     else {
     if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
