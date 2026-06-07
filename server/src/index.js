@@ -1,38 +1,26 @@
 'use strict';
-// const dns = require('dns');
-// dns.setDefaultResultOrder('ipv4first');
 require('dotenv').config();
 require('./config/db');
 const express = require('express');
 const morgan  = require('morgan');
 const cors    = require('cors');
 const startCronJobs = require('./utils/cronJobs');
-
 // ── Route imports ─────────────────────────────────────────────────────────────
-const authRoutes   = require('./routes/authRoutes');    
-const bookRoutes   = require('./routes/bookRoutes');    
-const borrowRoutes = require('./routes/borrowRoutes');  
-const adminRoutes  = require('./routes/adminRoutes');   
+const authRoutes   = require('./routes/authRoutes');    // TV1
+const bookRoutes   = require('./routes/bookRoutes');    // TV2
+const borrowRoutes = require('./routes/borrowRoutes');  // TV3
+const adminRoutes  = require('./routes/adminRoutes');   // TV4
 const reviewRoutes = require('./routes/reviewRoutes');
 const userRoutes   = require('./routes/userRoutes');
-
 // ── Middleware imports ────────────────────────────────────────────────────────
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
 
 const app  = express();
+
 const PORT = process.env.PORT || 5000;
 
 // ── Global middleware ─────────────────────────────────────────────────────────
-const allowedOrigins = [
-  'http://localhost:5173',
-  process.env.CLIENT_URL 
-].filter(Boolean); 
-
-app.use(cors({ 
-  origin: allowedOrigins,
-  credentials: true 
-}));
-
+app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
@@ -50,24 +38,22 @@ app.get('/', (_req, res) =>
 );
 
 // ── API Routes ────────────────────────────────────────────────────────────────
-app.use('/api', authRoutes);         
-app.use('/api/books', bookRoutes);    
-app.use('/api/borrows', borrowRoutes); 
-app.use('/api/admin', adminRoutes);   
-app.use('/api/reviews', reviewRoutes); 
+app.use('/api', authRoutes);          // /api/auth/*  &  /api/users/*
+app.use('/api/books', bookRoutes);    // /api/books/*
+app.use('/api/borrows', borrowRoutes); // /api/borrows/*
+app.use('/api/admin', adminRoutes);   // /api/admin/*
+app.use('/api/reviews', reviewRoutes); // /api/reviews/*
 app.use('/api/users', userRoutes);
 
 // ── Error handlers (phải đặt CUỐI) ───────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
-
-// Khởi động các tác vụ chạy ngầm
 startCronJobs();
-
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`E-Library API running on port ${PORT}`);
-  console.log(`ENV: ${process.env.NODE_ENV}`);
+  console.log(`E-Library API  →  http://localhost:${PORT}`);
+  console.log(`ENV: ${process.env.NODE_ENV || 'development'}`);
 });
+
 
 module.exports = app;
