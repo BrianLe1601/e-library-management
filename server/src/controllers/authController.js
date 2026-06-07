@@ -19,38 +19,69 @@ const { success, error } = require('../utils/response');
 
 const axios = require('axios'); 
 
-// const nodemailer = require('nodemailer');
-// const dnsPromises = require('dns').promises; 
+const nodemailer = require('nodemailer');
+
 
 const SALT_ROUNDS = 10;
 
 const sendMailHelper = async (toEmail, subject, htmlContent) => {
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('[sendMailHelper] Thiếu biến môi trường RESEND_API_KEY');
+    if (process.env.NODE_ENV === 'production') {
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[sendMailHelper] Thiếu biến môi trường RESEND_API_KEY');
+            return false;
+        }
+        try {
+            const sandboxSafeEmail = 'elibrarycompany113@gmail.com'; 
+            
+            const response = await axios.post('https://api.resend.com/emails', {
+                from: 'onboarding@resend.dev', 
+                to: sandboxSafeEmail, 
+                subject: `[Gửi tới: ${toEmail}] ${subject}`, 
+                html: htmlContent
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 8000
+            });
+            
+            console.log(`[Render Cloud] Chuyển hướng OTP an toàn về: ${sandboxSafeEmail}`);
+            return true; 
+        } catch (err) {
+            console.error('[Render Cloud] Lỗi Resend API:', err.response?.data || err.message);
+            return false; 
+        }
+    } 
+    
+    else {
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+        console.warn('[Localhost] Thiếu MAIL_USER hoặc MAIL_PASS trong file .env');
         return false;
     }
-
     try {
-        // Gọi API của Resend
-        const response = await axios.post('https://api.resend.com/emails', {
-            from: 'onboarding@resend.dev', 
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.MAIL_USER.trim(),
+                pass: process.env.MAIL_PASS.trim().replace(/\s+/g, '') 
+            }
+        });
+
+        await transporter.sendMail({
+            from: `"E-Library Local" <${process.env.MAIL_USER.trim()}>`,
             to: toEmail, 
             subject: subject,
             html: htmlContent
-        }, {
-            headers: {
-                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 8000
         });
-
-        console.log(`[sendMailHelper] Đã gửi mail qua Resend API tới: ${toEmail} | ID:`, response.data.id);
-        return true; 
+        
+        console.log(`[Localhost] Đã gửi thành công qua Gmail tới: ${toEmail}`);
+        return true;
     } catch (err) {
-        console.error('[sendMailHelper] Lỗi Resend API:', err.response?.data || err.message);
-        return false; 
+        console.error('[Localhost] Lỗi Nodemailer:', err.message);
+        return false;
     }
+}
 };
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
