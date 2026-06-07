@@ -1,11 +1,16 @@
+/**
+ * services/api.js — Axios instance dùng chung toàn app
+ *
+ * - Tự động gắn Bearer token vào mọi request
+ * - Tự động redirect về /login khi 401
+ * - Mọi service file (authService, bookService...) đều import từ đây
+ */
+
 import axios from "axios";
 
-const rawBaseURL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-const finalBaseURL = rawBaseURL.endsWith("/api") ? rawBaseURL : `${rawBaseURL}/api`;
-
 const api = axios.create({
-  baseURL: finalBaseURL,
-  timeout: 60000, 
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  timeout: 15000,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -41,6 +46,8 @@ api.interceptors.response.use(
     // 2. Không đủ quyền truy cập (403 Forbidden)
     if (status === 403) {
       console.error("Quyền truy cập bị từ chối (403 Forbidden).");
+      // Bạn có thể redirect tới trang 403 hoặc ném lỗi ra ngoài component để Toast cảnh báo
+      // window.location.href = "/403"; 
     }
 
     return Promise.reject(error);
