@@ -198,57 +198,83 @@ CREATE INDEX idx_reviews_book      ON reviews(book_id);
 -- ============================================================
 -- THÊM DỮ LIỆU MẪU (ĐÃ SỬA LỖI ENUM STATUS THÀNH 'active')
 -- ============================================================
+-- 1. TẠO USERS (Đầy đủ Admin, Nhân viên và Bạn đọc)
+-- Hash bcrypt của '123456' là: $2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.
 INSERT INTO users (id, full_name, email, password, phone, role, status, login_method) VALUES
-(1, 'Admin System', 'admin@library.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0123456789', 'admin', 'active', 'local'),
-(2, 'Nhân viên 1', 'employee1@library.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0987654321', 'employee', 'active', 'local'),
-(3, 'Nhân viên 2', 'employee2@library.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0912345678', 'employee', 'active', 'local'),
-(4, 'Người dùng A', 'usera@gmail.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0901111111', 'user', 'active', 'local'),
-(5, 'Người dùng B', 'userb@gmail.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0902222222', 'user', 'active', 'local'),
-(6, 'Người dùng C', 'userc@gmail.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0903333333', 'user', 'active', 'local');
+(1, 'Quản Trị Viên', 'admin@elibrary.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0999999999', 'admin', 'active', 'local'),
+(2, 'Thủ Thư (Nhân viên 1)', 'thuthu1@elibrary.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0888888888', 'employee', 'active', 'local'),
+(3, 'Nguyễn Văn A (Bạn đọc)', 'nguyenvana@gmail.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0901111111', 'user', 'active', 'local'),
+(4, 'Trần Thị B (Bạn đọc)', 'tranthib@gmail.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0902222222', 'user', 'active', 'local'),
+(5, 'Lê Văn C (Bạn đọc)', 'levanc@gmail.com', '$2b$10$X7m6OfS7FXvB0WvD.E7gJOvfZGZ7Wre8v6H6kSdfGvjWvE0vS3mO.', '0903333333', 'user', 'active', 'local');
 
+-- 2. TẠO CATEGORIES
 INSERT INTO categories (id, name, description) VALUES
-(1, 'Văn học Việt Nam', NULL), (2, 'Văn học Nước Ngoài', NULL), (3, 'Khoa học - Công nghệ', NULL), 
-(4, 'Kinh tế - Kinh doanh', NULL), (5, 'Tâm lý - Kỹ năng sống', NULL);
+(1, 'Công nghệ thông tin', 'Sách về lập trình, phần mềm, AI'), 
+(2, 'Kinh tế - Khởi nghiệp', 'Kinh doanh, tài chính, đầu tư'), 
+(3, 'Văn học - Tiểu thuyết', 'Tiểu thuyết trong và ngoài nước'),
+(4, 'Kỹ năng sống', 'Phát triển bản thân, tâm lý học');
 
+-- 3. TẠO AUTHORS
 INSERT INTO authors (id, name, bio) VALUES
-(1, 'Nguyễn Nhật Ánh', 'Nhà văn tài năng chuyên viết về tuổi học trò.'),
-(2, 'Tô Hoài', 'Tác giả Dế Mèn Phiêu Lưu Ký.'),
-(3, 'Dale Carnegie', 'Tác giả cuốn sách Đắc Nhân Tâm.'),
-(4, 'Haruki Murakami', 'Nhà văn đương đại Nhật Bản.'),
-(5, 'George Orwell', 'Nhà văn người Anh.');
+(1, 'Nguyễn Nhật Ánh', 'Nhà văn nổi tiếng với tuổi thơ Việt Nam'),
+(2, 'Robert C. Martin', 'Tác giả của Clean Code'),
+(3, 'Dale Carnegie', 'Chuyên gia nghệ thuật giao tiếp'),
+(4, 'Tô Hoài', 'Nhà văn gạo cội của văn học Việt Nam');
 
+-- 4. TẠO PUBLISHERS
 INSERT INTO publishers (id, name, country) VALUES
-(1, 'NXB Trẻ', 'Việt Nam'), (2, 'NXB Văn Học', 'Việt Nam'), (3, 'NXB Kim Đồng', 'Việt Nam');
+(1, 'NXB Trẻ', 'Việt Nam'), 
+(2, 'NXB Kim Đồng', 'Việt Nam'), 
+(3, 'Prentice Hall', 'Mỹ');
 
-INSERT INTO books (id, title, author_id, publisher_id, isbn, cover_url, total_copies, available_copies) VALUES
-(1, 'Mắt Biếc', 1, 1, 'ISBN-001', 'https://placehold.co/300x450/e2e8f0/475569?text=Mat+Biec', 5, 4), 
-(2, 'Cho Tôi Xin Một Vé Đi Tuổi Thơ', 1, 1, 'ISBN-002', 'https://placehold.co/300x450/e2e8f0/475569?text=Cho+Toi+Xin+Mot+Ve', 3, 2), 
-(3, 'Dế Mèn Phiêu Lưu Ký', 2, 3, 'ISBN-003', 'https://placehold.co/300x450/e2e8f0/475569?text=De+Men', 4, 2), 
-(4, 'Đắc Nhân Tâm', 3, 1, 'ISBN-004', 'https://placehold.co/300x450/e2e8f0/475569?text=Dac+Nhan+Tam', 6, 6), 
-(5, 'Rừng Na Uy', 4, 2, 'ISBN-005', 'https://placehold.co/300x450/e2e8f0/475569?text=Rung+Na+Uy', 2, 1), 
-(6, '1984', 5, 2, 'ISBN-006', 'https://placehold.co/300x450/e2e8f0/475569?text=1984', 5, 5), 
-(7, 'Trại Súc Vật', 5, 2, 'ISBN-007', 'https://placehold.co/300x450/e2e8f0/475569?text=Trai+Suc+Vat', 3, 2), 
-(8, 'Kính Vạn Hoa', 1, 3, 'ISBN-008', 'https://placehold.co/300x450/e2e8f0/475569?text=Kinh+Van+Hoa', 4, 4), 
-(9, 'Tôi Thấy Hoa Vàng', 1, 1, 'ISBN-009', 'https://placehold.co/300x450/e2e8f0/475569?text=Toi+Thay+Hoa+Vang', 3, 3), 
-(10, 'Biên Niên Ký Chim Vặn Cót', 4, 2, 'ISBN-010', 'https://placehold.co/300x450/e2e8f0/475569?text=Chim+Van+Cot', 5, 4), 
-(11, 'Vợ Nhặt', 2, 2, 'ISBN-011', 'https://placehold.co/300x450/e2e8f0/475569?text=Vo+Nhat', 2, 2), 
-(12, 'Quẳng Gánh Lo Đi', 3, 1, 'ISBN-012', 'https://placehold.co/300x450/e2e8f0/475569?text=Quang+Ganh+Lo', 4, 3);
+-- 5. TẠO BOOKS
+INSERT INTO books (id, title, author_id, publisher_id, isbn, description, cover_url, total_copies, available_copies) VALUES
+(1, 'Clean Code - Mã Sạch', 2, 3, 'ISBN-978013235', 'Cẩm nang viết code sạch cho lập trình viên', 'https://placehold.co/300x450/e2e8f0/475569?text=Clean+Code', 10, 8),
+(2, 'Tôi Thấy Hoa Vàng Trên Cỏ Xanh', 1, 1, 'ISBN-123456789', 'Một câu chuyện tuổi thơ đầy cảm xúc', 'https://placehold.co/300x450/e2e8f0/475569?text=Hoa+Vang+Co+Xanh', 5, 2),
+(3, 'Đắc Nhân Tâm', 3, 1, 'ISBN-987654321', 'Nghệ thuật thu phục lòng người', 'https://placehold.co/300x450/e2e8f0/475569?text=Dac+Nhan+Tam', 8, 8),
+(4, 'Dế Mèn Phiêu Lưu Ký', 4, 2, 'ISBN-555555555', 'Cuộc phiêu lưu của Dế Mèn', 'https://placehold.co/300x450/e2e8f0/475569?text=De+Men', 12, 10);
 
+-- 6. MAP BOOK VỚI CATEGORY
 INSERT INTO book_categories (book_id, category_id) VALUES
-(1, 1), (2, 1), (3, 1), (4, 5), (5, 2), (6, 2), (7, 2), (8, 1), (9, 1), (10, 2), (11, 1), (12, 5);
+(1, 1), (2, 3), (3, 4), (4, 3);
 
-INSERT INTO borrows (user_id, book_id, handled_by, borrow_date, due_date, status) VALUES
-(4, 1, 2, '2026-05-10', '2026-05-24', 'borrowing'),
-(5, 2, 3, '2026-05-11', '2026-05-25', 'borrowing'),
-(6, 3, 2, '2026-05-01', '2026-05-15', 'overdue'),
-(4, 3, 2, '2026-05-15', '2026-05-29', 'borrowing'),
-(5, 5, 3, '2026-05-12', '2026-05-26', 'renewed'),
-(6, 7, 2, '2026-05-14', '2026-05-28', 'borrowing'),
-(4, 10, 3, '2026-05-16', '2026-05-30', 'borrowing'),
-(5, 12, 2, '2026-05-17', '2026-05-31', 'borrowing');
+-- 7. TẠO BORROWS (CÁC KỊCH BẢN DEMO THỰC TẾ)
+-- Sử dụng CURRENT_DATE() để dữ liệu luôn hợp lệ với ngày bạn Demo
+INSERT INTO borrows (id, user_id, book_id, handled_by, borrow_date, due_date, return_date, status, fine_amount, fine_paid) VALUES
+-- Kịch bản 1: Đang chờ duyệt (Pending) -> User mới bấm Borrow Now
+(1, 3, 1, NULL, CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 14 DAY), NULL, 'pending', 0, 0),
 
+-- Kịch bản 2: Đang mượn (Borrowing) -> Admin đã Approved
+(2, 4, 2, 2, DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY), DATE_ADD(CURRENT_DATE(), INTERVAL 11 DAY), NULL, 'borrowing', 0, 0),
 
+-- Kịch bản 3: Đang yêu cầu trả sách (Returning) -> Đợi Admin Confirm Return
+(3, 5, 4, 2, DATE_SUB(CURRENT_DATE(), INTERVAL 10 DAY), DATE_ADD(CURRENT_DATE(), INTERVAL 4 DAY), NULL, 'returning', 0, 0),
 
+-- Kịch bản 4: Đã trả sách đúng hạn (Returned) -> Đóng luồng thành công
+(4, 3, 3, 2, DATE_SUB(CURRENT_DATE(), INTERVAL 20 DAY), DATE_SUB(CURRENT_DATE(), INTERVAL 6 DAY), DATE_SUB(CURRENT_DATE(), INTERVAL 8 DAY), 'returned', 0, 0),
+
+-- Kịch bản 5: Bị từ chối mượn (Cancelled)
+(5, 5, 2, 2, DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY), DATE_ADD(CURRENT_DATE(), INTERVAL 13 DAY), NULL, 'cancelled', 0, 0),
+
+-- Kịch bản 6: Quá hạn mượn chưa trả (Overdue) -> Phạt 5000đ (Trễ 5 ngày)
+(6, 4, 1, 2, DATE_SUB(CURRENT_DATE(), INTERVAL 19 DAY), DATE_SUB(CURRENT_DATE(), INTERVAL 5 DAY), NULL, 'overdue', 5000, 0),
+
+-- Kịch bản 7: Báo mất sách (Lost)
+(7, 3, 2, 2, DATE_SUB(CURRENT_DATE(), INTERVAL 15 DAY), DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY), NULL, 'lost', 50000, 0);
+
+-- 8. TẠO NOTIFICATIONS (Hệ thống thông báo đẩy cho Admin và User)
+INSERT INTO notifications (user_id, borrow_id, book_id, receiver_role, title, message, type, is_read) VALUES
+-- Admin nhận thông báo có người muốn mượn
+(NULL, 1, 1, 'admin_employee', 'Yêu cầu mượn sách mới', 'Nguyễn Văn A muốn mượn cuốn "Clean Code - Mã Sạch"', 'borrow_request', 0),
+-- Admin nhận thông báo có người muốn trả sách
+(NULL, 3, 4, 'admin_employee', 'Yêu cầu trả sách', 'Lê Văn C muốn trả cuốn "Dế Mèn Phiêu Lưu Ký"', 'return_request', 0),
+-- User nhận thông báo mượn thành công
+(4, 2, 2, 'user', 'Mượn sách thành công', 'Yêu cầu mượn cuốn "Tôi Thấy Hoa Vàng Trên Cỏ Xanh" đã được duyệt', 'approved', 1),
+-- User nhận thông báo bị từ chối
+(5, 5, 2, 'user', 'Yêu cầu bị từ chối', 'Yêu cầu mượn "Tôi Thấy Hoa Vàng Trên Cỏ Xanh" bị từ chối do hết sách', 'rejected', 0),
+-- User bị nhắc trễ hạn
+(4, 6, 1, 'user', 'Sách quá hạn!', 'Cuốn "Clean Code - Mã Sạch" đã quá hạn 5 ngày. Vui lòng trả sách và nộp phạt', 'overdue', 0);
+
+-- 9. TẠO REVIEWS & RATING (Demo chức năng đánh giá)
 INSERT INTO reviews (user_id, book_id, borrow_id, rating, comment) VALUES
-(4, 1, 1, 5, 'Rất hay'), (5, 1, 2, 4, 'Kết buồn'), (6, 2, 3, 5, 'Tuyệt vời'), 
-(4, 4, 4, 5, 'Bổ ích'), (5, 5, 5, 4, 'Sâu sắc'), (6, 6, 6, 5, 'Kinh điển');
+(3, 3, 4, 5, 'Sách rất hay, nhân viên thư viện nhiệt tình!');

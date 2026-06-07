@@ -153,42 +153,42 @@ const getTopBooks = async (limit = 10) => {
 // ── [MỚI] Thống kê tổng hợp cho trang Reports ───────────────────────────────
 // Trả về: totalBorrows, totalReturns, totalNewUsers, totalFinesCollected
 // Có thể lọc theo khoảng ngày
-const getReportSummary = async ({ from, to }) => {
-  const dateConds  = [];
-  const dateParams = [];
-  if (from) { dateConds.push('borrow_date >= ?'); dateParams.push(from); }
-  if (to) {
-    dateConds.push('borrow_date <= ?');
-    dateParams.push(`${to} 23:59:59`);
-  }
-  const whereDate = dateConds.length ? `WHERE ${dateConds.join(' AND ')}` : '';
+const getReportSummary = async (from, to) => {
+  // Cực kỳ quan trọng: Ép thời gian đến cuối ngày để không sót dữ liệu
+  const fromDate = `${from} 00:00:00`;
+  const toDate = `${to} 23:59:59`;
 
-  const [[borrowStats]] = await db.query(
-    `SELECT
-       COUNT(*) AS totalBorrows,
-       SUM(CASE WHEN status = 'returned' THEN 1 ELSE 0 END) AS totalReturns,
-       COALESCE(SUM(CASE WHEN fine_paid = 1 THEN fine_amount ELSE 0 END), 0) AS totalFinesCollected
-     FROM borrows
-     ${whereDate}`,
-    dateParams
+  // 1. Total Borrows: Tổng số lượt mượn (Lọc theo borrow_date)
+  const [[{ totalBorrows }]] = await db.query(
+    `SELECT COUNT(*) AS totalBorrows FROM borrows WHERE borrow_date BETWEEN ? AND ?`,
+    [from, to] // Cột DATE chỉ cần YYYY-MM-DD
   );
 
-  // New users: lọc theo ngày tạo (dùng created_at) trong cùng khoảng
-  const userConds  = ["role = 'user'"];
-  const userParams = [];
-  if (from) { userConds.push('created_at >= ?'); userParams.push(from); }
-  if (to)   { userConds.push('created_at <= ?'); userParams.push(to + ' 23:59:59'); }
+  // 2. Total Returns: Tổng sách đã trả (Lọc theo return_date)
+  const [[{ totalReturns }]] = await db.query(
+    `SELECT COUNT(*) AS totalReturns FROM borrows WHERE status = 'returned' AND return_date BETWEEN ? AND ?`,
+    [from, to] // Cột DATE chỉ cần YYYY-MM-DD
+  );
 
+  // 3. New Members: Tổng độc giả mới (Lọc theo created_at là DATETIME)
   const [[{ totalNewUsers }]] = await db.query(
-    `SELECT COUNT(*) AS totalNewUsers FROM users WHERE ${userConds.join(' AND ')}`,
-    userParams
+    `SELECT COUNT(*) AS totalNewUsers FROM users WHERE role = 'user' AND created_at BETWEEN ? AND ?`,
+    [fromDate, toDate] // Phải dùng toDate có 23:59:59
+  );
+
+  // 4. Fines Collected: Tổng tiền phạt ĐÃ THU (fine_paid = 1) (Lọc theo return_date)
+  const [[{ totalFinesCollected }]] = await db.query(
+    `SELECT COALESCE(SUM(fine_amount), 0) AS totalFinesCollected 
+     FROM borrows 
+     WHERE fine_paid = 1 AND return_date BETWEEN ? AND ?`,
+    [from, to]
   );
 
   return {
-    totalBorrows:        Number(borrowStats.totalBorrows)        || 0,
-    totalReturns:        Number(borrowStats.totalReturns)        || 0,
-    totalFinesCollected: Number(borrowStats.totalFinesCollected) || 0,
-    totalNewUsers:       Number(totalNewUsers)                   || 0,
+    totalBorrows: totalBorrows || 0,
+    totalReturns: totalReturns || 0,
+    totalNewUsers: totalNewUsers || 0,
+    totalFinesCollected: totalFinesCollected || 0
   };
 };
 
@@ -223,24 +223,23 @@ const getBorrowChart = async (year) => {
 // ── [MỚI] Thống kê theo danh mục sách ───────────────────────────────────────
 // Trả về mỗi category: tổng mượn, tổng trả, tổng quá hạn
 const getCategoryReport = async ({ from, to }) => {
-  const dateConds  = [];
+  const joinConds  = ['b.book_id = bk.id'];
   const dateParams = [];
-  if (from) { dateConds.push('b.borrow_date >= ?'); dateParams.push(from); }
-  if (to)   { dateConds.push('b.borrow_date <= ?'); dateParams.push(to);   }
-  const whereDate = dateConds.length ? `AND ${dateConds.join(' AND ')}` : '';
+  if (from) { joinConds.push('b.borrow_date >= ?'); dateParams.push(from); }
+  if (to)   { joinConds.push('b.borrow_date <= ?'); dateParams.push(`${to} 23:59:59`); }
 
   const [rows] = await db.query(
     `SELECT
-       c.name AS category,
-       COUNT(b.id) AS borrowed,
-       SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END) AS returned,
-       SUM(CASE WHEN b.status IN ('overdue') THEN 1 ELSE 0 END) AS overdue
-     FROM categories c
-     LEFT JOIN book_categories bc ON bc.category_id = c.id
-     LEFT JOIN books bk            ON bk.id = bc.book_id
-     LEFT JOIN borrows b            ON b.book_id = bk.id ${whereDate}
-     GROUP BY c.id, c.name
-     ORDER BY borrowed DESC`,
+   c.name AS category,
+   COUNT(b.id) AS borrowed,
+   COALESCE(SUM(CASE WHEN b.status = 'returned' THEN 1 ELSE 0 END), 0) AS returned,
+   COALESCE(SUM(CASE WHEN b.status = 'overdue'  THEN 1 ELSE 0 END), 0) AS overdue
+ FROM categories c
+ LEFT JOIN book_categories bc ON bc.category_id = c.id
+ LEFT JOIN books bk           ON bk.id = bc.book_id
+ LEFT JOIN borrows b          ON ${joinConds.join(' AND ')}
+ GROUP BY c.id, c.name
+ ORDER BY borrowed DESC`,
     dateParams
   );
 

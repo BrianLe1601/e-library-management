@@ -68,7 +68,7 @@ const adminService = {
   restoreNotificatiApi  : (id)            => api.patch(`/admin/notifications/${id}/restore`),
   deleteNotificatiApi   : (id)            => api.delete(`/admin/notifications/${id}`),
   bulkActionNotificatioApi : (action, ids, extraParams = {}) => api.post('/admin/notifications/bulk', { action, ids, ...extraParams }),
-  createNotificatiApi   : (data)          => api.post('/admin/notifications', data),
+  createNotificationApi   : (data)          => api.post('/admin/notifications', data),
   
 }
 
