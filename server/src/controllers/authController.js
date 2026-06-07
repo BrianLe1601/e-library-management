@@ -16,9 +16,72 @@ const db = require('../config/db');
 const userModel = require('../models/userModel');
 const { signToken } = require('../utils/jwt');
 const { success, error } = require('../utils/response');
+
+const axios = require('axios'); 
+
 const nodemailer = require('nodemailer');
 
+
 const SALT_ROUNDS = 10;
+
+const sendMailHelper = async (toEmail, subject, htmlContent) => {
+    if (process.env.NODE_ENV === 'production') {
+        if (!process.env.RESEND_API_KEY) {
+            console.warn('[sendMailHelper] Thiếu biến môi trường RESEND_API_KEY');
+            return false;
+        }
+        try {
+            // Đã đổi to: toEmail để gửi trực tiếp cho người nhận mong muốn
+            const response = await axios.post('https://api.resend.com/emails', {
+                from: 'onboarding@resend.dev', 
+                to: toEmail.trim(),            
+                subject: subject,              
+                html: htmlContent
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 8000
+            });
+            
+            console.log(`[Render Cloud] Đã gửi mail thành công tới: ${toEmail}`);
+            return true; 
+        } catch (err) {
+            console.error('[Render Cloud] Lỗi Resend API:', err.response?.data || err.message);
+            return false; 
+        }
+    }
+    
+    else {
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+        console.warn('[Localhost] Thiếu MAIL_USER hoặc MAIL_PASS trong file .env');
+        return false;
+    }
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.MAIL_USER.trim(),
+                pass: process.env.MAIL_PASS.trim().replace(/\s+/g, '') 
+            }
+        });
+
+        await transporter.sendMail({
+            from: `"E-Library Local" <${process.env.MAIL_USER.trim()}>`,
+            to: toEmail, 
+            subject: subject,
+            html: htmlContent
+        });
+        
+        console.log(`[Localhost] Đã gửi thành công qua Gmail tới: ${toEmail}`);
+        return true;
+    } catch (err) {
+        console.error('[Localhost] Lỗi Nodemailer:', err.message);
+        return false;
+    }
+}
+};
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 exports.register = async (req, res) => {
@@ -43,81 +106,50 @@ exports.register = async (req, res) => {
         } else {
             const hashedPassword = await bcrypt.hash(password, 10);
             const [result] = await db.query(
-                'INSERT INTO users (full_name, email, password, phone, role, status) VALUES (?, ?, ?, ?, ?, "pending")',
+                "INSERT INTO users (full_name, email, password, phone, role, status) VALUES (?, ?, ?, ?, ?, 'pending')",
                 [full_name, email, hashedPassword, phone, role || 'user']
             );
             userId = result.insertId;
         }
 
-        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "register"', [email]);
+        await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'register'", [email]);
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
         await db.query(
-            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "register", ?)',
+            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'register', ?)",
             [email, otpCode, expiresAt]
         );
 
-        const mailUser = process.env.MAIL_USER;
-        const mailPass = process.env.MAIL_PASS;
-        const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-        const mailHost = process.env.MAIL_HOST || 'smtp.gmail.com';
-        const mailPort = Number(process.env.MAIL_PORT) || 587;
-
-        let mailSent = false;
-        if (mailUser && mailPass) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: mailHost,
-                    port: mailPort,
-                    secure: false,
-                    auth: { user: mailUser, pass: mailPass }
-                });
-
-                await transporter.sendMail({
-                    from: mailFrom,
-                    to: email,
-                    subject: 'E-Library Account Activation OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
-                            <p>Hello,</p>
-                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
-                });
-                mailSent = true;
-            } catch (mailError) {
-                console.warn(`[authController.register] Failed to send email to ${email}:`, mailError.message);
-                if (process.env.NODE_ENV === 'production') {
-                    throw mailError;
-                }
-            }
-        } else {
-            console.warn(`Missing Mail configuration in .env. OTP for ${email} is: ${otpCode}`);
-        }
+        let mailSent = await sendMailHelper(
+            email,
+            'E-Library Account Activation OTP',
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
+                <p>Hello,</p>
+                <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                        ${otpCode}
+                    </span>
+                </div>
+                <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+            </div>`
+        );
 
         const responsePayload = {
             success: true,
             message: mailSent
                 ? 'Registration successful! Please check your email for the OTP verification code.'
-                : 'Registration successful! The system generated an OTP (but email sending failed in test environment).',
+                : 'Registration successful! System generated an OTP.',
         };
 
-        if (!mailSent || !mailUser || !mailPass) {
-            responsePayload.debugOtp = otpCode;
-        }
+        if (!mailSent) responsePayload.debugOtp = otpCode; 
 
         return res.status(200).json(responsePayload);
     } catch (error) {
         console.error('[authController.register] System error:', error);
-        const response = { success: false, message: 'An error occurred during account registration.' };
-        if (process.env.NODE_ENV !== 'production') response.detail = error.message;
-        return res.status(500).json(response);
+        return res.status(500).json({ success: false, message: 'An error occurred during account registration.' });
     }
 };
 
@@ -131,48 +163,30 @@ exports.resendOtp = async (req, res) => {
         const user = users[0];
         if (user.status !== 'pending') return res.status(400).json({ success: false, message: 'This account has already been verified.' });
 
-        // Xóa OTP cũ và tạo mới
-        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "register"', [email]);
+        await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'register'", [email]);
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
         await db.query(
-            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "register", ?)',
+            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'register', ?)",
             [email, otpCode, expiresAt]
         );
 
-        // Logic gửi Mail (Giống hệt phần Register)
-        const mailUser = process.env.MAIL_USER;
-        const mailPass = process.env.MAIL_PASS;
-        let mailSent = false;
-
-        if (mailUser && mailPass) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-                    port: Number(process.env.MAIL_PORT) || 587,
-                    secure: false,
-                    auth: { user: mailUser, pass: mailPass }
-                });
-                await transporter.sendMail({
-                    from: process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>',
-                    to: email,
-                    subject: 'E-Library Account Activation OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
-                            <p>Hello,</p>
-                            <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
-                });
-                mailSent = true;
-            } catch (err) { console.warn('Error sending email:', err.message); }
-        }
+        let mailSent = await sendMailHelper(
+            email,
+            'E-Library Account Activation OTP',
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">E-Library Account Verification</h2>
+                <p>Hello,</p>
+                <p>Thank you for registering an account on our E-Library system. Your account activation OTP is:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                        ${otpCode}
+                    </span>
+                </div>
+                <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+            </div>`
+        );
 
         const responsePayload = { success: true, message: 'New OTP code has been sent to your email.' };
         if (!mailSent) responsePayload.debugOtp = otpCode;
@@ -189,7 +203,7 @@ exports.verifyOtp = async (req, res) => {
     try {
         const [otps] = await db.query(
             `SELECT * FROM otps 
-             WHERE email = ? AND otp_code = ? AND action_type = "register" 
+             WHERE email = ? AND otp_code = ? AND action_type = 'register' 
              AND is_used = 0 AND expires_at > NOW() 
              ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
@@ -197,7 +211,7 @@ exports.verifyOtp = async (req, res) => {
         if (otps.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
 
         await db.query('UPDATE otps SET is_used = 1 WHERE id = ?', [otps[0].id]);
-        await db.query('UPDATE users SET status = "active" WHERE email = ?', [email]);
+        await db.query("UPDATE users SET status = 'active' WHERE email = ?", [email]);
         return res.status(200).json({ success: true, message: 'Verification successful. Now you can login.' });
     } catch (error) {
         console.error('[authController.verifyOtp] Error:', error);
@@ -217,7 +231,6 @@ exports.login = async (req, res) => {
         if (user.status === 'pending') return res.status(401).json({ message: 'Account has not been verified with OTP.' });
         if (user.status === 'banned') return res.status(403).json({ message: 'Your account has been banned.' });
 
-        // TÌNH HUỐNG CHẶN: Nếu mật khẩu trong DB là token Google, yêu cầu họ nhấn nút đăng nhập bằng Google bên dưới
         if (user.password === 'GOOGLE_AUTH_ACCOUNT' || user.login_method === 'google') {
             return res.status(400).json({ 
                 message: 'This account was registered via Google. Please click the "Google" button below to log in!' 
@@ -248,7 +261,6 @@ exports.googleLogin = async (req, res) => {
     }
 
     try {
-        // Gọi trực tiếp API chính chủ của Google để lấy thông tin User từ Access Token nhận từ React
         const googleRes = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
         if (!googleRes.ok) {
             return res.status(400).json({ success: false, message: 'Invalid or expired Google access token.' });
@@ -257,34 +269,29 @@ exports.googleLogin = async (req, res) => {
         const payload = await googleRes.json();
         const { sub: googleId, email, name, picture } = payload;
 
-        // Tìm User trong DB
         const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
         let user;
 
         if (users.length > 0) {
             user = users[0];
 
-            // Kịch bản bảo mật: Giữ vững logic chặn tài khoản Banned tuyệt đối của bạn
             if (user.status === 'banned') {
                 return res.status(403).json({ success: false, message: 'Your account has been banned.' });
             }
 
-            // Kịch bản Liên kết tài khoản (Account Linking): Nếu trước kia đăng ký form local, giờ dùng Google
             if (user.login_method === 'local' || !user.google_id) {
                 await db.query(
-                    'UPDATE users SET google_id = ?, login_method = "google", avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?',
+                    "UPDATE users SET google_id = ?, login_method = 'google', avatar_url = COALESCE(avatar_url, ?), updated_at = NOW() WHERE id = ?",
                     [googleId, picture, user.id]
                 );
                 user.login_method = 'google';
             }
 
-            // Tiện ích bổ sung: Nếu đang bị 'pending' OTP thường mà bấm Google Login thành công -> Active luôn vì Google đã chứng thực Email sạch rồi
             if (user.status === 'pending') {
-                await db.query('UPDATE users SET status = "active", updated_at = NOW() WHERE id = ?', [user.id]);
+                await db.query("UPDATE users SET status = 'active', updated_at = NOW() WHERE id = ?", [user.id]);
                 user.status = 'active';
             }
         } else {
-            // Kịch bản Tạo mới tinh: Tự động ghi nhận thông tin và bỏ qua bước bắt nhập OTP phiền phức
             const [result] = await db.query(
                 `INSERT INTO users (full_name, email, password, avatar_url, role, status, login_method, google_id) 
                  VALUES (?, ?, 'GOOGLE_AUTH_ACCOUNT', ?, 'user', 'active', 'google', ?)`,
@@ -295,10 +302,8 @@ exports.googleLogin = async (req, res) => {
             user = newUsers[0];
         }
 
-        // Ký token JWT bằng cơ chế cấu hình sẵn của bạn
         const token = signToken({ id: user.id, email: user.email, role: user.role });
 
-        // Trả về định dạng đồng bộ hoàn toàn với hàm Đăng nhập Local gốc
         return res.status(200).json({
             success: true,
             data: {
@@ -326,52 +331,31 @@ exports.forgotPassword = async (req, res) => {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-        await db.query('DELETE FROM otps WHERE email = ? AND action_type = "forgot_password"', [email]);
+        await db.query("DELETE FROM otps WHERE email = ? AND action_type = 'forgot_password'", [email]);
         await db.query(
-            'INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, "forgot_password", ?)',
+            "INSERT INTO otps (email, otp_code, action_type, expires_at) VALUES (?, ?, 'forgot_password', ?)",
             [email, otpCode, expiresAt]
         );
 
-        const mailUser = process.env.MAIL_USER;
-        const mailPass = process.env.MAIL_PASS;
-        const mailFrom = process.env.MAIL_FROM || '"E-Library" <no-reply@elibrary.com>';
-        let mailSent = false;
-
-        if (mailUser && mailPass) {
-            try {
-                const transporter = nodemailer.createTransport({
-                    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-                    port: Number(process.env.MAIL_PORT) || 587,
-                    secure: false,
-                    auth: { user: mailUser, pass: mailPass }
-                });
-
-                await transporter.sendMail({
-                    from: mailFrom,
-                    to: email,
-                    subject: 'E-Library Password Reset OTP',
-                    html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-                            <h2 style="color: #4f46e5; text-align: center;">Reset E-Library Account Password</h2>
-                            <p>Hello,</p>
-                            <p>You recently requested a password reset on our E-Library system. Your password reset OTP is:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
-                                    ${otpCode}
-                                </span>
-                            </div>
-                            <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
-                           </div>`
-                });
-                mailSent = true;
-            } catch (mailError) {
-                console.warn('[authController.forgotPassword] Email sending failed:', mailError.message);
-            }
-        } else {
-            console.warn(`[forgotPassword] Missing Mail config. OTP for ${email}: ${otpCode}`);
-        }
+        let mailSent = await sendMailHelper(
+            email,
+            'E-Library Password Reset OTP',
+            `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <h2 style="color: #4f46e5; text-align: center;">Reset E-Library Account Password</h2>
+                <p>Hello,</p>
+                <p>You recently requested a password reset on our E-Library system. Your password reset OTP is:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <span style="font-size: 28px; font-weight: bold; color: #4f46e5; letter-spacing: 4px; background-color: #f3f4f6; padding: 10px 20px; border-radius: 8px;">
+                        ${otpCode}
+                    </span>
+                </div>
+                <p style="color: #ef4444;">* This OTP is valid for 5 minutes. Please do not share this code with anyone.</p>
+            </div>`
+        );
 
         const responsePayload = { success: true, message: 'OTP sent successfully' };
-        if (!mailSent || !mailUser || !mailPass) responsePayload.debugOtp = otpCode;
+        if (!mailSent) responsePayload.debugOtp = otpCode; // Phao cứu sinh
+
         return res.status(200).json(responsePayload);
     } catch (error) {
         console.error(error);
@@ -385,7 +369,7 @@ exports.verifyForgotOtp = async (req, res) => {
     try {
         const [otps] = await db.query(
             `SELECT * FROM otps 
-             WHERE email = ? AND otp_code = ? AND action_type = "forgot_password" 
+             WHERE email = ? AND otp_code = ? AND action_type = 'forgot_password' 
              AND is_used = 0 AND expires_at > NOW() 
              ORDER BY created_at DESC LIMIT 1`,
             [email, otp]
@@ -412,7 +396,7 @@ exports.resetPassword = async (req, res) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const email = decoded.email;
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await db.query('UPDATE users SET password = ?, login_method = "local", google_id = NULL WHERE email = ?', [hashedPassword, email]);
+        await db.query("UPDATE users SET password = ?, login_method = 'local', google_id = NULL WHERE email = ?", [hashedPassword, email]);
         return res.status(200).json({ success: true, message: 'Password changed successfully!' });
     } catch (error) {
         return res.status(400).json({ success: false, message: 'Password reset session has expired (over 15 minutes).' });
