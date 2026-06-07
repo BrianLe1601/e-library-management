@@ -24,18 +24,30 @@ function parseSaved(dateStr) {
 
 // ─── SWR Fetcher ──────────────────────────────────────────────────────────────
 const fetchSavedBooks = async () => {
-  const res = await userService.getSavedBooks();
-  // Map dữ liệu từ Backend trả về cho khớp với UI
-  return (res.data?.data || []).map(b => ({
-    id: b.book_id,
-    title: b.title,
-    author: b.author,
-    category: b.category || "Uncategorized",
-    coverUrl: b.cover_url || "https://via.placeholder.com/150x220?text=No+Cover",
-    availableCopies: b.available_copies,
-    savedDate: b.saved_at,
-    expectedBackDate: b.expected_back_date || null
-  }));
+  const [savedRes, borrowRes] = await Promise.all([
+    userService.getSavedBooks(),
+    borrowService.getMyBooks()
+  ]);
+
+  const borrows = borrowRes.data?.data || [];
+
+  return (savedRes.data?.data || []).map(b => {
+
+    const borrow = borrows.find(
+      x => String(x.book_id) === String(b.book_id)
+    );
+    return {
+      id: b.book_id,
+      title: b.title,
+      author: b.author,
+      category: b.category || "Uncategorized",
+      coverUrl: b.cover_url || "https://via.placeholder.com/150x220?text=No+Cover",
+      availableCopies: b.available_copies,
+      savedDate: b.saved_at,
+      expectedBackDate: b.expected_back_date || null,
+      borrowStatus: borrow?.status || null,
+    };
+  });
 };
 
 const CATEGORY_COLORS = {
@@ -88,6 +100,10 @@ function Toast({ message, type = "success" }) {
 
 function BookCard({ book, onUnsave, onBorrow, onHold, isActionLoading }) {
   const available = book.availableCopies > 0;
+  const isPending = book.borrowStatus === "pending";
+  const isBorrowing = ["borrowing", "renewed"].includes(book.borrowStatus);
+  const isOverdue = book.borrowStatus === "overdue";
+  const isReturning = book.borrowStatus === "returning";
 
   return (
     <div className="group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 h-full">
@@ -125,21 +141,77 @@ function BookCard({ book, onUnsave, onBorrow, onHold, isActionLoading }) {
         </div>
 
         <div className="flex flex-col gap-2 mt-auto">
-          {available ? (
+          {isPending ? (
+            <div className="
+              flex justify-center items-center
+              gap-1.5
+              w-full py-2
+              rounded-xl
+              text-xs
+              bg-amber-50
+              text-amber-700
+              border border-amber-200
+            ">
+              <Clock size={14}/>
+              Awaiting Approval
+            </div>
+          ) : isBorrowing ? (
+            <div className="
+              flex justify-center items-center
+              gap-1.5
+              w-full py-2
+              rounded-xl
+              text-xs
+              bg-green-50
+              text-green-700
+              border border-green-200
+            ">
+              <CheckCircle size={14}/>
+              Currently Borrowing
+            </div>
+          ) : isOverdue ? (
+            <div className="
+              flex justify-center items-center
+              gap-1.5
+              w-full py-2
+              rounded-xl
+              text-xs
+              bg-red-50
+              text-red-700
+              border border-red-200
+            ">
+              <AlertTriangle size={14}/>
+              Overdue
+            </div>
+          ) : isReturning ? (
+            <div className="
+              flex justify-center items-center
+              gap-1.5
+              w-full py-2
+              rounded-xl
+              text-xs
+              bg-teal-50
+              text-teal-700
+              border border-teal-200
+            ">
+              <Loader2 size={14}/>
+              Return Requested
+            </div>
+          ) : available ? (
             <button
               onClick={() => onBorrow(book.id)}
               disabled={isActionLoading}
               className="flex justify-center items-center gap-1.5 w-full py-2 rounded-xl text-xs text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-50"
-              style={{ fontWeight: 600 }}
             >
-              {isActionLoading ? <Loader2 size={14} className="animate-spin" /> : "Borrow Now"}
+              {isActionLoading
+                ? <Loader2 size={14} className="animate-spin" />
+                : "Borrow Now"}
             </button>
           ) : (
             <button
               onClick={() => onHold(book.id)}
               disabled={isActionLoading}
-              className="flex justify-center items-center gap-1.5 w-full py-2 rounded-xl text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors disabled:opacity-50"
-              style={{ fontWeight: 600 }}
+              className="flex justify-center items-center gap-1.5 w-full py-2 rounded-xl text-xs text-indigo-600 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700"
             >
               Place Hold
             </button>
@@ -193,10 +265,13 @@ export default function SavedBooksTab() {
   const handleBorrow = async (id) => {
     setActionId(id);
     try {
-      await borrowService.createBorrow({ book_id: id });
+      await borrowService.borrowBook(id);
       showToast("Borrow request submitted successfully!");
-      // Tùy chọn: Xóa khỏi savedList nếu mượn thành công
-      // handleUnsave(id); 
+      mutate( prev => prev.map(book => book.id === id
+              ? { ...book, borrowStatus: "pending",} : book),false
+      );
+
+      await mutate();
     } catch (err) {
       showToast(err.response?.data?.message || "Failed to borrow book.", "error");
     } finally {

@@ -186,6 +186,30 @@ const createUserByAdmin = async ({ full_name, email, password, phone, role }) =>
   return result.insertId;
 };
 
+// Thêm vào cuối userModel.js, trước module.exports
+const getUserStats = async (userId) => {
+  const [[read]] = await db.query(
+    `SELECT COUNT(*) AS total FROM borrows 
+     WHERE user_id = ? AND status IN ('returned','returning')`,
+    [userId]
+  );
+  const [[thisMonth]] = await db.query(
+    `SELECT COUNT(*) AS total FROM borrows
+     WHERE user_id = ? AND status IN ('returned','returning')
+       AND MONTH(return_date) = MONTH(CURRENT_DATE())
+       AND YEAR(return_date) = YEAR(CURRENT_DATE())`,
+    [userId]
+  );
+  const [[rated]] = await db.query(
+    `SELECT COUNT(*) AS total FROM reviews WHERE user_id = ?`,
+    [userId]
+  );
+  return {
+    booksRead:   Number(read.total),
+    thisMonth:   Number(thisMonth.total),
+    ratingGiven: Number(rated.total)
+  };
+};
 
 module.exports = { 
   findAllForAdmin,
@@ -199,5 +223,6 @@ module.exports = {
   toggleUserStatus,
   deleteUser,
   updateUserRole,
-  createUserByAdmin
+  createUserByAdmin,
+  getUserStats,
 };

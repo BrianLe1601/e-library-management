@@ -21,7 +21,7 @@ router.post('/',
 );
 
 router.get('/my-books',  borrowCtrl.getMyBooks);
-router.get('/history',   borrowCtrl.getHistory);
+router.get('/history', authorize('user'), borrowCtrl.getHistory);
 
 // QUAN TRỌNG: các route cố định phải đặt TRƯỚC /:id
 // Thứ tự: /extend/:id, /request-return/:id, /return/:id, /pay-fine/:id, /lost/:id

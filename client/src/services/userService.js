@@ -1,7 +1,7 @@
 import api from "./api";
 
 const userService = {
-
+  getMyStats: () => api.get("/users/stats"),
   // ── Notifications ──────────────────────────────────────────────────────────
   getMyNotifications:      (params = {}) => api.get("/users/notifications", { params }),
   markNotificationRead:    (id)          => api.patch(`/users/notifications/${id}/read`),

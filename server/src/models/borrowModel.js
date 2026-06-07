@@ -271,7 +271,7 @@ const findHistoryByUser = async (userId, { page = 1, limit = 10 }) => {
        WHERE bc.book_id = bk.id LIMIT 1) AS category,
       -- Lấy rating của user cho cuốn sách này
       (SELECT r.rating FROM reviews r
-        WHERE r.borrow_id = b.id
+        WHERE r.book_id = b.book_id
           AND r.user_id = b.user_id
         LIMIT 1) AS user_rating
     FROM borrows b
